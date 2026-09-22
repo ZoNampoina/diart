@@ -8,13 +8,13 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg'],
+      includeAssets: ['icon.svg', 'logo-day.svg', 'logo-night.svg'],
       manifest: {
         name: "DI'ART by ARIZONA",
         short_name: "DI'ART",
         description: 'Répertoire musical personnel local-first',
-        theme_color: '#0b0b0d',
-        background_color: '#0b0b0d',
+        theme_color: '#06171d',
+        background_color: '#06171d',
         display: 'standalone',
         start_url: './',
         scope: './',
