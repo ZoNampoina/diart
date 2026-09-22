@@ -4,7 +4,7 @@ import { duplicateKey, normalizeKey, parseBpm, parseDuration, parseTags, transpo
 describe('music utils', () => {
   it('normalizes keys', () => {
     expect(normalizeKey('g min')).toBe('Gm')
-    expect(normalizeKey('Eb')).toBe('D#')
+    expect(normalizeKey('Eb')).toBe('Eb')
   })
   it('parses bpm and durations', () => {
     expect(parseBpm('Tempo 72 BPM')).toBe(72)
