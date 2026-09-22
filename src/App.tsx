@@ -218,7 +218,7 @@ function App() {
         {page==='setlist'&&currentSetlist&&<SetlistDetailPage list={currentSetlist} songs={songs} refresh={refreshSetlists} toast={toast} onBack={()=>go('setlists')} onOpenSong={s=>openSong(s,{page:'setlist',label:currentSetlist.name})}/>} 
         {page==='song'&&selected&&<SongDetail song={songs.find(s=>s.id===selected.id)||selected} backLabel={songBack.label} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go(songBack.page)} onEdit={()=>go('edit')} onFav={()=>void fav(songs.find(s=>s.id===selected.id)||selected)} onLyricsSave={async lyrics=>{const id=selected.id;const updatedAt=new Date().toISOString();patchLocal(id,{lyrics,updatedAt});setSelected(prev=>prev&&prev.id===id?{...prev,lyrics,updatedAt}:prev);await updateSong(id,{lyrics});toast('Paroles enregistrées.')}} onDelete={async()=>{const id=selected.id;await softDeleteSong(id);removeLocal(id);toast('Morceau placé dans la corbeille',{label:'Annuler',run:async()=>{await db.songs.update(id,{deletedAt:null});await refresh()}});go('library')}}/>}
         {(page==='new'||(page==='edit'&&selected))&&<SongForm initial={page==='edit'?selected:null} presetArtist={page==='new'?presetArtist:''} presetAuthor={page==='new'?presetAuthor:''} onCancel={()=>go(selected?'song':selectedArtist?'artist':selectedAuthor?'author':'library')} onSave={async draft=>{if(page==='edit'&&selected){await updateSong(selected.id,draft);const updatedAt=new Date().toISOString();const next={...selected,...draft,updatedAt};patchLocal(selected.id,{...draft,updatedAt});setSelected(next);toast('Morceau mis à jour');go('song')}else{const s=await createSong(draft);addLocal(s);setSelected(s);toast('Morceau ajouté');go('song')}}}/>}
-        {page==='recueils'&&<RecueilsPage songs={songs} entryMode={recueilEntry} toast={toast} onImport={async draft=>{const s=await createSong(draft);addLocal(s)}}/>}
+        {page==='recueils'&&<RecueilsPage songs={songs} entryMode={recueilEntry} toast={toast} onImport={async draft=>{const s=await createSong(draft);addLocal(s)}} onComplete={async(id,patch)=>{await updateSong(id,patch);patchLocal(id,{...patch,updatedAt:new Date().toISOString()})}}/>}
         {page==='import'&&<ImportWizard songs={songs} refresh={refresh} toast={toast}/>}
         {page==='backup'&&<BackupPage songs={songs} refresh={refresh} toast={toast}/>}
         {page==='settings'&&<SettingsPage theme={theme} setTheme={setTheme} songs={songs} refresh={refresh} toast={toast} userEmail={userEmail} localCount={songs.filter(s=>s.source!=='demo').length} cloudStats={cloudStats} lastSyncAt={lastSyncAt} syncing={syncing} onSync={()=>void doSync()} onPull={()=>void forcePull()} onSignedIn={async()=>{const {data}=await supabase.auth.getUser();const u=data.user;setUserId(u?.id??'');setUserEmail(u?.email??'');if(u){setSyncing(true);try{await pullCloudToLocal(u.id);await syncAll(u.id);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(u.id)]);toast('Cloud DI’ART connecté et récupéré.')}finally{setSyncing(false)}}}}/>}
@@ -438,7 +438,49 @@ function SongForm({initial,presetArtist='',presetAuthor='',onCancel,onSave}:{ini
 
 const fieldOptions:[ImportField,string][]=[['title','Titre *'],['artist','Artiste'],['authorComposer','Auteur / Compositeur'],['originalKey','Tonalité originale'],['personalKey','Tonalité personnelle'],['bpm','BPM'],['timeSignature','Signature rythmique'],['style','Style'],['duration','Durée'],['tags','Tags'],['notes','Notes'],['referenceUrl','Lien de référence'],['capo','Capo'],['structure','Structure'],['chords','Accords'],['instrumentNotes','Notes instrumentales'],['lyrics','Paroles']]
 
-function RecueilsPage({songs,entryMode,onImport,toast}:{songs:Song[];entryMode:'tononkira'|null;onImport:(draft:SongDraft)=>Promise<void>;toast:(s:string)=>void}) {
+
+type SongCompletion = {patch:Partial<SongDraft>;labels:string[]}
+
+function songCompletion(existing:Song,incoming:SongDraft):SongCompletion{
+  const patch:Partial<SongDraft>={}
+  const labels:string[]=[]
+  const addString=(key:keyof SongDraft,label:string)=>{
+    const current=String(existing[key as keyof Song]??'').trim()
+    const next=String(incoming[key]??'').trim()
+    if(!current&&next){(patch as any)[key]=incoming[key];labels.push(label)}
+  }
+  addString('artist','Artiste')
+  addString('authorComposer','Auteur / compositeur')
+  addString('originalKey','Tonalité originale')
+  addString('personalKey','Tonalité habituelle')
+  addString('timeSignature','Signature')
+  addString('style','Style')
+  addString('structure','Structure')
+  addString('chords','Accords / repères')
+  addString('instrumentNotes','Notes instrumentales')
+  addString('lyrics','Paroles')
+  addString('referenceUrl','Lien source')
+  if(existing.bpm===null&&incoming.bpm!==null){patch.bpm=incoming.bpm;labels.push('BPM')}
+  if(existing.durationSeconds===null&&incoming.durationSeconds!==null){patch.durationSeconds=incoming.durationSeconds;labels.push('Durée')}
+  if((existing.capo===null||existing.capo===undefined)&&incoming.capo!==null&&incoming.capo!==undefined){patch.capo=incoming.capo;labels.push('Capo')}
+  const mergedTags=[...new Set([...(existing.tags??[]),...(incoming.tags??[])].map(x=>x.trim()).filter(Boolean))]
+  if(mergedTags.length>(existing.tags??[]).length){patch.tags=mergedTags;labels.push('Tags')}
+  return {patch,labels}
+}
+
+function reviewDraftFromExternal(full:{title?:string;artist?:string;sourceUrl?:string;source?:string;structure?:string;chords?:string},fallback:{title:string;artist:string;url:string}):SongDraft{
+  const draft=emptySongDraft()
+  draft.title=full.title||fallback.title
+  draft.artist=full.artist||fallback.artist
+  draft.structure=full.structure||''
+  draft.chords=full.chords||''
+  draft.referenceUrl=full.sourceUrl||fallback.url
+  draft.notes='Source recueil : '+(full.source||'Externe')
+  draft.source='import'
+  return draft
+}
+
+function RecueilsPage({songs,entryMode,onImport,onComplete,toast}:{songs:Song[];entryMode:'tononkira'|null;onImport:(draft:SongDraft)=>Promise<void>;onComplete:(id:string,patch:Partial<SongDraft>)=>Promise<void>;toast:(s:string)=>void}) {
   const [preview,setPreview]=useState<SongDraft|null>(null)
   const [fileName,setFileName]=useState('')
   const [tononkiraTitle,setTononkiraTitle]=useState('')
@@ -447,6 +489,7 @@ function RecueilsPage({songs,entryMode,onImport,toast}:{songs:Song[];entryMode:'
   const [tononkiraSearching,setTononkiraSearching]=useState(false)
   const [tononkiraSearched,setTononkiraSearched]=useState(false)
   const [tononkiraImporting,setTononkiraImporting]=useState('')
+  const [review,setReview]=useState<{existing:Song;incoming:SongDraft;source:string}|null>(null)
   const fileRef=useRef<HTMLInputElement>(null)
   const tononkiraTitleRef=useRef<HTMLInputElement>(null)
   useEffect(()=>{if(entryMode==='tononkira')requestAnimationFrame(()=>tononkiraTitleRef.current?.focus())},[entryMode])
@@ -478,12 +521,9 @@ function RecueilsPage({songs,entryMode,onImport,toast}:{songs:Song[];entryMode:'
   }
 
   const importTononkiraResult=async(item:TononkiraSearchResult)=>{
-    if(existingKeys.has(songKey(item.title,item.artist))){toast('Ce morceau existe déjà dans DI’ART.');return}
     setTononkiraImporting(item.url)
     try{
       const full=await fetchTononkiraReference(item.url)
-      const finalKey=songKey(full.title||item.title,full.artist||item.artist)
-      if(existingKeys.has(finalKey)){toast('Ce morceau existe déjà dans DI’ART.');return}
       const draft=emptySongDraft()
       draft.title=full.title||item.title||'Morceau Tononkira'
       draft.artist=full.artist||item.artist||''
@@ -491,6 +531,8 @@ function RecueilsPage({songs,entryMode,onImport,toast}:{songs:Song[];entryMode:'
       draft.referenceUrl=full.sourceUrl
       draft.notes='Source des paroles : Tononkira Malagasy'
       draft.source='import'
+      const existing=songs.find(s=>songKey(s.title,s.artist)===songKey(draft.title,draft.artist))
+      if(existing){setReview({existing,incoming:draft,source:'Tononkira'});return}
       await onImport(draft)
       toast(draft.title+' importé depuis Tononkira.')
     }catch{toast('Import Tononkira impossible pour ce morceau.')}
@@ -499,24 +541,26 @@ function RecueilsPage({songs,entryMode,onImport,toast}:{songs:Song[];entryMode:'
 
   return <><div className="page-head"><div><p className="eyebrow">Recueils · Sources musicales</p><h1>Recueils</h1><p>Recherchez directement dans Tononkira, Ultimate Guitar et Chordify, puis ajoutez les résultats utiles à DI’ART.</p></div></div>
 
-  <section className="panel tononkira-feature-card tononkira-search-card"><div className="tononkira-feature-mark">MG</div><div className="tononkira-feature-copy"><p className="eyebrow">Import direct Madagascar</p><h2>Tononkira Malagasy</h2><p>Recherche titre/artiste puis import automatique du titre, de l’artiste et des paroles.</p></div><div className="tononkira-search-fields"><label>Titre<input ref={tononkiraTitleRef} value={tononkiraTitle} onChange={e=>setTononkiraTitle(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void runTononkiraSearch()}} placeholder="Ex. Mama sera"/></label><label>Artiste <small>optionnel</small><input value={tononkiraArtist} onChange={e=>setTononkiraArtist(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void runTononkiraSearch()}} placeholder="Ex. Mahaleo"/></label><button className="primary tononkira-search-button" disabled={tononkiraSearching||tononkiraTitle.trim().length<2} onClick={()=>void runTononkiraSearch()}><Search/>{tononkiraSearching?'Recherche…':'Rechercher sur Tononkira'}</button></div>{tononkiraSearched&&<div className="tononkira-search-results"><div className="tononkira-results-head"><b>{tononkiraResults.length} résultat{tononkiraResults.length>1?'s':''}</b><small>Importer récupère automatiquement les paroles.</small></div>{tononkiraResults.length?tononkiraResults.map(item=>{const exists=existingKeys.has(songKey(item.title,item.artist));const busy=tononkiraImporting===item.url;return <article className={'tononkira-search-result '+(exists?'exists':'')} key={item.url}><div><b>{item.title}</b><span>{item.artist||'Artiste non renseigné'}</span></div><div className="tononkira-result-actions"><a className="bare-action" href={item.url} target="_blank" rel="noreferrer" title="Voir sur Tononkira"><ExternalLink/></a>{exists?<span className="catalog-exists"><Check/>Déjà dans DI’ART</span>:<button className="primary" disabled={Boolean(tononkiraImporting)} onClick={()=>void importTononkiraResult(item)}><Import/>{busy?'Import…':'Importer'}</button>}</div></article>}):<div className="catalog-empty">Aucun résultat.</div>}</div>}</section>
+  <section className="panel tononkira-feature-card tononkira-search-card"><div className="tononkira-feature-mark">MG</div><div className="tononkira-feature-copy"><p className="eyebrow">Import direct Madagascar</p><h2>Tononkira Malagasy</h2><p>Recherche titre/artiste puis import automatique du titre, de l’artiste et des paroles.</p></div><div className="tononkira-search-fields"><label>Titre<input ref={tononkiraTitleRef} value={tononkiraTitle} onChange={e=>setTononkiraTitle(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void runTononkiraSearch()}} placeholder="Ex. Mama sera"/></label><label>Artiste <small>optionnel</small><input value={tononkiraArtist} onChange={e=>setTononkiraArtist(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void runTononkiraSearch()}} placeholder="Ex. Mahaleo"/></label><button className="primary tononkira-search-button" disabled={tononkiraSearching||tononkiraTitle.trim().length<2} onClick={()=>void runTononkiraSearch()}><Search/>{tononkiraSearching?'Recherche…':'Rechercher sur Tononkira'}</button></div>{tononkiraSearched&&<div className="tononkira-search-results"><div className="tononkira-results-head"><b>{tononkiraResults.length} résultat{tononkiraResults.length>1?'s':''}</b><small>Importer récupère automatiquement les paroles.</small></div>{tononkiraResults.length?tononkiraResults.map(item=>{const exists=existingKeys.has(songKey(item.title,item.artist));const busy=tononkiraImporting===item.url;return <article className={'tononkira-search-result '+(exists?'exists':'')} key={item.url}><div><b>{item.title}</b><span>{item.artist||'Artiste non renseigné'}</span></div><div className="tononkira-result-actions"><a className="bare-action" href={item.url} target="_blank" rel="noreferrer" title="Voir sur Tononkira"><ExternalLink/></a>{exists?<button className="secondary review-import-btn" disabled={Boolean(tononkiraImporting)} onClick={()=>void importTononkiraResult(item)}><RotateCcw/>{busy?'Analyse…':'Revoir'}</button>:<button className="primary" disabled={Boolean(tononkiraImporting)} onClick={()=>void importTononkiraResult(item)}><Import/>{busy?'Import…':'Importer'}</button>}</div></article>}):<div className="catalog-empty">Aucun résultat.</div>}</div>}</section>
 
-  <ExternalRecueilSearch source="ultimate-guitar" badge="UG" name="Ultimate Guitar" description="Recherchez les grilles et tabs publiques. DI’ART importe les métadonnées et les repères/accords détectables, avec le lien source." songs={songs} onImport={onImport} toast={toast}/>
-  <ExternalRecueilSearch source="chordify" badge="CH" name="Chordify" description="Recherchez les chansons Chordify directement dans DI’ART et récupérez les métadonnées ainsi que les accords détectables." songs={songs} onImport={onImport} toast={toast}/>
+  <ExternalRecueilSearch source="ultimate-guitar" badge="UG" name="Ultimate Guitar" description="Recherchez les grilles et tabs publiques. DI’ART importe les métadonnées et les repères/accords détectables, avec le lien source." songs={songs} onImport={onImport} onComplete={onComplete} toast={toast}/>
+  <ExternalRecueilSearch source="chordify" badge="CH" name="Chordify" description="Recherchez les chansons Chordify directement dans DI’ART et récupérez les métadonnées ainsi que les accords détectables." songs={songs} onImport={onImport} onComplete={onComplete} toast={toast}/>
 
   <section className="panel recueil-source-card chordpro-direct-card"><div className="recueil-source-head"><span className="recueil-badge">CP</span><div><h2>ChordPro</h2><p>Import direct d’un fichier .pro, .chopro, .cho, .crd ou .txt avec paroles et accords.</p></div></div><div className="recueil-source-actions"><button className="primary recueil-action" onClick={()=>fileRef.current?.click()}><FileUp/>Importer ChordPro</button></div></section>
   <input ref={fileRef} hidden type="file" accept=".pro,.chopro,.cho,.crd,.txt,text/plain" onChange={e=>{const f=e.target.files?.[0];if(f)void readChordPro(f);e.currentTarget.value=''}}/>
 
-  {preview&&<Modal className="chordpro-preview-modal" title="Aperçu ChordPro" onClose={()=>setPreview(null)}><div className="chordpro-preview-head"><FileUp/><div><b>{preview.title}</b><small>{preview.artist||'Artiste non renseigné'} · {fileName}</small></div></div><div className="chordpro-preview-metrics">{preview.originalKey&&<div><span>Tonalité</span><b>{preview.originalKey}</b></div>}{preview.bpm!==null&&<div><span>BPM</span><b>{preview.bpm}</b></div>}{preview.capo!==null&&preview.capo!==undefined&&<div><span>Capo</span><b>{preview.capo}</b></div>}<div><span>Paroles</span><b>{preview.lyrics?.split('\n').filter(Boolean).length??0} lignes</b></div><div><span>Accords</span><b>{preview.chords?.split('\n').filter(Boolean).length??0} lignes</b></div></div>{duplicate&&<div className="duplicate-warning"><AlertTriangle/><span>Un morceau portant le même titre et le même artiste existe déjà dans DI’ART.</span></div>}<div className="chordpro-preview-body">{preview.lyrics&&<section><h3>Paroles</h3><pre>{preview.lyrics.slice(0,1800)}</pre></section>}{preview.chords&&<section><h3>Accords extraits</h3><pre>{preview.chords.slice(0,1200)}</pre></section>}</div><div className="modal-actions"><button className="secondary" onClick={()=>setPreview(null)}>Annuler</button><button className="primary" onClick={()=>void onImport(preview).then(()=>{setPreview(null);toast('Morceau ChordPro ajouté à DI’ART.')})}><Plus/>Ajouter à DI’ART</button></div></Modal>}</>
+  {review&&<Modal className="import-review-modal" title="Revoir le morceau" onClose={()=>setReview(null)}><div className="import-review-head"><RotateCcw/><div><b>{review.existing.title}</b><small>{review.existing.artist||'Artiste non renseigné'} · source : {review.source}</small></div></div>{(()=>{const completion=songCompletion(review.existing,review.incoming);return completion.labels.length?<><div className="import-review-suggestion"><b>DI’ART peut compléter :</b><div>{completion.labels.map(label=><span key={label}><Plus/>{label}</span>)}</div></div><p className="muted-copy">Les informations déjà renseignées ne seront pas écrasées.</p><div className="modal-actions"><button className="secondary" onClick={()=>setReview(null)}>Annuler</button><button className="primary" onClick={()=>void onComplete(review.existing.id,completion.patch).then(()=>{toast('Morceau complété sans écraser les données existantes.');setReview(null)})}><Save/>Compléter les manquants</button></div></>:<><div className="import-nothing"><Check/><div><b>Rien à ajouter</b><span>Les informations disponibles dans cette source sont déjà présentes dans DI’ART.</span></div></div><div className="modal-actions"><button className="primary" onClick={()=>setReview(null)}>Fermer</button></div></>})()}</Modal>}
+  {preview&&<Modal className="chordpro-preview-modal" title="Aperçu ChordPro" onClose={()=>setPreview(null)}><div className="chordpro-preview-head"><FileUp/><div><b>{preview.title}</b><small>{preview.artist||'Artiste non renseigné'} · {fileName}</small></div></div><div className="chordpro-preview-metrics">{preview.originalKey&&<div><span>Tonalité</span><b>{preview.originalKey}</b></div>}{preview.bpm!==null&&<div><span>BPM</span><b>{preview.bpm}</b></div>}{preview.capo!==null&&preview.capo!==undefined&&<div><span>Capo</span><b>{preview.capo}</b></div>}<div><span>Paroles</span><b>{preview.lyrics?.split('\n').filter(Boolean).length??0} lignes</b></div><div><span>Accords</span><b>{preview.chords?.split('\n').filter(Boolean).length??0} lignes</b></div></div>{duplicate&&<div className="duplicate-warning"><AlertTriangle/><span>Ce morceau existe déjà. DI’ART va proposer uniquement les informations manquantes.</span></div>}<div className="chordpro-preview-body">{preview.lyrics&&<section><h3>Paroles</h3><pre>{preview.lyrics.slice(0,1800)}</pre></section>}{preview.chords&&<section><h3>Accords extraits</h3><pre>{preview.chords.slice(0,1200)}</pre></section>}</div><div className="modal-actions"><button className="secondary" onClick={()=>setPreview(null)}>Annuler</button>{duplicate?(()=>{const completion=songCompletion(duplicate,preview);return completion.labels.length?<button className="primary" onClick={()=>void onComplete(duplicate.id,completion.patch).then(()=>{setPreview(null);toast('Morceau complété depuis ChordPro.')})}><RotateCcw/>Compléter : {completion.labels.join(', ')}</button>:<button className="primary" disabled><Check/>Rien à ajouter</button>})():<button className="primary" onClick={()=>void onImport(preview).then(()=>{setPreview(null);toast('Morceau ChordPro ajouté à DI’ART.')})}><Plus/>Ajouter à DI’ART</button>}</div></Modal>}</>
 }
 
-function ExternalRecueilSearch({source,badge,name,description,songs,onImport,toast}:{source:ExternalRecueilSource;badge:string;name:string;description:string;songs:Song[];onImport:(draft:SongDraft)=>Promise<void>;toast:(s:string)=>void}) {
+function ExternalRecueilSearch({source,badge,name,description,songs,onImport,onComplete,toast}:{source:ExternalRecueilSource;badge:string;name:string;description:string;songs:Song[];onImport:(draft:SongDraft)=>Promise<void>;onComplete:(id:string,patch:Partial<SongDraft>)=>Promise<void>;toast:(s:string)=>void}) {
   const [title,setTitle]=useState('')
   const [artist,setArtist]=useState('')
   const [results,setResults]=useState<ExternalRecueilResult[]>([])
   const [searched,setSearched]=useState(false)
   const [loading,setLoading]=useState(false)
   const [importing,setImporting]=useState('')
+  const [review,setReview]=useState<{existing:Song;incoming:SongDraft}|null>(null)
   const songKey=(t:string,a:string)=>t.trim().toLowerCase()+'::'+a.trim().toLowerCase()
   const existing=useMemo(()=>new Set(songs.map(s=>songKey(s.title,s.artist))),[songs])
 
@@ -532,25 +576,19 @@ function ExternalRecueilSearch({source,badge,name,description,songs,onImport,toa
   }
 
   const add=async(item:ExternalRecueilResult)=>{
-    if(existing.has(songKey(item.title,item.artist))){toast('Ce morceau existe déjà dans DI’ART.');return}
     setImporting(item.url)
     try{
       const full=await importExternalRecueil(source,item.url)
-      const draft=emptySongDraft()
-      draft.title=full.title||item.title
-      draft.artist=full.artist||item.artist
-      draft.structure=full.structure||''
-      draft.chords=full.chords||''
-      draft.referenceUrl=full.sourceUrl||item.url
-      draft.notes='Source recueil : '+(full.source||name)
-      draft.source='import'
+      const draft=reviewDraftFromExternal(full,item)
+      const existingSong=songs.find(s=>songKey(s.title,s.artist)===songKey(draft.title,draft.artist))
+      if(existingSong){setReview({existing:existingSong,incoming:draft});return}
       await onImport(draft)
       toast(draft.title+' importé depuis '+name+'.')
     }catch{toast('Import '+name+' impossible pour ce résultat.')}
     finally{setImporting('')}
   }
 
-  return <section className="panel external-recueil-card"><div className="external-recueil-head"><span className="recueil-badge">{badge}</span><div><p className="eyebrow">Recherche intégrée</p><h2>{name}</h2><p>{description}</p></div></div><div className="external-recueil-fields"><label>Titre<input value={title} onChange={e=>setTitle(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void run()}} placeholder="Titre du morceau"/></label><label>Artiste <small>optionnel</small><input value={artist} onChange={e=>setArtist(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void run()}} placeholder="Nom de l’artiste"/></label><button className="primary" disabled={loading||title.trim().length<2} onClick={()=>void run()}><Search/>{loading?'Recherche…':'Rechercher'}</button></div>{searched&&<div className="external-recueil-results">{results.length?results.map(item=>{const exists=existing.has(songKey(item.title,item.artist));const busy=importing===item.url;return <article className={'external-recueil-result '+(exists?'exists':'')} key={item.url}><div><b>{item.title}</b><span>{item.artist||'Artiste non renseigné'}{item.subtitle?' · '+item.subtitle:''}</span></div><div className="external-recueil-actions"><a className="bare-action" href={item.url} target="_blank" rel="noreferrer" title="Voir la source"><ExternalLink/></a>{exists?<span className="catalog-exists"><Check/>Déjà dans DI’ART</span>:<button className="primary" disabled={Boolean(importing)} onClick={()=>void add(item)}><Import/>{busy?'Import…':'Importer'}</button>}</div></article>}):<div className="catalog-empty">Aucun résultat.</div>}</div>}</section>
+  return <section className="panel external-recueil-card"><div className="external-recueil-head"><span className="recueil-badge">{badge}</span><div><p className="eyebrow">Recherche intégrée</p><h2>{name}</h2><p>{description}</p></div></div><div className="external-recueil-fields"><label>Titre<input value={title} onChange={e=>setTitle(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void run()}} placeholder="Titre du morceau"/></label><label>Artiste <small>optionnel</small><input value={artist} onChange={e=>setArtist(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void run()}} placeholder="Nom de l’artiste"/></label><button className="primary" disabled={loading||title.trim().length<2} onClick={()=>void run()}><Search/>{loading?'Recherche…':'Rechercher'}</button></div>{searched&&<div className="external-recueil-results">{results.length?results.map(item=>{const exists=existing.has(songKey(item.title,item.artist));const busy=importing===item.url;return <article className={'external-recueil-result '+(exists?'exists':'')} key={item.url}><div><b>{item.title}</b><span>{item.artist||'Artiste non renseigné'}{item.subtitle?' · '+item.subtitle:''}</span></div><div className="external-recueil-actions"><a className="bare-action" href={item.url} target="_blank" rel="noreferrer" title="Voir la source"><ExternalLink/></a>{exists?<button className="secondary review-import-btn" disabled={Boolean(importing)} onClick={()=>void add(item)}><RotateCcw/>{busy?'Analyse…':'Revoir'}</button>:<button className="primary" disabled={Boolean(importing)} onClick={()=>void add(item)}><Import/>{busy?'Import…':'Importer'}</button>}</div></article>}):<div className="catalog-empty">Aucun résultat.</div>}</div>}{review&&<Modal className="import-review-modal" title={'Revoir depuis '+name} onClose={()=>setReview(null)}>{(()=>{const completion=songCompletion(review.existing,review.incoming);return <><div className="import-review-head"><RotateCcw/><div><b>{review.existing.title}</b><small>{review.existing.artist||'Artiste non renseigné'}</small></div></div>{completion.labels.length?<><div className="import-review-suggestion"><b>À compléter :</b><div>{completion.labels.map(label=><span key={label}><Plus/>{label}</span>)}</div></div><div className="modal-actions"><button className="secondary" onClick={()=>setReview(null)}>Annuler</button><button className="primary" onClick={()=>void onComplete(review.existing.id,completion.patch).then(()=>{toast('Morceau complété depuis '+name+'.');setReview(null)})}><Save/>Compléter les manquants</button></div></>:<><div className="import-nothing"><Check/><div><b>Rien à ajouter</b><span>Les informations utiles de cette source sont déjà présentes.</span></div></div><div className="modal-actions"><button className="primary" onClick={()=>setReview(null)}>Fermer</button></div></>}</>})()}</Modal>}</section>
 }
 
 function ImportWizard({songs,refresh,toast}:{songs:Song[];refresh:()=>Promise<void>;toast:(s:string)=>void}) {
