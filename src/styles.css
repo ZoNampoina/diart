@@ -978,3 +978,204 @@ textarea{resize:vertical}
   outline:2px solid color-mix(in srgb,var(--accent2) 55%,transparent)!important;
   outline-offset:2px!important;
 }
+
+
+/* DI'ART V1.7 — Recueils V1 + polished stage scrollbar */
+.recueil-search-panel{
+  margin-bottom:14px;
+  padding:14px;
+}
+.recueil-search-panel>p{
+  margin:8px 2px 0;
+  color:var(--muted);
+  font-size:12px;
+}
+.recueil-searchbox{
+  min-height:54px;
+  display:grid;
+  grid-template-columns:24px 1fr;
+  align-items:center;
+  gap:9px;
+  border:1px solid var(--line);
+  background:var(--surface2);
+  border-radius:13px;
+  padding:0 14px;
+}
+.recueil-searchbox:focus-within{
+  border-color:var(--accent2);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent);
+}
+.recueil-searchbox svg{color:var(--accent2)}
+.recueil-searchbox input{
+  border:0;
+  background:transparent;
+  min-height:52px;
+  padding:0;
+  outline:0;
+  width:100%;
+}
+.recueil-source-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+}
+.recueil-source-card{
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  gap:16px;
+  min-height:190px;
+}
+.recueil-source-head{
+  display:grid;
+  grid-template-columns:52px minmax(0,1fr);
+  gap:12px;
+  align-items:start;
+}
+.recueil-badge{
+  width:48px;
+  height:48px;
+  display:grid;
+  place-items:center;
+  border-radius:14px;
+  background:color-mix(in srgb,var(--accent) 14%,var(--surface3));
+  border:1px solid color-mix(in srgb,var(--accent) 28%,var(--line));
+  color:var(--accent2);
+  font-weight:900;
+  letter-spacing:.04em;
+}
+.recueil-source-card h2{margin:2px 0 6px;font-size:18px}
+.recueil-source-card p{margin:0;color:var(--muted);line-height:1.5}
+.recueil-source-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.recueil-action,.recueil-home{
+  text-decoration:none;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+}
+.recueil-action{flex:1;justify-content:center}
+.recueil-action svg,.recueil-home svg{width:16px;height:16px}
+.recueil-info{
+  margin-top:12px;
+  display:grid;
+  grid-template-columns:30px 1fr;
+  gap:12px;
+  align-items:start;
+}
+.recueil-info>svg{color:var(--accent2)}
+.recueil-info h2{margin:0 0 5px;font-size:16px}
+.recueil-info p{margin:0;color:var(--muted);line-height:1.5}
+.chordpro-preview-modal{width:min(900px,calc(100vw - 28px))}
+.chordpro-preview-head{
+  display:flex;
+  align-items:center;
+  gap:11px;
+  padding:10px 0 14px;
+}
+.chordpro-preview-head>svg{color:var(--accent2)}
+.chordpro-preview-head b,.chordpro-preview-head small{display:block}
+.chordpro-preview-head small{margin-top:3px;color:var(--muted)}
+.chordpro-preview-metrics{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  margin-bottom:12px;
+}
+.chordpro-preview-metrics>div{
+  min-width:100px;
+  padding:9px 11px;
+  border:1px solid var(--line);
+  background:var(--surface2);
+  border-radius:10px;
+}
+.chordpro-preview-metrics span,.chordpro-preview-metrics b{display:block}
+.chordpro-preview-metrics span{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.chordpro-preview-metrics b{margin-top:4px;color:var(--accent2)}
+.chordpro-preview-body{
+  display:grid;
+  grid-template-columns:1.15fr .85fr;
+  gap:10px;
+  max-height:48dvh;
+  overflow:auto;
+}
+.chordpro-preview-body section{
+  border:1px solid var(--line);
+  background:var(--surface2);
+  border-radius:11px;
+  padding:12px;
+  min-width:0;
+}
+.chordpro-preview-body h3{margin:0 0 8px;font-size:13px}
+.chordpro-preview-body pre{
+  margin:0;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  font-family:inherit;
+  line-height:1.55;
+  font-size:12px;
+}
+.duplicate-warning{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  padding:9px 11px;
+  margin-bottom:10px;
+  border:1px solid color-mix(in srgb,var(--danger) 35%,var(--line));
+  background:color-mix(in srgb,var(--danger) 8%,var(--surface));
+  border-radius:10px;
+  color:var(--danger);
+  font-size:12px;
+}
+
+/* Stage scrollbar: compact petrol thumb instead of native bulky controls */
+.stage-content{
+  scrollbar-width:thin;
+  scrollbar-color:color-mix(in srgb,var(--accent2) 62%,var(--surface3)) transparent;
+}
+.stage-content::-webkit-scrollbar{
+  width:9px;
+}
+.stage-content::-webkit-scrollbar-track{
+  background:transparent;
+  margin-block:8px;
+}
+.stage-content::-webkit-scrollbar-thumb{
+  background:linear-gradient(180deg,#245764,#153b45);
+  border-radius:999px;
+  border:2px solid #061217;
+  min-height:44px;
+}
+.stage-content::-webkit-scrollbar-thumb:hover{
+  background:linear-gradient(180deg,#3a8291,#1d5360);
+}
+
+.song-row.no-meta{
+  grid-template-columns:40px minmax(0,1fr) 20px;
+}
+.song-row.no-meta.has-action{
+  grid-template-columns:40px minmax(0,1fr) 46px 20px;
+}
+
+@media(max-width:1024px){
+  .recueil-source-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:760px){
+  .recueil-source-grid{grid-template-columns:1fr}
+  .recueil-source-card{min-height:0}
+  .recueil-source-actions{display:grid;grid-template-columns:1fr auto}
+  .chordpro-preview-modal{width:100%;border-radius:22px 22px 0 0}
+  .chordpro-preview-body{grid-template-columns:1fr;max-height:44dvh}
+  .stage-content::-webkit-scrollbar{width:6px}
+  .song-row.no-meta{grid-template-columns:38px minmax(0,1fr) 14px}
+  .song-row.no-meta.has-action{grid-template-columns:38px minmax(0,1fr) 44px 14px}
+}
+@media(max-width:430px){
+  .recueil-source-head{grid-template-columns:44px minmax(0,1fr)}
+  .recueil-badge{width:40px;height:40px;border-radius:12px;font-size:12px}
+  .recueil-source-actions{grid-template-columns:1fr}
+  .recueil-home{justify-content:center}
+}
