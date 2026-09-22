@@ -73,3 +73,36 @@ export async function searchTononkira(title:string,artist=''):Promise<TononkiraS
   if(data?.error) throw new Error(String(data.error))
   return Array.isArray(data?.results)?data.results:[]
 }
+
+
+export type ExternalRecueilSource = 'ultimate-guitar' | 'chordify'
+
+export interface ExternalRecueilResult {
+  title:string
+  artist:string
+  url:string
+  subtitle?:string
+}
+
+export interface ExternalRecueilImport {
+  title:string
+  artist:string
+  sourceUrl:string
+  source:string
+  structure?:string
+  chords?:string
+}
+
+export async function searchExternalRecueil(source:ExternalRecueilSource,title:string,artist=''):Promise<ExternalRecueilResult[]>{
+  const {data,error}=await supabase.functions.invoke('diart-external-recueil',{body:{action:'search',source,title:title.trim(),artist:artist.trim()}})
+  if(error) throw error
+  if(data?.error) throw new Error(String(data.error))
+  return Array.isArray(data?.results)?data.results:[]
+}
+
+export async function importExternalRecueil(source:ExternalRecueilSource,url:string):Promise<ExternalRecueilImport>{
+  const {data,error}=await supabase.functions.invoke('diart-external-recueil',{body:{action:'import',source,url}})
+  if(error) throw error
+  if(data?.error) throw new Error(String(data.error))
+  return data as ExternalRecueilImport
+}
