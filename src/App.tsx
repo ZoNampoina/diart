@@ -787,7 +787,7 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
 
 function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong}:{mode:'rehearsal'|'live';list:Setlist;songs:Song[];refresh:()=>Promise<void>;toast:(s:string)=>void;onClose:()=>void;onOpenSong:(s:Song)=>void}) {
   const prefNumber=(key:string,fallback:number,min:number,max:number)=>{
-    try{const n=Number(localStorage.getItem(key));return Number.isFinite(n)?Math.max(min,Math.min(max,n)):fallback}catch{return fallback}
+    try{const raw=localStorage.getItem(key);if(raw===null)return fallback;const n=Number(raw);return Number.isFinite(n)?Math.max(min,Math.min(max,n)):fallback}catch{return fallback}
   }
   const prefBool=(key:string,fallback=false)=>{
     try{const v=localStorage.getItem(key);return v===null?fallback:v==='1'}catch{return fallback}
