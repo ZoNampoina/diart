@@ -18,6 +18,7 @@ export interface Song {
   structure?: string
   chords?: string
   instrumentNotes?: string
+  lyrics?: string
   favorite: boolean
   createdAt: string
   updatedAt: string
@@ -58,6 +59,7 @@ export type ImportField =
   | 'structure'
   | 'chords'
   | 'instrumentNotes'
+  | 'lyrics'
 
 export type ImportMapping = Record<string, ImportField | ''>
 
