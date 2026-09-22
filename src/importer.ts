@@ -34,7 +34,8 @@ const aliases: Record<ImportField, string[]> = {
   capo:['capo','capodastre'],
   structure:['structure','song structure','plan'],
   chords:['accords','chords','grille','grille accords'],
-  instrumentNotes:['notes instrumentales','instrument notes','repères instrument','reperes instrument']
+  instrumentNotes:['notes instrumentales','instrument notes','repères instrument','reperes instrument'],
+  lyrics:['paroles','lyrics','texte','song lyrics']
 }
 
 function normHeader(s: string): string {
@@ -84,6 +85,7 @@ export function rowsToPreview(rows: Record<string, unknown>[], mapping: ImportMa
       structure: normalizeText(read('structure')),
       chords: normalizeText(read('chords')),
       instrumentNotes: normalizeText(read('instrumentNotes')),
+      lyrics: String(read('lyrics') ?? '').trim(),
       favorite:false,
       source:'import'
     }
