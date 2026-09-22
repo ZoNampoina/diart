@@ -14,5 +14,5 @@ jobs:
         with:
           node-version: 24
       - run: npm install
-      - run: npm test
+      - name: Inspect workbook structure\n        run: node scripts/inspect-workbook.mjs\n      - run: npm test
       - run: npm run build
