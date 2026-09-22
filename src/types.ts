@@ -78,6 +78,7 @@ export interface Setlist {
   name: string
   songIds: string[]
   notes: string
+  rehearsalNotes?: Record<string,string>
   createdAt: string
   updatedAt: string
   deletedAt: string | null
