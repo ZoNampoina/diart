@@ -3,18 +3,20 @@ import {
   BookOpen, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Heart, Home, Import,
   Library, Menu, Moon, MoreHorizontal, Music2, Plus, Search, Settings, Star, Sun,
   Trash2, Upload, UserRound, UsersRound, Wifi, WifiOff, X, Pencil, Save, RotateCcw,
-  Filter, ArrowUpDown, Check, AlertTriangle, Minus
+  Filter, ArrowUpDown, Check, AlertTriangle, Minus, ListMusic, Cloud, LogIn, LogOut,
+  Play, Square, Gauge, Maximize2, ChevronUp, ChevronDown
 } from 'lucide-react'
-import { db, createSong, ensureDemoSeed, getSetting, markViewed, setSetting, softDeleteSong, updateSong } from './db'
-import type { ImportField, ImportMapping, ImportRowPreview, Song, SongDraft } from './types'
+import { db, createSong, ensureDemoSeed, getSetting, markViewed, setSetting, softDeleteSong, updateSong, createSetlist, updateSetlist } from './db'
+import type { ImportField, ImportMapping, ImportRowPreview, Song, SongDraft, Setlist } from './types'
 import { emptySongDraft, formatDuration, normalizeKey, parseBpm, parseDuration, searchSong, transposeKey, transposeChordText, formatSemitoneOffset } from './music'
 import { parseWorkbook, rowsToPreview, suggestMapping, type ParsedWorkbook } from './importer'
 import { exportCsv, exportJson, exportXlsx, restoreJson } from './exporter'
+import { supabase, syncAll, signIn, signOut, signUp } from './cloud'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
   ['authors','Auteurs',UserRound], ['favorites','Favoris',Heart], ['recent','Récents',BookOpen],
-  ['import','Importer',Import], ['backup','Sauvegarde',Download], ['settings','Paramètres',Settings]
+  ['setlists','Setlists',ListMusic], ['import','Importer',Import], ['backup','Sauvegarde',Download], ['settings','Paramètres',Settings]
 ] as const
 
 type Page = typeof navItems[number][0] | 'song' | 'edit' | 'new'
@@ -58,7 +60,13 @@ function App() {
   const [theme,setTheme]=useState<'dark'|'light'|'system'>('dark')
   const [online,setOnline]=useState(navigator.onLine)
   const [toasts,setToasts]=useState<Toast[]>([])
+  const [setlists,setSetlists]=useState<Setlist[]>([])
+  const [userId,setUserId]=useState('')
+  const [userEmail,setUserEmail]=useState('')
+  const [syncing,setSyncing]=useState(false)
   const searchRef=useRef<HTMLInputElement>(null)
+
+  const refreshSetlists=async()=>setSetlists((await db.setlists.toArray()).filter(x=>!x.deletedAt))
 
   const toast=(text:string,action?:Toast['action'])=>{
     const id=Date.now()+Math.random()
@@ -66,7 +74,29 @@ function App() {
     setTimeout(()=>setToasts(x=>x.filter(t=>t.id!==id)),4500)
   }
 
-  useEffect(()=>{void getSetting('theme','dark').then(v=>setTheme((v as typeof theme)||'dark'))},[])
+  const doSync=async(showToast=true)=>{
+    if(!userId||!navigator.onLine||syncing)return
+    try{setSyncing(true);await syncAll(userId);await Promise.all([refresh(),refreshSetlists()]);if(showToast)toast('Synchronisation cloud terminée.')}
+    catch(e){if(showToast)toast(e instanceof Error?e.message:'Synchronisation impossible.')}
+    finally{setSyncing(false)}
+  }
+
+  useEffect(()=>{void getSetting('theme','dark').then(v=>setTheme((v as typeof theme)||'dark'));void refreshSetlists()},[])
+  useEffect(()=>{
+    void supabase.auth.getSession().then(({data})=>{const u=data.session?.user;setUserId(u?.id??'');setUserEmail(u?.email??'')})
+    const {data}=supabase.auth.onAuthStateChange((_event,session)=>{const u=session?.user;setUserId(u?.id??'');setUserEmail(u?.email??'')})
+    return()=>data.subscription.unsubscribe()
+  },[])
+  useEffect(()=>{if(userId&&online)void doSync(false)},[userId,online])
+  useEffect(()=>{
+    if(!userId)return
+    const channel=supabase.channel('diart-live-sync')
+      .on('postgres_changes',{event:'*',schema:'public',table:'diart_songs',filter:`user_id=eq.${userId}`},()=>void doSync(false))
+      .on('postgres_changes',{event:'*',schema:'public',table:'diart_setlists',filter:`user_id=eq.${userId}`},()=>void doSync(false))
+      .subscribe()
+    const timer=setInterval(()=>{if(navigator.onLine)void doSync(false)},60000)
+    return()=>{clearInterval(timer);void supabase.removeChannel(channel)}
+  },[userId])
   useEffect(()=>{
     const resolved=theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):theme
     document.documentElement.dataset.theme=resolved
@@ -108,11 +138,12 @@ function App() {
         {page==='authors'&&<PeoplePage title="Auteurs / Compositeurs" items={groupPeople(songs,'authorComposer')} onOpen={openSong}/>}
         {page==='favorites'&&<SimpleSongs title="Favoris" songs={songs.filter(s=>s.favorite)} onOpen={openSong} onFav={fav}/>}
         {page==='recent'&&<SimpleSongs title="Récents" songs={[...songs].sort((a,b)=>(b.lastViewedAt||b.updatedAt).localeCompare(a.lastViewedAt||a.updatedAt)).slice(0,50)} onOpen={openSong} onFav={fav}/>}
+        {page==='setlists'&&<SetlistsPage songs={songs} setlists={setlists} refresh={refreshSetlists} toast={toast}/>}
         {page==='song'&&selected&&<SongDetail song={songs.find(s=>s.id===selected.id)||selected} onBack={()=>go('library')} onEdit={()=>go('edit')} onFav={()=>void fav(songs.find(s=>s.id===selected.id)||selected)} onDelete={async()=>{const id=selected.id;await softDeleteSong(id);await refresh();toast('Morceau placé dans la corbeille',{label:'Annuler',run:async()=>{await db.songs.update(id,{deletedAt:null});await refresh()}});go('library')}}/>}
         {(page==='new'||(page==='edit'&&selected))&&<SongForm initial={page==='edit'?selected:null} onCancel={()=>go(selected?'song':'library')} onSave={async draft=>{if(page==='edit'&&selected){await updateSong(selected.id,draft);await refresh();setSelected({...selected,...draft,updatedAt:new Date().toISOString()});toast('Morceau mis à jour');go('song')}else{const s=await createSong(draft);await refresh();setSelected(s);toast('Morceau ajouté');go('song')}}}/>}
         {page==='import'&&<ImportWizard songs={songs} refresh={refresh} toast={toast}/>}
         {page==='backup'&&<BackupPage songs={songs} refresh={refresh} toast={toast}/>}
-        {page==='settings'&&<SettingsPage theme={theme} setTheme={setTheme} songs={songs} refresh={refresh} toast={toast}/>}
+        {page==='settings'&&<SettingsPage theme={theme} setTheme={setTheme} songs={songs} refresh={refresh} toast={toast} userEmail={userEmail} syncing={syncing} onSync={()=>void doSync()} onSignedIn={async()=>{const {data}=await supabase.auth.getUser();setUserId(data.user?.id??'');setUserEmail(data.user?.email??'');await doSync()}}/>}
       </div>
     </main>
     <nav className="bottom-nav">
@@ -127,13 +158,14 @@ function App() {
 }
 
 function Dashboard({songs,artists,authors,onOpen,onGo,onFav}:{songs:Song[];artists:number;authors:number;onOpen:(s:Song)=>void;onGo:(p:Page)=>void;onFav:(s:Song)=>void}) {
-  const recent=[...songs].sort((a,b)=>(b.lastViewedAt||'').localeCompare(a.lastViewedAt||'')).filter(s=>s.lastViewedAt).slice(0,5)
-  const added=[...songs].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,5)
+  const recent=[...songs].sort((a,b)=>(b.lastViewedAt||'').localeCompare(a.lastViewedAt||'')).filter(s=>s.lastViewedAt).slice(0,3)
+  const added=[...songs].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,3)
   return <>
     <div className="page-head"><div><p className="eyebrow">Répertoire personnel</p><h1>Votre musique, immédiatement.</h1><p>Retrouvez tonalité, BPM et informations utiles en quelques secondes.</p></div><div className="actions"><button className="secondary" onClick={()=>onGo('import')}><FileSpreadsheet/>Importer</button><button className="primary" onClick={()=>onGo('new')}><Plus/>Nouveau morceau</button></div></div>
     <button className="global-search" onClick={()=>onGo('library')}><Search/>Rechercher un titre, artiste, tonalité, BPM… <kbd>Ctrl K</kbd></button>
     <div className="metrics"><Metric label="Morceaux" value={songs.length}/><Metric label="Artistes" value={artists}/><Metric label="Auteurs" value={authors}/><Metric label="Favoris" value={songs.filter(s=>s.favorite).length}/></div>
-    <div className="two-col"><section className="panel"><h2>Récemment consultés</h2>{recent.length?recent.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/>):<Empty text="Aucun morceau consulté."/>}</section><section className="panel"><h2>Ajouts récents</h2>{added.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/>)}</section></div>
+    <div className="home-recent-grid"><section className="panel compact-home-panel"><h2>Récemment consultés</h2>{recent.length?recent.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/>):<Empty text="Aucun morceau consulté."/>}</section><section className="panel compact-home-panel"><h2>Ajouts récents</h2>{added.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/>)}</section></div>
+    <MetronomeCard initialBpm={96}/>
   </>
 }
 
@@ -185,6 +217,7 @@ function SongDetail({song,onBack,onEdit,onFav,onDelete}:{song:Song;onBack:()=>vo
     <section className="panel performance-panel"><h2>Structure</h2><p className="performance-text">{song.structure||'Aucune structure renseignée.'}</p></section>
     <section className="panel performance-panel chords-panel"><div className="panel-title-row"><h2>Accords / repères</h2>{transpose!==0&&<span className="transpose-chip">{formatSemitoneOffset(transpose)}</span>}</div><pre className="chord-sheet">{workingChords||'Aucun accord ou repère renseigné.'}</pre></section>
     <section className="panel performance-panel"><h2>Notes instrumentales</h2><p className="performance-text">{song.instrumentNotes||'Aucune note instrumentale.'}</p></section>
+    <MetronomeCard initialBpm={song.bpm??96}/>
     <section className="panel notes-panel"><h2>Notes générales</h2><p className="notes">{song.notes||'Aucune note.'}</p>{song.referenceUrl&&<a href={song.referenceUrl} target="_blank" rel="noreferrer">Ouvrir le lien de référence</a>}</section>
   </div>
   {confirm&&<Modal title="Supprimer ce morceau ?" onClose={()=>setConfirm(false)}><p>Le morceau sera masqué de la bibliothèque et pourra être restauré via l’action Annuler.</p><div className="modal-actions"><button className="secondary" onClick={()=>setConfirm(false)}>Annuler</button><button className="danger" onClick={onDelete}><Trash2/>Supprimer</button></div></Modal>}</>
@@ -223,10 +256,44 @@ function BackupPage({songs,refresh,toast}:{songs:Song[];refresh:()=>Promise<void
   return <><div className="page-head compact"><div><p className="eyebrow">Sauvegarde</p><h1>Vos données restent sous votre contrôle.</h1></div></div><div className="backup-grid"><section className="panel"><Download/><h2>Sauvegarde JSON</h2><p>Format recommandé pour restaurer DI’ART.</p><button className="primary" onClick={()=>void exportJson()}>Télécharger</button></section><section className="panel"><FileSpreadsheet/><h2>Exports tableur</h2><p>{songs.length} morceaux actifs.</p><button className="secondary" onClick={()=>void exportXlsx()}>Excel</button><button className="secondary" onClick={()=>void exportCsv()}>CSV</button></section><section className="panel"><RotateCcw/><h2>Restaurer</h2><label className="secondary file-btn">Choisir un JSON<input type="file" accept=".json" onChange={e=>e.target.files?.[0]&&setFile(e.target.files[0])}/></label></section></div>{file&&<Modal title="Restaurer cette sauvegarde ?" onClose={()=>setFile(null)}><p>La base locale actuelle sera remplacée.</p><div className="modal-actions"><button className="secondary" onClick={()=>setFile(null)}>Annuler</button><button className="danger" onClick={()=>void restore()}>Restaurer</button></div></Modal>}</>
 }
 
-function SettingsPage({theme,setTheme,songs,refresh,toast}:{theme:string;setTheme:(t:'dark'|'light'|'system')=>void;songs:Song[];refresh:()=>Promise<void>;toast:(s:string)=>void}) {
+function SettingsPage({theme,setTheme,songs,refresh,toast,userEmail,syncing,onSync,onSignedIn}:{theme:string;setTheme:(t:'dark'|'light'|'system')=>void;songs:Song[];refresh:()=>Promise<void>;toast:(s:string)=>void;userEmail:string;syncing:boolean;onSync:()=>void;onSignedIn:()=>Promise<void>}) {
+  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[authBusy,setAuthBusy]=useState(false)
   const demos=songs.filter(s=>s.source==='demo')
   const remove=async()=>{await db.songs.bulkDelete(demos.map(x=>x.id));await refresh();toast(`${demos.length} démo(s) supprimée(s).`)}
-  return <><div className="page-head compact"><div><p className="eyebrow">Paramètres</p><h1>Préférences</h1></div></div><section className="panel settings-list"><div><span><b>Thème</b><small>Apparence de l’interface</small></span><select value={theme} onChange={e=>setTheme(e.target.value as 'dark'|'light'|'system')}><option value="dark">Sombre</option><option value="light">Clair</option><option value="system">Système</option></select></div><div><span><b>Données de démonstration</b><small>{demos.length} morceau(x)</small></span><button className="danger" disabled={!demos.length} onClick={()=>void remove()}><Trash2/>Supprimer les démos</button></div><div><span><b>Synchronisation cloud</b><small>Prévue pour une version ultérieure.</small></span><em>Prévu</em></div><div><span><b>Expérience musicale V1.2</b><small>Transposition, structure, accords, capo et notes instrumentales actifs.</small></span><em>Actif</em></div><div><span><b>Métronome, setlists et Live</b><small>Prochaines évolutions.</small></span><em>À venir</em></div></section></>
+  const auth=async(mode:'login'|'signup')=>{try{setAuthBusy(true);const r=mode==='login'?await signIn(email,password):await signUp(email,password);if(r.error)throw r.error;toast(mode==='login'?'Connexion réussie.':'Compte créé. Vérifiez votre e-mail si une confirmation est demandée.');await onSignedIn()}catch(e){toast(e instanceof Error?e.message:'Authentification impossible.')}finally{setAuthBusy(false)}}
+  const logout=async()=>{await signOut();toast('Déconnecté du cloud DI’ART.');location.reload()}
+  return <><div className="page-head compact"><div><p className="eyebrow">Paramètres</p><h1>Préférences</h1></div></div>
+  <section className="panel cloud-panel"><div className="cloud-heading"><Cloud/><div><h2>Cloud DI’ART</h2><p>{userEmail?`Connecté : ${userEmail}`:'Connectez le même compte sur PC, tablette et Android pour retrouver automatiquement votre bibliothèque.'}</p></div></div>{userEmail?<div className="cloud-actions"><button className="primary" disabled={syncing} onClick={onSync}>{syncing?'Synchronisation…':'Synchroniser maintenant'}</button><button className="secondary" onClick={()=>void logout()}><LogOut/>Déconnexion</button></div>:<div className="cloud-auth"><input type="email" placeholder="Adresse e-mail" value={email} onChange={e=>setEmail(e.target.value)}/><input type="password" placeholder="Mot de passe" value={password} onChange={e=>setPassword(e.target.value)}/><button className="primary" disabled={authBusy||!email||password.length<6} onClick={()=>void auth('login')}><LogIn/>Connexion</button><button className="secondary" disabled={authBusy||!email||password.length<6} onClick={()=>void auth('signup')}>Créer un compte</button></div>}</section>
+  <section className="panel settings-list"><div><span><b>Thème</b><small>Apparence de l’interface</small></span><select value={theme} onChange={e=>setTheme(e.target.value as 'dark'|'light'|'system')}><option value="dark">Sombre</option><option value="light">Clair</option><option value="system">Système</option></select></div><div><span><b>Données de démonstration</b><small>{demos.length} morceau(x)</small></span><button className="danger" disabled={!demos.length} onClick={()=>void remove()}><Trash2/>Supprimer les démos</button></div><div><span><b>Synchronisation cloud</b><small>Bibliothèque et setlists synchronisées entre appareils connectés au même compte.</small></span><em>{userEmail?'Actif':'Connexion requise'}</em></div><div><span><b>Expérience musicale V1.3</b><small>Transposition, métronome, Tap Tempo, setlists, répétition et Live Mode.</small></span><em>Actif</em></div></section></>
+}
+
+
+function MetronomeCard({initialBpm=96}:{initialBpm?:number}) {
+  const [bpm,setBpm]=useState(Math.max(30,Math.min(240,initialBpm||96)))
+  const [running,setRunning]=useState(false)
+  const [taps,setTaps]=useState<number[]>([])
+  const timer=useRef<number|null>(null)
+  const audio=useRef<AudioContext|null>(null)
+  const click=()=>{audio.current??=new AudioContext();const ctx=audio.current;const osc=ctx.createOscillator(),gain=ctx.createGain();osc.frequency.value=1000;gain.gain.setValueAtTime(.12,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.045);osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+.05)}
+  useEffect(()=>{if(timer.current){clearInterval(timer.current);timer.current=null}if(running){click();timer.current=window.setInterval(click,60000/bpm)}return()=>{if(timer.current)clearInterval(timer.current)}},[running,bpm])
+  const tap=()=>{const now=Date.now();const next=[...taps.filter(t=>now-t<2500),now].slice(-5);setTaps(next);if(next.length>1){const diffs=next.slice(1).map((t,i)=>t-next[i]);setBpm(Math.max(30,Math.min(240,Math.round(60000/(diffs.reduce((a,b)=>a+b,0)/diffs.length)))))}} 
+  return <section className="panel metronome-card"><div><span className="eyebrow">Outil musicien</span><h2>Métronome & Tap Tempo</h2></div><div className="metro-display"><Gauge/><strong>{bpm}</strong><span>BPM</span></div><div className="metro-controls"><button className="secondary" onClick={()=>setBpm(v=>Math.max(30,v-1))}><Minus/></button><input aria-label="BPM" type="range" min="30" max="240" value={bpm} onChange={e=>setBpm(Number(e.target.value))}/><button className="secondary" onClick={()=>setBpm(v=>Math.min(240,v+1))}><Plus/></button><button className="secondary tap-btn" onClick={tap}>TAP</button><button className={running?'danger':'primary'} onClick={()=>setRunning(v=>!v)}>{running?<><Square/>Stop</>:<><Play/>Start</>}</button></div></section>
+}
+
+function SetlistsPage({songs,setlists,refresh,toast}:{songs:Song[];setlists:Setlist[];refresh:()=>Promise<void>;toast:(s:string)=>void}) {
+  const [name,setName]=useState('')
+  const [open,setOpen]=useState<string|null>(null)
+  const [live,setLive]=useState<{id:string;index:number;rehearsal:boolean}|null>(null)
+  const create=async()=>{if(!name.trim())return;const s=await createSetlist(name);setName('');setOpen(s.id);await refresh();toast('Setlist créée.')}
+  const add=async(list:Setlist,songId:string)=>{if(list.songIds.includes(songId))return;await updateSetlist(list.id,{songIds:[...list.songIds,songId]});await refresh()}
+  const remove=async(list:Setlist,songId:string)=>{await updateSetlist(list.id,{songIds:list.songIds.filter(id=>id!==songId)});await refresh()}
+  const move=async(list:Setlist,index:number,dir:number)=>{const target=index+dir;if(target<0||target>=list.songIds.length)return;const ids=[...list.songIds];[ids[index],ids[target]]=[ids[target],ids[index]];await updateSetlist(list.id,{songIds:ids});await refresh()}
+  const active=live?setlists.find(x=>x.id===live.id):null
+  const liveSong=active?songs.find(s=>s.id===active.songIds[live!.index]):null
+  return <><div className="page-head"><div><p className="eyebrow">V1.3</p><h1>Setlists</h1><p>Préparez répétitions, cultes, concerts et passages en Live Mode.</p></div><div className="setlist-create"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Nom de la setlist"/><button className="primary" onClick={()=>void create()}><Plus/>Créer</button></div></div>
+  <div className="setlist-grid">{setlists.length?setlists.map(list=><section className="panel setlist-card" key={list.id}><button className="setlist-head" onClick={()=>setOpen(open===list.id?null:list.id)}><div><b>{list.name}</b><small>{list.songIds.length} morceau{list.songIds.length>1?'x':''}</small></div><ChevronRight/></button>{open===list.id&&<div className="setlist-body"><div className="setlist-actions"><button className="secondary" disabled={!list.songIds.length} onClick={()=>setLive({id:list.id,index:0,rehearsal:true})}><Play/>Répétition</button><button className="primary" disabled={!list.songIds.length} onClick={()=>setLive({id:list.id,index:0,rehearsal:false})}><Maximize2/>Live Mode</button></div><select defaultValue="" onChange={e=>{if(e.target.value)void add(list,e.target.value);e.target.value=''}}><option value="">+ Ajouter un morceau</option>{songs.filter(s=>!list.songIds.includes(s.id)).map(s=><option value={s.id} key={s.id}>{s.title} — {s.artist}</option>)}</select><div className="setlist-songs">{list.songIds.map((id,i)=>{const s=songs.find(x=>x.id===id);return s?<div key={id}><span className="setlist-number">{i+1}</span><span><b>{s.title}</b><small>{s.artist||'Artiste inconnu'} · {s.personalKey||s.originalKey||'—'} · {s.bpm??'—'} BPM</small></span><button className="icon-btn" disabled={i===0} onClick={()=>void move(list,i,-1)}><ChevronUp/></button><button className="icon-btn" disabled={i===list.songIds.length-1} onClick={()=>void move(list,i,1)}><ChevronDown/></button><button className="icon-btn danger" onClick={()=>void remove(list,id)}><X/></button></div>:null})}</div></div>}</section>):<Empty text="Aucune setlist. Créez votre première liste de répétition ou de concert."/>}</div>
+  {live&&active&&liveSong&&<div className={`live-mode ${live.rehearsal?'rehearsal':''}`}><button className="live-close" onClick={()=>setLive(null)}><X/></button><div className="live-counter">{active.name} · {live.index+1}/{active.songIds.length}</div><div className="live-content"><p>{liveSong.artist||'Artiste inconnu'}</p><h1>{liveSong.title}</h1><div className="live-metrics"><strong>{liveSong.personalKey||liveSong.originalKey||'—'}</strong><span>{liveSong.bpm??'—'} BPM</span><span>{liveSong.timeSignature||'—'}</span></div>{live.rehearsal&&<><p className="live-structure">{liveSong.structure||'Structure non renseignée'}</p><pre>{liveSong.chords||'Accords non renseignés'}</pre></>}</div><div className="live-nav"><button className="secondary" disabled={live.index===0} onClick={()=>setLive({...live,index:live.index-1})}><ChevronLeft/>Précédent</button><button className="primary" disabled={live.index===active.songIds.length-1} onClick={()=>setLive({...live,index:live.index+1})}>Suivant<ChevronRight/></button></div></div>}
+  </>
 }
 
 function Empty({text}:{text:string}) { return <div className="empty"><Music2/><p>{text}</p></div> }
