@@ -13,8 +13,8 @@ import { emptySongDraft, formatDuration, normalizeKey, parseBpm, parseDuration, 
 import { parseWorkbook, rowsToPreview, suggestMapping, type ParsedWorkbook } from './importer'
 import { exportCsv, exportJson, exportXlsx, restoreJson } from './exporter'
 import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToLocal } from './cloud'
-import { recueilSources, parseChordPro } from './recueils'
-import { searchGlobalCatalog, catalogRecordingToDraft, fetchTononkiraReference, searchTononkira, type CatalogRecording, type TononkiraSearchResult } from './catalog'
+import { parseChordPro } from './recueils'
+import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -390,13 +390,8 @@ function SongForm({initial,presetArtist='',presetAuthor='',onCancel,onSave}:{ini
 const fieldOptions:[ImportField,string][]=[['title','Titre *'],['artist','Artiste'],['authorComposer','Auteur / Compositeur'],['originalKey','Tonalité originale'],['personalKey','Tonalité personnelle'],['bpm','BPM'],['timeSignature','Signature rythmique'],['style','Style'],['duration','Durée'],['tags','Tags'],['notes','Notes'],['referenceUrl','Lien de référence'],['capo','Capo'],['structure','Structure'],['chords','Accords'],['instrumentNotes','Notes instrumentales'],['lyrics','Paroles']]
 
 function RecueilsPage({songs,entryMode,onImport,toast}:{songs:Song[];entryMode:'tononkira'|null;onImport:(draft:SongDraft)=>Promise<void>;toast:(s:string)=>void}) {
-  const [query,setQuery]=useState('')
   const [preview,setPreview]=useState<SongDraft|null>(null)
   const [fileName,setFileName]=useState('')
-  const [catalogResults,setCatalogResults]=useState<CatalogRecording[]>([])
-  const [catalogLoading,setCatalogLoading]=useState(false)
-  const [catalogSearched,setCatalogSearched]=useState(false)
-  const [bulkBusy,setBulkBusy]=useState(false)
   const [tononkiraTitle,setTononkiraTitle]=useState('')
   const [tononkiraArtist,setTononkiraArtist]=useState('')
   const [tononkiraResults,setTononkiraResults]=useState<TononkiraSearchResult[]>([])
@@ -407,9 +402,8 @@ function RecueilsPage({songs,entryMode,onImport,toast}:{songs:Song[];entryMode:'
   const tononkiraTitleRef=useRef<HTMLInputElement>(null)
   useEffect(()=>{if(entryMode==='tononkira')requestAnimationFrame(()=>tononkiraTitleRef.current?.focus())},[entryMode])
   const duplicate=preview? songs.find(s=>s.title.trim().toLowerCase()===preview.title.trim().toLowerCase() && s.artist.trim().toLowerCase()===preview.artist.trim().toLowerCase()):null
-  const songKey=(title:string,artist:string)=>`${title.trim().toLowerCase()}::${artist.trim().toLowerCase()}`
+  const songKey=(title:string,artist:string)=>title.trim().toLowerCase()+'::'+artist.trim().toLowerCase()
   const existingKeys=useMemo(()=>new Set(songs.map(s=>songKey(s.title,s.artist))),[songs])
-  const missingCatalog=useMemo(()=>catalogResults.filter(r=>!existingKeys.has(songKey(r.title,r.artist))),[catalogResults,existingKeys])
 
   const readChordPro=async(file:File)=>{
     try{
@@ -449,54 +443,65 @@ function RecueilsPage({songs,entryMode,onImport,toast}:{songs:Song[];entryMode:'
       draft.notes='Source des paroles : Tononkira Malagasy'
       draft.source='import'
       await onImport(draft)
-      toast(`${draft.title} importé depuis Tononkira.`)
+      toast(draft.title+' importé depuis Tononkira.')
     }catch{toast('Import Tononkira impossible pour ce morceau.')}
     finally{setTononkiraImporting('')}
   }
 
-  const runCatalogSearch=async()=>{
-    const q=query.trim()
-    if(q.length<2){toast('Saisissez au moins deux caractères.');return}
-    setCatalogLoading(true);setCatalogSearched(true)
-    try{
-      const results=await searchGlobalCatalog(q)
-      setCatalogResults(results)
-      if(!results.length)toast('Aucun résultat dans le catalogue mondial.')
-    }catch(e){
-      const msg=e instanceof Error?e.message:'Recherche impossible.'
-      if(/401|jwt|unauthorized/i.test(msg)) toast('Connectez-vous au Cloud DI’ART dans Paramètres pour utiliser le Catalogue mondial.')
-      else toast('Catalogue mondial indisponible pour le moment.')
-    }finally{setCatalogLoading(false)}
-  }
+  return <><div className="page-head"><div><p className="eyebrow">Recueils · Sources musicales</p><h1>Recueils</h1><p>Recherchez directement dans Tononkira, Ultimate Guitar et Chordify, puis ajoutez les résultats utiles à DI’ART.</p></div></div>
 
-  const addCatalog=async(item:CatalogRecording)=>{
-    if(existingKeys.has(songKey(item.title,item.artist))){toast('Ce morceau existe déjà dans DI’ART.');return}
-    await onImport(catalogRecordingToDraft(item))
-    toast(`${item.title} ajouté à DI’ART.`)
-  }
+  <section className="panel tononkira-feature-card tononkira-search-card"><div className="tononkira-feature-mark">MG</div><div className="tononkira-feature-copy"><p className="eyebrow">Import direct Madagascar</p><h2>Tononkira Malagasy</h2><p>Recherche titre/artiste puis import automatique du titre, de l’artiste et des paroles.</p></div><div className="tononkira-search-fields"><label>Titre<input ref={tononkiraTitleRef} value={tononkiraTitle} onChange={e=>setTononkiraTitle(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void runTononkiraSearch()}} placeholder="Ex. Mama sera"/></label><label>Artiste <small>optionnel</small><input value={tononkiraArtist} onChange={e=>setTononkiraArtist(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void runTononkiraSearch()}} placeholder="Ex. Mahaleo"/></label><button className="primary tononkira-search-button" disabled={tononkiraSearching||tononkiraTitle.trim().length<2} onClick={()=>void runTononkiraSearch()}><Search/>{tononkiraSearching?'Recherche…':'Rechercher sur Tononkira'}</button></div>{tononkiraSearched&&<div className="tononkira-search-results"><div className="tononkira-results-head"><b>{tononkiraResults.length} résultat{tononkiraResults.length>1?'s':''}</b><small>Importer récupère automatiquement les paroles.</small></div>{tononkiraResults.length?tononkiraResults.map(item=>{const exists=existingKeys.has(songKey(item.title,item.artist));const busy=tononkiraImporting===item.url;return <article className={'tononkira-search-result '+(exists?'exists':'')} key={item.url}><div><b>{item.title}</b><span>{item.artist||'Artiste non renseigné'}</span></div><div className="tononkira-result-actions"><a className="bare-action" href={item.url} target="_blank" rel="noreferrer" title="Voir sur Tononkira"><ExternalLink/></a>{exists?<span className="catalog-exists"><Check/>Déjà dans DI’ART</span>:<button className="primary" disabled={Boolean(tononkiraImporting)} onClick={()=>void importTononkiraResult(item)}><Import/>{busy?'Import…':'Importer'}</button>}</div></article>}):<div className="catalog-empty">Aucun résultat.</div>}</div>}</section>
 
-  const addAllMissing=async()=>{
-    if(!missingCatalog.length||bulkBusy)return
-    setBulkBusy(true)
-    let added=0
-    try{
-      for(const item of missingCatalog){await onImport(catalogRecordingToDraft(item));added++}
-      toast(`${added} morceau${added>1?'x':''} ajouté${added>1?'s':''} au catalogue DI’ART.`)
-    }finally{setBulkBusy(false)}
-  }
+  <ExternalRecueilSearch source="ultimate-guitar" badge="UG" name="Ultimate Guitar" description="Recherchez les grilles et tabs publiques. DI’ART importe les métadonnées et les repères/accords détectables, avec le lien source." songs={songs} onImport={onImport} toast={toast}/>
+  <ExternalRecueilSearch source="chordify" badge="CH" name="Chordify" description="Recherchez les chansons Chordify directement dans DI’ART et récupérez les métadonnées ainsi que les accords détectables." songs={songs} onImport={onImport} toast={toast}/>
 
-  return <><div className="page-head"><div><p className="eyebrow">Recueils · Catalogue mondial</p><h1>Recueils</h1><p>Recherchez des morceaux disponibles dans plusieurs sources, puis importez-les directement dans DI’ART.</p></div></div>
-
-  <section className="panel tononkira-feature-card tononkira-search-card"><div className="tononkira-feature-mark">MG</div><div className="tononkira-feature-copy"><p className="eyebrow">Import direct Madagascar</p><h2>Tononkira Malagasy</h2><p>Recherchez par titre et, si besoin, précisez l’artiste. DI’ART interroge Tononkira, affiche les correspondances puis importe automatiquement titre, artiste et paroles.</p></div><div className="tononkira-search-fields"><label>Titre<input ref={tononkiraTitleRef} value={tononkiraTitle} onChange={e=>setTononkiraTitle(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void runTononkiraSearch()}} placeholder="Ex. Mama sera"/></label><label>Artiste <small>optionnel</small><input value={tononkiraArtist} onChange={e=>setTononkiraArtist(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void runTononkiraSearch()}} placeholder="Ex. Mahaleo"/></label><button className="primary tononkira-search-button" disabled={tononkiraSearching||tononkiraTitle.trim().length<2} onClick={()=>void runTononkiraSearch()}><Search/>{tononkiraSearching?'Recherche…':'Rechercher sur Tononkira'}</button></div>{tononkiraSearched&&<div className="tononkira-search-results"><div className="tononkira-results-head"><b>{tononkiraResults.length} résultat{tononkiraResults.length>1?'s':''}</b><small>Cliquez sur Importer pour récupérer automatiquement les paroles.</small></div>{tononkiraResults.length?tononkiraResults.map(item=>{const exists=existingKeys.has(songKey(item.title,item.artist));const busy=tononkiraImporting===item.url;return <article className={`tononkira-search-result ${exists?'exists':''}`} key={item.url}><div><b>{item.title}</b><span>{item.artist||'Artiste non renseigné'}</span></div><div className="tononkira-result-actions"><a className="bare-action" href={item.url} target="_blank" rel="noreferrer" title="Voir sur Tononkira"><ExternalLink/></a>{exists?<span className="catalog-exists"><Check/>Déjà dans DI’ART</span>:<button className="primary" disabled={Boolean(tononkiraImporting)} onClick={()=>void importTononkiraResult(item)}><Import/>{busy?'Import…':'Importer'}</button>}</div></article>}):<div className="catalog-empty">Aucun résultat.</div>}</div>}</section>
-
-  <section className="panel global-catalog-panel"><div className="global-catalog-heading"><span className="global-catalog-icon"><Globe2/></span><div><p className="eyebrow">MusicBrainz · import direct</p><h2>Catalogue mondial</h2><p>Recherche de titres et artistes, déduplication, durée, date de sortie, tags et référence source.</p></div></div><div className="global-catalog-search"><Search/><input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void runCatalogSearch()}} placeholder="Ex. Still the One Shania Twain, Mahaleo, Hillsong…"/><button className="primary" disabled={catalogLoading||query.trim().length<2} onClick={()=>void runCatalogSearch()}>{catalogLoading?'Recherche…':'Rechercher'}</button></div>
-  {catalogSearched&&<div className="catalog-results-wrap"><div className="catalog-results-head"><div><b>{catalogResults.length} résultat{catalogResults.length>1?'s':''}</b><small>{missingCatalog.length} absent{missingCatalog.length>1?'s':''} de DI’ART</small></div>{missingCatalog.length>0&&<button className="secondary catalog-bulk-add" disabled={bulkBusy} onClick={()=>void addAllMissing()}><ListPlus/>{bulkBusy?'Ajout…':`Ajouter les absents (${missingCatalog.length})`}</button>}</div><div className="catalog-results">{catalogResults.length?catalogResults.map(item=>{const exists=existingKeys.has(songKey(item.title,item.artist));return <article className={`catalog-result ${exists?'exists':''}`} key={item.id}><div className="catalog-result-main"><b>{item.title}</b><span>{item.artist||'Artiste non renseigné'}</span><small>{[item.firstReleaseDate?.slice(0,4),item.durationSeconds?formatDuration(item.durationSeconds):'',item.isrc?item.isrc:''].filter(Boolean).join(' · ')}</small></div><div className="catalog-result-tags">{item.tags.slice(0,3).map(tag=><span key={tag}>{tag}</span>)}</div><div className="catalog-result-actions">{item.sourceUrl&&<a className="bare-action" href={item.sourceUrl} target="_blank" rel="noreferrer" title="Voir la source"><ExternalLink/></a>}{exists?<span className="catalog-exists"><Check/>Déjà dans DI’ART</span>:<button className="primary" onClick={()=>void addCatalog(item)}><Plus/>Ajouter</button>}</div></article>}):<div className="catalog-empty">Aucun résultat.</div>}</div></div>}</section>
-
-  <section className="panel recueil-search-panel"><div className="recueil-searchbox"><Globe2/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Recherche pour les autres recueils externes…"/></div><p>Les autres sources restent accessibles ci-dessous pour compléter les fiches.</p></section>
-  <div className="recueil-source-grid">{recueilSources.filter(source=>source.id!=='tononkira').map(source=><section className="panel recueil-source-card" key={source.id}><div className="recueil-source-head"><span className="recueil-badge">{source.badge}</span><div><h2>{source.name}</h2><p>{source.description}</p></div></div><div className="recueil-source-actions">{source.kind==='external'?<><a className="primary recueil-action" href={query.trim()&&source.searchUrl?source.searchUrl(query.trim()):source.homepage} target="_blank" rel="noreferrer"><Search/>{query.trim()?'Rechercher':'Ouvrir'}<ExternalLink/></a><a className="secondary recueil-home" href={source.homepage} target="_blank" rel="noreferrer">Source</a></>:<><button className="primary recueil-action" onClick={()=>fileRef.current?.click()}><FileUp/>Importer ChordPro</button><a className="secondary recueil-home" href={source.homepage} target="_blank" rel="noreferrer">Format</a></>}</div></section>)}</div>
-  <section className="panel recueil-info"><BookMarked/><div><h2>Principe d’alimentation de DI’ART</h2><p>Tononkira importe directement les chansons malgaches avec leurs paroles. Le Catalogue mondial crée les fiches de base internationales. ChordPro apporte paroles et accords lorsque vous disposez du fichier.</p></div></section>
+  <section className="panel recueil-source-card chordpro-direct-card"><div className="recueil-source-head"><span className="recueil-badge">CP</span><div><h2>ChordPro</h2><p>Import direct d’un fichier .pro, .chopro, .cho, .crd ou .txt avec paroles et accords.</p></div></div><div className="recueil-source-actions"><button className="primary recueil-action" onClick={()=>fileRef.current?.click()}><FileUp/>Importer ChordPro</button></div></section>
   <input ref={fileRef} hidden type="file" accept=".pro,.chopro,.cho,.crd,.txt,text/plain" onChange={e=>{const f=e.target.files?.[0];if(f)void readChordPro(f);e.currentTarget.value=''}}/>
+
   {preview&&<Modal className="chordpro-preview-modal" title="Aperçu ChordPro" onClose={()=>setPreview(null)}><div className="chordpro-preview-head"><FileUp/><div><b>{preview.title}</b><small>{preview.artist||'Artiste non renseigné'} · {fileName}</small></div></div><div className="chordpro-preview-metrics">{preview.originalKey&&<div><span>Tonalité</span><b>{preview.originalKey}</b></div>}{preview.bpm!==null&&<div><span>BPM</span><b>{preview.bpm}</b></div>}{preview.capo!==null&&preview.capo!==undefined&&<div><span>Capo</span><b>{preview.capo}</b></div>}<div><span>Paroles</span><b>{preview.lyrics?.split('\n').filter(Boolean).length??0} lignes</b></div><div><span>Accords</span><b>{preview.chords?.split('\n').filter(Boolean).length??0} lignes</b></div></div>{duplicate&&<div className="duplicate-warning"><AlertTriangle/><span>Un morceau portant le même titre et le même artiste existe déjà dans DI’ART.</span></div>}<div className="chordpro-preview-body">{preview.lyrics&&<section><h3>Paroles</h3><pre>{preview.lyrics.slice(0,1800)}</pre></section>}{preview.chords&&<section><h3>Accords extraits</h3><pre>{preview.chords.slice(0,1200)}</pre></section>}</div><div className="modal-actions"><button className="secondary" onClick={()=>setPreview(null)}>Annuler</button><button className="primary" onClick={()=>void onImport(preview).then(()=>{setPreview(null);toast('Morceau ChordPro ajouté à DI’ART.')})}><Plus/>Ajouter à DI’ART</button></div></Modal>}</>
+}
+
+function ExternalRecueilSearch({source,badge,name,description,songs,onImport,toast}:{source:ExternalRecueilSource;badge:string;name:string;description:string;songs:Song[];onImport:(draft:SongDraft)=>Promise<void>;toast:(s:string)=>void}) {
+  const [title,setTitle]=useState('')
+  const [artist,setArtist]=useState('')
+  const [results,setResults]=useState<ExternalRecueilResult[]>([])
+  const [searched,setSearched]=useState(false)
+  const [loading,setLoading]=useState(false)
+  const [importing,setImporting]=useState('')
+  const songKey=(t:string,a:string)=>t.trim().toLowerCase()+'::'+a.trim().toLowerCase()
+  const existing=useMemo(()=>new Set(songs.map(s=>songKey(s.title,s.artist))),[songs])
+
+  const run=async()=>{
+    if(title.trim().length<2){toast('Saisissez au moins deux caractères dans le titre.');return}
+    setLoading(true);setSearched(true)
+    try{
+      const found=await searchExternalRecueil(source,title,artist)
+      setResults(found)
+      if(!found.length)toast('Aucun résultat trouvé sur '+name+'.')
+    }catch{toast('Recherche '+name+' indisponible pour le moment.')}
+    finally{setLoading(false)}
+  }
+
+  const add=async(item:ExternalRecueilResult)=>{
+    if(existing.has(songKey(item.title,item.artist))){toast('Ce morceau existe déjà dans DI’ART.');return}
+    setImporting(item.url)
+    try{
+      const full=await importExternalRecueil(source,item.url)
+      const draft=emptySongDraft()
+      draft.title=full.title||item.title
+      draft.artist=full.artist||item.artist
+      draft.structure=full.structure||''
+      draft.chords=full.chords||''
+      draft.referenceUrl=full.sourceUrl||item.url
+      draft.notes='Source recueil : '+(full.source||name)
+      draft.source='import'
+      await onImport(draft)
+      toast(draft.title+' importé depuis '+name+'.')
+    }catch{toast('Import '+name+' impossible pour ce résultat.')}
+    finally{setImporting('')}
+  }
+
+  return <section className="panel external-recueil-card"><div className="external-recueil-head"><span className="recueil-badge">{badge}</span><div><p className="eyebrow">Recherche intégrée</p><h2>{name}</h2><p>{description}</p></div></div><div className="external-recueil-fields"><label>Titre<input value={title} onChange={e=>setTitle(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void run()}} placeholder="Titre du morceau"/></label><label>Artiste <small>optionnel</small><input value={artist} onChange={e=>setArtist(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void run()}} placeholder="Nom de l’artiste"/></label><button className="primary" disabled={loading||title.trim().length<2} onClick={()=>void run()}><Search/>{loading?'Recherche…':'Rechercher'}</button></div>{searched&&<div className="external-recueil-results">{results.length?results.map(item=>{const exists=existing.has(songKey(item.title,item.artist));const busy=importing===item.url;return <article className={'external-recueil-result '+(exists?'exists':'')} key={item.url}><div><b>{item.title}</b><span>{item.artist||'Artiste non renseigné'}{item.subtitle?' · '+item.subtitle:''}</span></div><div className="external-recueil-actions"><a className="bare-action" href={item.url} target="_blank" rel="noreferrer" title="Voir la source"><ExternalLink/></a>{exists?<span className="catalog-exists"><Check/>Déjà dans DI’ART</span>:<button className="primary" disabled={Boolean(importing)} onClick={()=>void add(item)}><Import/>{busy?'Import…':'Importer'}</button>}</div></article>}):<div className="catalog-empty">Aucun résultat.</div>}</div>}</section>
 }
 
 function ImportWizard({songs,refresh,toast}:{songs:Song[];refresh:()=>Promise<void>;toast:(s:string)=>void}) {
