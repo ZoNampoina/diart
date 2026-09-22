@@ -167,19 +167,22 @@ function App() {
   </div>
 }
 
-function Dashboard({songs,artists,authors,onOpen,onGo,onFav}:{songs:Song[];artists:number;authors:number;onOpen:(s:Song)=>void;onGo:(p:Page)=>void;onFav:(s:Song)=>void}) {
+function Dashboard({songs,artists,authors,setlists,refreshSetlists,toast,onOpen,onGo,onFav}:{songs:Song[];artists:number;authors:number;setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;onOpen:(s:Song)=>void;onGo:(p:Page)=>void;onFav:(s:Song)=>void}) {
+  const [q,setQ]=useState('')
+  const results=useMemo(()=>q.trim()?songs.filter(s=>searchSong(s,q)).slice(0,12):[],[songs,q])
   const recent=[...songs].sort((a,b)=>(b.lastViewedAt||'').localeCompare(a.lastViewedAt||'')).filter(s=>s.lastViewedAt).slice(0,3)
   const added=[...songs].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,3)
   return <>
     <div className="page-head"><div><p className="eyebrow">Répertoire personnel</p><h1>Votre musique, immédiatement.</h1><p>Retrouvez tonalité, BPM et informations utiles en quelques secondes.</p></div><div className="actions"><button className="secondary" onClick={()=>onGo('import')}><FileSpreadsheet/>Importer</button><button className="primary" onClick={()=>onGo('new')}><Plus/>Nouveau morceau</button></div></div>
-    <button className="global-search" onClick={()=>onGo('library')}><Search/>Rechercher un titre, artiste, tonalité, BPM… <kbd>Ctrl K</kbd></button>
+    <div className="home-search"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Rechercher un titre, artiste, tonalité, BPM…"/>{q&&<button className="icon-btn" aria-label="Effacer la recherche" onClick={()=>setQ('')}><X/></button>}</div>
+    {q.trim()&&<section className="panel home-search-results"><div className="panel-title-row"><h2>Résultats</h2><span>{results.length} affiché(s)</span></div>{results.length?<div className="quick-results">{results.map(s=><div className="quick-result" key={s.id}><button className="quick-result-main" onClick={()=>onOpen(s)}><span><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}</small></span><span className="quick-meta">{s.personalKey||s.originalKey||'—'} · {s.bpm??'—'} BPM</span></button><QuickSetlistSelect song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/></div>)}</div>:<Empty text="Aucun résultat."/>}</section>}
     <div className="metrics"><Metric label="Morceaux" value={songs.length}/><Metric label="Artistes" value={artists}/><Metric label="Auteurs" value={authors}/><Metric label="Favoris" value={songs.filter(s=>s.favorite).length}/></div>
     <div className="home-recent-grid"><section className="panel compact-home-panel"><h2>Récemment consultés</h2>{recent.length?recent.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/>):<Empty text="Aucun morceau consulté."/>}</section><section className="panel compact-home-panel"><h2>Ajouts récents</h2>{added.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/>)}</section></div>
     <MetronomeCard initialBpm={96}/>
   </>
 }
 
-function LibraryPage({songs,searchRef,onOpen,onFav}:{songs:Song[];searchRef:RefObject<HTMLInputElement>;onOpen:(s:Song)=>void;onFav:(s:Song)=>void}) {
+function LibraryPage({songs,setlists,refreshSetlists,toast,searchRef,onOpen,onFav}:{songs:Song[];setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;searchRef:RefObject<HTMLInputElement>;onOpen:(s:Song)=>void;onFav:(s:Song)=>void}) {
   const [q,setQ]=useState(''),[key,setKey]=useState(''),[sig,setSig]=useState(''),[style,setStyle]=useState(''),[favOnly,setFavOnly]=useState(false),[min,setMin]=useState(''),[max,setMax]=useState(''),[sort,setSort]=useState('title'),[filters,setFilters]=useState(false)
   const keys=[...new Set(songs.map(s=>s.personalKey||s.originalKey).filter(Boolean))].sort()
   const sigs=[...new Set(songs.map(s=>s.timeSignature).filter(Boolean))].sort()
@@ -196,6 +199,20 @@ function LibraryPage({songs,searchRef,onOpen,onFav}:{songs:Song[];searchRef:RefO
     {filters&&<div className="filters"><select value={key} onChange={e=>setKey(e.target.value)}><option value="">Toutes tonalités</option>{keys.map(x=><option key={x}>{x}</option>)}</select><input value={min} onChange={e=>setMin(e.target.value)} placeholder="BPM min"/><input value={max} onChange={e=>setMax(e.target.value)} placeholder="BPM max"/><select value={sig} onChange={e=>setSig(e.target.value)}><option value="">Toutes signatures</option>{sigs.map(x=><option key={x}>{x}</option>)}</select><select value={style} onChange={e=>setStyle(e.target.value)}><option value="">Tous styles</option>{styles.map(x=><option key={x}>{x}</option>)}</select><label><input type="checkbox" checked={favOnly} onChange={e=>setFavOnly(e.target.checked)}/> Favoris</label></div>}
     <p className="result-count">{result.length} résultat{result.length>1?'s':''}</p><div className="songs-list">{result.length?result.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/>):<Empty text="Aucun résultat."/>}</div>
   </>
+}
+
+
+function QuickSetlistSelect({song,setlists,refresh,toast}:{song:Song;setlists:Setlist[];refresh:()=>Promise<void>;toast:(s:string)=>void}) {
+  const add=async(id:string)=>{
+    if(!id)return
+    const list=setlists.find(x=>x.id===id)
+    if(!list)return
+    if(list.songIds.includes(song.id)){toast(`${song.title} est déjà dans ${list.name}.`);return}
+    await updateSetlist(list.id,{songIds:[...list.songIds,song.id]})
+    await refresh()
+    toast(`${song.title} ajouté à ${list.name}.`)
+  }
+  return <label className="quick-setlist-select" onClick={e=>e.stopPropagation()}><ListMusic/><select defaultValue="" disabled={!setlists.length} onChange={e=>{void add(e.target.value);e.target.value=''}}><option value="">{setlists.length?'Ajouter à une setlist':'Aucune setlist'}</option>{setlists.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
 }
 
 function groupPeople(songs:Song[],field:'artist'|'authorComposer') {
