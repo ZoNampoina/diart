@@ -34,14 +34,14 @@ export async function syncSongs(userId:string){
   if(error) throw error
   const remote=new Map((data??[]).map(r=>[r.id,r]))
   const pushes:{user_id:string;id:string;payload:Song;updated_at:string}[]=[]
+  let pulled=0
   for(const song of local){
     if(song.source==='demo') continue
     const r=remote.get(song.id)
     if(!r || newer(song.updatedAt,r.updated_at)) pushes.push({user_id:userId,id:song.id,payload:song,updated_at:song.updatedAt})
-    else if(newer(r.updated_at,song.updatedAt)) await db.songs.put(r.payload as Song)
+    else if(newer(r.updated_at,song.updatedAt)){await db.songs.put(r.payload as Song);pulled++}
     remote.delete(song.id)
   }
-  let pulled=0
   for(const r of remote.values()){await db.songs.put(r.payload as Song);pulled++}
   if(pushes.length){
     const {error:e}=await supabase.from('diart_songs').upsert(pushes,{onConflict:'user_id,id'})
@@ -56,13 +56,13 @@ export async function syncSetlists(userId:string){
   if(error) throw error
   const remote=new Map((data??[]).map(r=>[r.id,r]))
   const pushes:{user_id:string;id:string;payload:Setlist;updated_at:string}[]=[]
+  let pulled=0
   for(const item of local){
     const r=remote.get(item.id)
     if(!r || newer(item.updatedAt,r.updated_at)) pushes.push({user_id:userId,id:item.id,payload:item,updated_at:item.updatedAt})
-    else if(newer(r.updated_at,item.updatedAt)) await db.setlists.put(r.payload as Setlist)
+    else if(newer(r.updated_at,item.updatedAt)){await db.setlists.put(r.payload as Setlist);pulled++}
     remote.delete(item.id)
   }
-  let pulled=0
   for(const r of remote.values()){await db.setlists.put(r.payload as Setlist);pulled++}
   if(pushes.length){
     const {error:e}=await supabase.from('diart_setlists').upsert(pushes,{onConflict:'user_id,id'})
