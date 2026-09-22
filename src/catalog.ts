@@ -43,3 +43,18 @@ export function catalogRecordingToDraft(item:CatalogRecording):SongDraft{
   draft.source='import'
   return draft
 }
+
+
+export interface TononkiraReference {
+  title:string
+  artist:string
+  sourceUrl:string
+  source:string
+}
+
+export async function fetchTononkiraReference(url:string):Promise<TononkiraReference>{
+  const {data,error}=await supabase.functions.invoke('diart-tononkira-reference',{body:{url:url.trim()}})
+  if(error) throw error
+  if(data?.error) throw new Error(String(data.error))
+  return data as TononkiraReference
+}
