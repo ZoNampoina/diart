@@ -337,7 +337,7 @@ function MetronomeCard({initialBpm=96,signature='4/4'}:{initialBpm?:number;signa
     const osc=ctx.createOscillator(),gain=ctx.createGain()
     osc.type='square'
     osc.frequency.setValueAtTime(accent?1500:950,time)
-    gain.gain.setValueAtTime(accent?.19:.12,time)
+    gain.gain.setValueAtTime(accent ? .19 : .12,time)
     gain.gain.exponentialRampToValueAtTime(.001,time+.05)
     osc.connect(gain);gain.connect(ctx.destination);osc.start(time);osc.stop(time+.055)
     const delay=Math.max(0,(time-ctx.currentTime)*1000)
