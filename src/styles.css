@@ -1523,3 +1523,57 @@ textarea{resize:vertical}
     min-height:38dvh;
   }
 }
+
+
+/* DI'ART V1.8.2 — prominent Tononkira entry */
+.tononkira-feature-card{
+  display:grid;
+  grid-template-columns:56px minmax(0,1fr) auto;
+  gap:14px;
+  align-items:center;
+  margin-bottom:14px;
+  padding:16px;
+  border-color:color-mix(in srgb,var(--accent) 34%,var(--line));
+  background:
+    radial-gradient(circle at 92% 12%,color-mix(in srgb,var(--accent) 11%,transparent),transparent 34%),
+    var(--surface);
+}
+.tononkira-feature-mark{
+  width:52px;
+  height:52px;
+  border-radius:15px;
+  display:grid;
+  place-items:center;
+  font-weight:900;
+  letter-spacing:.05em;
+  color:var(--accent2);
+  background:color-mix(in srgb,var(--accent) 15%,var(--surface3));
+  border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));
+}
+.tononkira-feature-copy h2{
+  margin:2px 0 5px;
+  font-size:20px;
+}
+.tononkira-feature-copy p:last-child{
+  margin:0;
+  color:var(--muted);
+  line-height:1.5;
+}
+.tononkira-feature-action{
+  min-height:44px;
+  white-space:nowrap;
+}
+@media(max-width:760px){
+  .tononkira-feature-card{
+    grid-template-columns:46px minmax(0,1fr);
+  }
+  .tononkira-feature-mark{
+    width:44px;
+    height:44px;
+    border-radius:12px;
+  }
+  .tononkira-feature-action{
+    grid-column:1/-1;
+    width:100%;
+  }
+}
