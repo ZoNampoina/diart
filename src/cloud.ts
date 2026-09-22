@@ -70,3 +70,31 @@ export async function syncSetlists(userId:string){
 export async function syncAll(userId:string){
   await Promise.all([syncSongs(userId),syncSetlists(userId)])
 }
+
+export async function getCloudStats(userId:string){
+  const [{count:songs,error:songsError},{count:setlists,error:setlistsError}] = await Promise.all([
+    supabase.from('diart_songs').select('id',{count:'exact',head:true}).eq('user_id',userId),
+    supabase.from('diart_setlists').select('id',{count:'exact',head:true}).eq('user_id',userId)
+  ])
+  if(songsError) throw songsError
+  if(setlistsError) throw setlistsError
+  return {songs:songs??0,setlists:setlists??0}
+}
+
+export async function pullCloudToLocal(userId:string){
+  const [{data:songs,error:songsError},{data:setlists,error:setlistsError}] = await Promise.all([
+    supabase.from('diart_songs').select('payload').eq('user_id',userId),
+    supabase.from('diart_setlists').select('payload').eq('user_id',userId)
+  ])
+  if(songsError) throw songsError
+  if(setlistsError) throw setlistsError
+  await db.transaction('rw',db.songs,db.setlists,async()=>{
+    const demoSongs=(await db.songs.toArray()).filter(s=>s.source==='demo')
+    await db.songs.clear()
+    await db.setlists.clear()
+    if(demoSongs.length) await db.songs.bulkPut(demoSongs)
+    if(songs?.length) await db.songs.bulkPut(songs.map(r=>r.payload as Song))
+    if(setlists?.length) await db.setlists.bulkPut(setlists.map(r=>r.payload as Setlist))
+  })
+  return {songs:songs?.length??0,setlists:setlists?.length??0}
+}
