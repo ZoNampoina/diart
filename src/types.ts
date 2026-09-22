@@ -14,6 +14,10 @@ export interface Song {
   tags: string[]
   notes: string
   referenceUrl: string
+  capo?: number | null
+  structure?: string
+  chords?: string
+  instrumentNotes?: string
   favorite: boolean
   createdAt: string
   updatedAt: string
