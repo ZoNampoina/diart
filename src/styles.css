@@ -2483,3 +2483,12 @@ textarea{resize:vertical}
     min-width:70px!important;
   }
 }
+
+
+/* DI'ART V2.1.1 — clearable search alignment */
+.setlist-add-search{
+  grid-template-columns:22px minmax(0,1fr) 32px!important;
+}
+.setlist-add-search .search-clear{
+  justify-self:end;
+}
