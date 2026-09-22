@@ -708,20 +708,81 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong}:{mode:'
   const [index,setIndex]=useState(0)
   const [view,setView]=useState<'guide'|'lyrics'>('guide')
   const [localNotes,setLocalNotes]=useState<Record<string,string>>(list.rehearsalNotes??{})
+  const [lyricsFontSize,setLyricsFontSize]=useState(22)
+  const [transpose,setTranspose]=useState(0)
+  const [autoScroll,setAutoScroll]=useState(false)
+  const [scrollSpeed,setScrollSpeed]=useState(36)
+  const contentRef=useRef<HTMLDivElement>(null)
   const song=songs[index]
   const [noteDraft,setNoteDraft]=useState(song?localNotes[song.id]??'':'')
+
   useEffect(()=>{
     const previous=document.body.style.overflow
     document.body.style.overflow='hidden'
     return()=>{document.body.style.overflow=previous}
   },[])
+
   const hasGuide=Boolean(song?.structure||song?.chords||song?.instrumentNotes)
-  useEffect(()=>{if(!song)return;setView(song.structure||song.chords||song.instrumentNotes?'guide':song.lyrics?'lyrics':'guide');setNoteDraft(localNotes[song.id]??'')},[index,song?.id])
+  useEffect(()=>{
+    if(!song)return
+    setView(song.structure||song.chords||song.instrumentNotes?'guide':song.lyrics?'lyrics':'guide')
+    setNoteDraft(localNotes[song.id]??'')
+    setTranspose(0)
+    setAutoScroll(false)
+    requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0,behavior:'auto'}))
+  },[index,song?.id])
+
+  useEffect(()=>{
+    if(!autoScroll)return
+    let raf=0
+    let last=performance.now()
+    const tick=(now:number)=>{
+      const el=contentRef.current
+      if(!el)return
+      const dt=Math.min(80,now-last)
+      last=now
+      el.scrollTop+=scrollSpeed*dt/1000
+      if(el.scrollTop+el.clientHeight>=el.scrollHeight-2){setAutoScroll(false);return}
+      raf=requestAnimationFrame(tick)
+    }
+    raf=requestAnimationFrame(tick)
+    return()=>cancelAnimationFrame(raf)
+  },[autoScroll,scrollSpeed,index,view])
+
   if(!song)return null
+
   const saveNote=async()=>{const next={...localNotes,[song.id]:noteDraft};setLocalNotes(next);await updateSetlist(list.id,{rehearsalNotes:next});void refresh();toast('Notes de répétition enregistrées.')}
-  const go=(next:number)=>{if(next<0||next>=songs.length)return;setIndex(next)}
+  const go=(next:number)=>{if(next<0||next>=songs.length)return;setAutoScroll(false);setIndex(next)}
+  const baseKey=song.personalKey||song.originalKey
+  const displayKey=baseKey?transposeKey(baseKey,transpose):''
+  const displayChords=transposeChordText(song.chords??'',transpose)
   const stageStyle:CSSProperties={position:'fixed',inset:0,zIndex:10000,display:'grid',gridTemplateRows:'auto minmax(0,1fr) auto',overflow:'hidden',background:mode==='rehearsal'?'radial-gradient(circle at 70% 0,#0d3039,#030b0e 52%)':'#02090c',color:'#f2fbfc'}
-  return createPortal(<div className={`stage-mode ${mode}`} style={stageStyle}><header className="stage-topbar" style={{zIndex:2,background:'rgba(2,9,12,.96)',borderBottom:'1px solid #17323a',display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center'}}><div className="stage-list-context" style={{gridColumn:1,justifySelf:'start'}}><span>{mode==='rehearsal'?'Répétition':'Live Mode'}</span><b>{list.name}</b></div><div className="stage-current-song" style={{gridColumn:2,justifySelf:'center',textAlign:'center'}}><b>{song.title}</b><small>{song.artist||'Artiste inconnu'}</small>{(hasGuide||song.lyrics)&&<div className="stage-view-tabs">{hasGuide&&<button className={view==='guide'?'active':''} onClick={()=>setView('guide')}>Repères</button>}{song.lyrics&&<button className={view==='lyrics'?'active':''} onClick={()=>setView('lyrics')}>Paroles</button>}</div>}</div><button className="live-close" style={{gridColumn:3,justifySelf:'end'}} onClick={onClose}><X/></button></header><main className="stage-content" style={{minHeight:0,height:'100%',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain'}}><div className="stage-song-head"><p>{song.artist||'Artiste inconnu'} · {index+1}/{songs.length}</p><h1>{song.title}</h1><div className="stage-metrics"><strong>{song.personalKey||song.originalKey||'—'}</strong>{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div></div>{view==='lyrics'&&song.lyrics?<pre className="stage-lyrics">{song.lyrics}</pre>:hasGuide?<div className="stage-guide">{song.structure&&<section><h3>Structure</h3><p>{song.structure}</p></section>}{song.chords&&<section><h3>Accords / repères</h3><pre>{song.chords}</pre></section>}{song.instrumentNotes&&<section><h3>Notes instrumentales</h3><p>{song.instrumentNotes}</p></section>}</div>:null}{mode==='rehearsal'&&<section className="rehearsal-edit-panel"><div className="panel-title-row"><div><h3>Modifications / notes de répétition</h3><small>Ces annotations restent liées à cette setlist et se synchronisent sur vos appareils.</small></div><button className="secondary" onClick={()=>{onClose();onOpenSong(song)}}><Pencil/>Modifier la fiche</button></div><textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder="Ex. Reprendre le pont 2x, sax après le refrain, descendre d’un ton…"/><button className="primary" onClick={()=>void saveNote()}><Save/>Enregistrer les modifications</button></section>}</main><footer className="stage-nav compact-stage-nav" style={{zIndex:2,background:'rgba(2,9,12,.96)',borderTop:'1px solid #17323a'}}><button className="stage-nav-btn secondary" disabled={index===0} onClick={()=>go(index-1)}><ChevronLeft/><span>Précédent</span></button><div>{index+1} / {songs.length}</div><button className="stage-nav-btn primary" disabled={index===songs.length-1} onClick={()=>go(index+1)}><span>Suivant</span><ChevronRight/></button></footer></div>,document.body)
+
+  return createPortal(<div className={'stage-mode '+mode} style={stageStyle}>
+    <header className="stage-topbar" style={{zIndex:2,background:'rgba(2,9,12,.96)',borderBottom:'1px solid #17323a',display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center'}}>
+      <div className="stage-list-context" style={{gridColumn:1,justifySelf:'start'}}><span>{mode==='rehearsal'?'Répétition':'Live Mode'}</span><b>{list.name}</b></div>
+      <div className="stage-current-song" style={{gridColumn:2,justifySelf:'center',textAlign:'center'}}><b>{song.title}</b><small>{song.artist||'Artiste inconnu'}</small>{(hasGuide||song.lyrics)&&<div className="stage-view-tabs">{hasGuide&&<button className={view==='guide'?'active':''} onClick={()=>{setView('guide');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Repères</button>}{song.lyrics&&<button className={view==='lyrics'?'active':''} onClick={()=>{setView('lyrics');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Paroles</button>}</div>}</div>
+      <button className="live-close" style={{gridColumn:3,justifySelf:'end'}} onClick={onClose}><X/></button>
+    </header>
+
+    <main ref={contentRef} className="stage-content" style={{minHeight:0,height:'100%',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain'}}>
+      <div className="stage-song-head"><p>{song.artist||'Artiste inconnu'} · {index+1}/{songs.length}</p><h1>{song.title}</h1><div className="stage-metrics">{displayKey&&<strong>{displayKey}</strong>}{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div></div>
+
+      <div className="stage-session-tools">
+        <div className="stage-control-group"><span>Paroles</span><button title="Réduire la police" onClick={()=>setLyricsFontSize(v=>Math.max(14,v-2))}><Minus/></button><b>{lyricsFontSize}</b><button title="Agrandir la police" onClick={()=>setLyricsFontSize(v=>Math.min(48,v+2))}><Plus/></button></div>
+        <div className="stage-control-group"><span>Transposer</span><button title="-1 demi-ton" onClick={()=>setTranspose(v=>Math.max(-12,v-1))}><Minus/></button><b>{formatSemitoneOffset(transpose)}</b><button title="+1 demi-ton" onClick={()=>setTranspose(v=>Math.min(12,v+1))}><Plus/></button><button title="Réinitialiser la transposition" className="stage-reset-btn" disabled={transpose===0} onClick={()=>setTranspose(0)}><RotateCcw/></button></div>
+        <div className={'stage-control-group auto-scroll-control '+(autoScroll?'active':'')}><span>Défilement</span><button className="stage-autoscroll-toggle" title={autoScroll?'Arrêter':'Démarrer'} onClick={()=>setAutoScroll(v=>!v)}>{autoScroll?<Square/>:<Play/>}</button><input aria-label="Vitesse de défilement" type="range" min="10" max="120" step="2" value={scrollSpeed} onChange={e=>setScrollSpeed(Number(e.target.value))}/><b>{scrollSpeed}</b><button title="Retour en haut" onClick={()=>{setAutoScroll(false);contentRef.current?.scrollTo({top:0,behavior:'smooth'})}}><ChevronUp/></button></div>
+      </div>
+
+      {view==='lyrics'&&song.lyrics
+        ?<pre className="stage-lyrics" style={{fontSize:lyricsFontSize}}>{song.lyrics}</pre>
+        :hasGuide?<div className="stage-guide">{song.structure&&<section><h3>Structure</h3><p>{song.structure}</p></section>}{song.chords&&<section><h3>Accords / repères{transpose!==0&&<small className="transpose-indicator"> · {formatSemitoneOffset(transpose)} demi-ton{Math.abs(transpose)>1?'s':''}</small>}</h3><pre>{displayChords}</pre></section>}{song.instrumentNotes&&<section><h3>Notes instrumentales</h3><p>{song.instrumentNotes}</p></section>}</div>:null}
+
+      {mode==='rehearsal'&&<section className="rehearsal-edit-panel"><div className="panel-title-row"><div><h3>Modifications / notes de répétition</h3><small>Ces annotations restent liées à cette setlist et se synchronisent sur vos appareils.</small></div><button className="secondary" onClick={()=>{onClose();onOpenSong(song)}}><Pencil/>Modifier la fiche</button></div><textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder="Ex. Reprendre le pont 2x, sax après le refrain, descendre d’un ton…"/><button className="primary" onClick={()=>void saveNote()}><Save/>Enregistrer les modifications</button></section>}
+    </main>
+
+    <footer className="stage-nav compact-stage-nav" style={{zIndex:2,background:'rgba(2,9,12,.96)',borderTop:'1px solid #17323a'}}><button className="stage-nav-btn secondary" disabled={index===0} onClick={()=>go(index-1)}><ChevronLeft/><span>Précédent</span></button><div>{index+1} / {songs.length}</div><button className="stage-nav-btn primary" disabled={index===songs.length-1} onClick={()=>go(index+1)}><span>Suivant</span><ChevronRight/></button></footer>
+  </div>,document.body)
 }
 
 function Empty({text}:{text:string}) { return <div className="empty"><Music2/><p>{text}</p></div> }
