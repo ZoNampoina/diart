@@ -54,6 +54,10 @@ export type ImportField =
   | 'tags'
   | 'notes'
   | 'referenceUrl'
+  | 'capo'
+  | 'structure'
+  | 'chords'
+  | 'instrumentNotes'
 
 export type ImportMapping = Record<string, ImportField | ''>
 
