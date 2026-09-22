@@ -236,13 +236,27 @@ function QuickSetlistAdd({song,setlists,refresh,toast}:{song:Song;setlists:Setli
     setOpen(false)
     toast(`Setlist « ${clean} » créée avec ${song.title}.`)
   }
-  return <div className="quick-setlist-add" onClick={e=>e.stopPropagation()}><button className="setlist-plus-btn" aria-label="Ajouter à une setlist" title="Ajouter à une setlist" onClick={()=>setOpen(v=>!v)}><Plus/></button>{open&&<div className="setlist-popover"><div className="setlist-popover-head"><b>Ajouter à une setlist</b><button className="icon-btn" onClick={()=>setOpen(false)}><X/></button></div><div className="setlist-popover-list">{setlists.length?setlists.map(list=><button key={list.id} onClick={()=>void add(list)}><ListMusic/><span>{list.name}</span>{list.songIds.includes(song.id)&&<Check/>}</button>):<small>Aucune setlist existante.</small>}</div><div className="setlist-popover-create"><input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createAndAdd()}} placeholder="Nouvelle setlist…"/><button className="primary" disabled={!name.trim()} onClick={()=>void createAndAdd()}><Plus/>Créer</button></div></div>}</div>
+  return <div className="quick-setlist-add" onClick={e=>e.stopPropagation()}><button className="setlist-plus-btn" aria-label="Ajouter à une setlist" title="Ajouter à une setlist" onClick={()=>setOpen(true)}><Plus/></button>{open&&<Modal title="Ajouter à une setlist" onClose={()=>setOpen(false)}><div className="setlist-choice-list">{setlists.length?setlists.map(list=><button key={list.id} className="setlist-choice" onClick={()=>void add(list)}><ListMusic/><span><b>{list.name}</b><small>{list.songIds.length} morceau{list.songIds.length>1?'x':''}</small></span>{list.songIds.includes(song.id)&&<Check/>}</button>):<p className="muted-copy">Aucune setlist existante.</p>}</div><div className="setlist-modal-create"><label>Créer une nouvelle setlist<input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createAndAdd()}} placeholder="Nom de la setlist"/></label><button className="primary" disabled={!name.trim()} onClick={()=>void createAndAdd()}><Plus/>Créer et ajouter</button></div></Modal>}</div>
 }
 
 function groupPeople(songs:Song[],field:'artist'|'authorComposer') {
   const map=new Map<string,Song[]>()
   songs.forEach(s=>{const n=s[field].trim();if(n)map.set(n,[...(map.get(n)||[]),s])})
   return [...map.entries()].sort((a,b)=>a[0].localeCompare(b[0]))
+}
+
+function ArtistsPage({items,onArtist}:{items:[string,Song[]][];onArtist:(name:string)=>void}) {
+  const [q,setQ]=useState('')
+  const deferredQ=useDeferredValue(q)
+  const filtered=useMemo(()=>items.filter(([name,list])=>!deferredQ.trim()||name.toLowerCase().includes(deferredQ.toLowerCase())||list.some(s=>searchSong(s,deferredQ))),[items,deferredQ])
+  return <><div className="page-head compact"><div><p className="eyebrow">Répertoire</p><h1>Artistes</h1><p>{filtered.length} artiste{filtered.length>1?'s':''}</p></div></div><div className="artist-search searchbox"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Rechercher un artiste ou un morceau…"/></div><div className="people-grid">{filtered.map(([name,list])=><div className="person-card" key={name}><button onClick={()=>onArtist(name)}><span className="avatar">{name[0]}</span><span><b>{name}</b><small>{list.length} morceau{list.length>1?'x':''}</small></span><ChevronRight/></button></div>)}</div></>
+}
+
+function ArtistDetailPage({artist,songs,setlists,refreshSetlists,toast,onBack,onOpen,onFav,onAdd}:{artist:string;songs:Song[];setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;onBack:()=>void;onOpen:(s:Song)=>void;onFav:(s:Song)=>void;onAdd:()=>void}) {
+  const [q,setQ]=useState('')
+  const deferredQ=useDeferredValue(q)
+  const filtered=useMemo(()=>songs.filter(s=>searchSong(s,deferredQ)),[songs,deferredQ])
+  return <><div className="detail-nav artist-detail-nav"><button className="ghost" onClick={onBack}><ChevronLeft/>Artistes</button><button className="icon-btn artist-add-song" aria-label="Ajouter un morceau pour cet artiste" title="Ajouter un morceau" onClick={onAdd}><Plus/></button></div><div className="page-head compact artist-header"><div><p className="eyebrow">Artiste</p><h1>{artist}</h1><p>{songs.length} morceau{songs.length>1?'x':''}</p></div></div>{songs.length>8&&<div className="artist-search searchbox"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder={`Rechercher dans ${artist}…`}/></div>}<div className="songs-list artist-song-list">{filtered.length?filtered.map(s=><div className="library-result-wrap" key={s.id}><SongRow song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/><div className="library-setlist-action"><QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/></div></div>):<Empty text="Aucun morceau."/ >}</div></>
 }
 
 function PeoplePage({title,items,onOpen}:{title:string;items:[string,Song[]][];onOpen:(s:Song)=>void}) {
@@ -253,8 +267,8 @@ function PeoplePage({title,items,onOpen}:{title:string;items:[string,Song[]][];o
   return <><div className="page-head compact"><div><p className="eyebrow">Répertoire</p><h1>{title}</h1><p>{filtered.length} entrée{filtered.length>1?'s':''}</p></div></div><div className="artist-search searchbox"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder={title.startsWith('Artistes')?'Rechercher un artiste ou un morceau…':'Rechercher…'}/></div><div className="people-grid">{filtered.map(([name,list])=><div className="person-card" key={name}><button onClick={()=>setOpen(open===name?null:name)}><span className="avatar">{name[0]}</span><span><b>{name}</b><small>{list.length} morceau{list.length>1?'x':''}</small></span><ChevronRight/></button>{open===name&&<div>{list.map(s=><button className="person-song" key={s.id} onClick={()=>onOpen(s)}>{s.title}<span>{s.personalKey||s.originalKey||'—'} · {s.bpm??'—'} BPM</span></button>)}</div>}</div>)}</div></>
 }
 
-function SimpleSongs({title,songs,onOpen,onFav}:{title:string;songs:Song[];onOpen:(s:Song)=>void;onFav:(s:Song)=>void}) {
-  return <><div className="page-head compact"><div><p className="eyebrow">Répertoire</p><h1>{title}</h1><p>{songs.length} morceau{songs.length>1?'x':''}</p></div></div><div className="songs-list">{songs.length?songs.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/>):<Empty text="Rien à afficher."/>}</div></>
+function SimpleSongs({title,songs,setlists,refreshSetlists,toast,onOpen,onFav}:{title:string;songs:Song[];setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;onOpen:(s:Song)=>void;onFav:(s:Song)=>void}) {
+  return <><div className="page-head compact"><div><p className="eyebrow">Répertoire</p><h1>{title}</h1><p>{songs.length} morceau{songs.length>1?'x':''}</p></div></div><div className="songs-list">{songs.length?songs.map(s=><div className="library-result-wrap" key={s.id}><SongRow song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/><div className="library-setlist-action"><QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/></div></div>):<Empty text="Rien à afficher."/>}</div></>
 }
 
 function SongDetail({song,onBack,onEdit,onFav,onLyricsSave,onDelete}:{song:Song;onBack:()=>void;onEdit:()=>void;onFav:()=>void;onLyricsSave:(lyrics:string)=>Promise<void>;onDelete:()=>void}) {
