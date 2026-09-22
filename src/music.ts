@@ -13,7 +13,7 @@ export function normalizeKey(value: unknown): string {
   const raw = normalizeText(value)
   if (!raw) return ''
   const compact = raw.replace(/\s+/g, '')
-  const m = compact.match(/^([A-Ga-g])([#b♯♭]?)(m|min|minor|maj|major)?(.*)$/)
+  const m = compact.match(/^([A-Ga-g])([#b♯♭]?)(minor|major|min|maj|m)?(.*)$/)
   if (!m) return raw
   let root = m[1].toUpperCase() + m[2].replace('♯', '#').replace('♭', 'b')
   root = FLAT_TO_SHARP[root] ?? root
