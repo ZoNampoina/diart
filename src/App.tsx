@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject, type FormEvent } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject, type FormEvent } from 'react'
 import {
   BookOpen, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Heart, Home, Import,
   Library, Menu, Moon, MoreHorizontal, Music2, Plus, Search, Settings, Star, Sun,
@@ -169,13 +169,14 @@ function App() {
 
 function Dashboard({songs,artists,authors,setlists,refreshSetlists,toast,onOpen,onGo,onFav}:{songs:Song[];artists:number;authors:number;setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;onOpen:(s:Song)=>void;onGo:(p:Page)=>void;onFav:(s:Song)=>void}) {
   const [q,setQ]=useState('')
-  const results=useMemo(()=>q.trim()?songs.filter(s=>searchSong(s,q)).slice(0,12):[],[songs,q])
+  const deferredQ=useDeferredValue(q)
+  const results=useMemo(()=>deferredQ.trim()?songs.filter(s=>searchSong(s,deferredQ)).slice(0,12):[],[songs,deferredQ])
   const recent=[...songs].sort((a,b)=>(b.lastViewedAt||'').localeCompare(a.lastViewedAt||'')).filter(s=>s.lastViewedAt).slice(0,3)
   const added=[...songs].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,3)
   return <>
     <div className="page-head"><div><p className="eyebrow">Répertoire personnel</p><h1>Votre musique, immédiatement.</h1><p>Retrouvez tonalité, BPM et informations utiles en quelques secondes.</p></div><div className="actions"><button className="secondary" onClick={()=>onGo('import')}><FileSpreadsheet/>Importer</button><button className="primary" onClick={()=>onGo('new')}><Plus/>Nouveau morceau</button></div></div>
     <div className="home-search"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Rechercher un titre, artiste, tonalité, BPM…"/>{q&&<button className="icon-btn" aria-label="Effacer la recherche" onClick={()=>setQ('')}><X/></button>}</div>
-    {q.trim()&&<section className="panel home-search-results"><div className="panel-title-row"><h2>Résultats</h2><span>{results.length} affiché(s)</span></div>{results.length?<div className="quick-results">{results.map(s=><div className="quick-result" key={s.id}><button className="quick-result-main" onClick={()=>onOpen(s)}><span><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}</small></span><span className="quick-meta">{s.personalKey||s.originalKey||'—'} · {s.bpm??'—'} BPM</span></button><QuickSetlistSelect song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/></div>)}</div>:<Empty text="Aucun résultat."/>}</section>}
+    {q.trim()&&<section className="panel home-search-results"><div className="panel-title-row"><h2>Résultats</h2><span>{results.length} affiché(s)</span></div>{results.length?<div className="quick-results">{results.map(s=><div className="quick-result" key={s.id}><button className="quick-result-main" onClick={()=>onOpen(s)}><span><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}</small></span><span className="quick-meta">{s.personalKey||s.originalKey||'—'} · {s.bpm??'—'} BPM</span></button><QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/></div>)}</div>:<Empty text="Aucun résultat."/>}</section>}
     <div className="metrics"><Metric label="Morceaux" value={songs.length}/><Metric label="Artistes" value={artists}/><Metric label="Auteurs" value={authors}/><Metric label="Favoris" value={songs.filter(s=>s.favorite).length}/></div>
     <div className="home-recent-grid"><section className="panel compact-home-panel"><h2>Récemment consultés</h2>{recent.length?recent.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/>):<Empty text="Aucun morceau consulté."/>}</section><section className="panel compact-home-panel"><h2>Ajouts récents</h2>{added.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/>)}</section></div>
     <MetronomeCard initialBpm={96}/>
@@ -184,35 +185,46 @@ function Dashboard({songs,artists,authors,setlists,refreshSetlists,toast,onOpen,
 
 function LibraryPage({songs,setlists,refreshSetlists,toast,searchRef,onOpen,onFav}:{songs:Song[];setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;searchRef:RefObject<HTMLInputElement>;onOpen:(s:Song)=>void;onFav:(s:Song)=>void}) {
   const [q,setQ]=useState(''),[key,setKey]=useState(''),[sig,setSig]=useState(''),[style,setStyle]=useState(''),[favOnly,setFavOnly]=useState(false),[min,setMin]=useState(''),[max,setMax]=useState(''),[sort,setSort]=useState('title'),[filters,setFilters]=useState(false)
+  const deferredQ=useDeferredValue(q)
   const keys=[...new Set(songs.map(s=>s.personalKey||s.originalKey).filter(Boolean))].sort()
   const sigs=[...new Set(songs.map(s=>s.timeSignature).filter(Boolean))].sort()
   const styles=[...new Set(songs.map(s=>s.style).filter(Boolean))].sort()
-  const result=useMemo(()=>songs.filter(s=>searchSong(s,q))
+  const result=useMemo(()=>songs.filter(s=>searchSong(s,deferredQ))
     .filter(s=>!key||(s.personalKey||s.originalKey)===key).filter(s=>!sig||s.timeSignature===sig)
     .filter(s=>!style||s.style===style).filter(s=>!favOnly||s.favorite)
     .filter(s=>!min||(s.bpm!==null&&s.bpm>=Number(min))).filter(s=>!max||(s.bpm!==null&&s.bpm<=Number(max)))
     .sort((a,b)=>sort==='artist'?a.artist.localeCompare(b.artist):sort==='bpm'?(a.bpm??999)-(b.bpm??999):sort==='updated'?b.updatedAt.localeCompare(a.updatedAt):a.title.localeCompare(b.title)),
-  [songs,q,key,sig,style,favOnly,min,max,sort])
+  [songs,deferredQ,key,sig,style,favOnly,min,max,sort])
   return <>
     <div className="page-head compact"><div><p className="eyebrow">Bibliothèque</p><h1>{songs.length} morceaux</h1></div></div>
     <div className="toolbar"><div className="searchbox"><Search/><input ref={searchRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Titre, artiste, auteur, tonalité, BPM, tags…"/></div><button className="secondary" onClick={()=>setFilters(v=>!v)}><Filter/>Filtres</button><label className="select-wrap"><ArrowUpDown/><select value={sort} onChange={e=>setSort(e.target.value)}><option value="title">Titre A–Z</option><option value="artist">Artiste A–Z</option><option value="bpm">BPM</option><option value="updated">Modifiés récemment</option></select></label></div>
     {filters&&<div className="filters"><select value={key} onChange={e=>setKey(e.target.value)}><option value="">Toutes tonalités</option>{keys.map(x=><option key={x}>{x}</option>)}</select><input value={min} onChange={e=>setMin(e.target.value)} placeholder="BPM min"/><input value={max} onChange={e=>setMax(e.target.value)} placeholder="BPM max"/><select value={sig} onChange={e=>setSig(e.target.value)}><option value="">Toutes signatures</option>{sigs.map(x=><option key={x}>{x}</option>)}</select><select value={style} onChange={e=>setStyle(e.target.value)}><option value="">Tous styles</option>{styles.map(x=><option key={x}>{x}</option>)}</select><label><input type="checkbox" checked={favOnly} onChange={e=>setFavOnly(e.target.checked)}/> Favoris</label></div>}
-    <p className="result-count">{result.length} résultat{result.length>1?'s':''}</p><div className="songs-list">{result.length?result.map(s=><div className="library-result-wrap" key={s.id}><SongRow song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/><div className="library-setlist-action"><QuickSetlistSelect song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/></div></div>):<Empty text="Aucun résultat."/>}</div>
+    <p className="result-count">{result.length} résultat{result.length>1?'s':''}</p><div className="songs-list">{result.length?result.map(s=><div className="library-result-wrap" key={s.id}><SongRow song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/><div className="library-setlist-action"><QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/></div></div>):<Empty text="Aucun résultat."/>}</div>
   </>
 }
 
 
-function QuickSetlistSelect({song,setlists,refresh,toast}:{song:Song;setlists:Setlist[];refresh:()=>Promise<void>;toast:(s:string)=>void}) {
-  const add=async(id:string)=>{
-    if(!id)return
-    const list=setlists.find(x=>x.id===id)
-    if(!list)return
-    if(list.songIds.includes(song.id)){toast(`${song.title} est déjà dans ${list.name}.`);return}
+function QuickSetlistAdd({song,setlists,refresh,toast}:{song:Song;setlists:Setlist[];refresh:()=>Promise<void>;toast:(s:string)=>void}) {
+  const [open,setOpen]=useState(false)
+  const [name,setName]=useState('')
+  const add=async(list:Setlist)=>{
+    if(list.songIds.includes(song.id)){toast(`${song.title} est déjà dans ${list.name}.`);setOpen(false);return}
     await updateSetlist(list.id,{songIds:[...list.songIds,song.id]})
     await refresh()
+    setOpen(false)
     toast(`${song.title} ajouté à ${list.name}.`)
   }
-  return <label className="quick-setlist-select" onClick={e=>e.stopPropagation()}><ListMusic/><select defaultValue="" disabled={!setlists.length} onChange={e=>{void add(e.target.value);e.target.value=''}}><option value="">{setlists.length?'Ajouter à une setlist':'Aucune setlist'}</option>{setlists.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+  const createAndAdd=async()=>{
+    const clean=name.trim()
+    if(!clean)return
+    const list=await createSetlist(clean)
+    await updateSetlist(list.id,{songIds:[song.id]})
+    await refresh()
+    setName('')
+    setOpen(false)
+    toast(`Setlist « ${clean} » créée avec ${song.title}.`)
+  }
+  return <div className="quick-setlist-add" onClick={e=>e.stopPropagation()}><button className="setlist-plus-btn" aria-label="Ajouter à une setlist" title="Ajouter à une setlist" onClick={()=>setOpen(v=>!v)}><Plus/></button>{open&&<div className="setlist-popover"><div className="setlist-popover-head"><b>Ajouter à une setlist</b><button className="icon-btn" onClick={()=>setOpen(false)}><X/></button></div><div className="setlist-popover-list">{setlists.length?setlists.map(list=><button key={list.id} onClick={()=>void add(list)}><ListMusic/><span>{list.name}</span>{list.songIds.includes(song.id)&&<Check/>}</button>):<small>Aucune setlist existante.</small>}</div><div className="setlist-popover-create"><input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createAndAdd()}} placeholder="Nouvelle setlist…"/><button className="primary" disabled={!name.trim()} onClick={()=>void createAndAdd()}><Plus/>Créer</button></div></div>}</div>
 }
 
 function groupPeople(songs:Song[],field:'artist'|'authorComposer') {
@@ -224,7 +236,8 @@ function groupPeople(songs:Song[],field:'artist'|'authorComposer') {
 function PeoplePage({title,items,onOpen}:{title:string;items:[string,Song[]][];onOpen:(s:Song)=>void}) {
   const [open,setOpen]=useState<string|null>(null)
   const [q,setQ]=useState('')
-  const filtered=useMemo(()=>items.filter(([name,list])=>!q.trim()||name.toLowerCase().includes(q.toLowerCase())||list.some(s=>searchSong(s,q))),[items,q])
+  const deferredQ=useDeferredValue(q)
+  const filtered=useMemo(()=>items.filter(([name,list])=>!deferredQ.trim()||name.toLowerCase().includes(deferredQ.toLowerCase())||list.some(s=>searchSong(s,deferredQ))),[items,deferredQ])
   return <><div className="page-head compact"><div><p className="eyebrow">Répertoire</p><h1>{title}</h1><p>{filtered.length} entrée{filtered.length>1?'s':''}</p></div></div><div className="artist-search searchbox"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder={title.startsWith('Artistes')?'Rechercher un artiste ou un morceau…':'Rechercher…'}/></div><div className="people-grid">{filtered.map(([name,list])=><div className="person-card" key={name}><button onClick={()=>setOpen(open===name?null:name)}><span className="avatar">{name[0]}</span><span><b>{name}</b><small>{list.length} morceau{list.length>1?'x':''}</small></span><ChevronRight/></button>{open===name&&<div>{list.map(s=><button className="person-song" key={s.id} onClick={()=>onOpen(s)}>{s.title}<span>{s.personalKey||s.originalKey||'—'} · {s.bpm??'—'} BPM</span></button>)}</div>}</div>)}</div></>
 }
 
@@ -249,7 +262,7 @@ function SongDetail({song,onBack,onEdit,onFav,onLyricsSave,onDelete}:{song:Song;
     <section className="panel performance-panel chords-panel"><div className="panel-title-row"><h2>Accords / repères</h2>{transpose!==0&&<span className="transpose-chip">{formatSemitoneOffset(transpose)}</span>}</div><pre className="chord-sheet">{workingChords||'Aucun accord ou repère renseigné.'}</pre></section>
     <section className="panel performance-panel"><h2>Notes instrumentales</h2><p className="performance-text">{song.instrumentNotes||'Aucune note instrumentale.'}</p></section>
     <section className="panel lyrics-panel"><div className="panel-title-row"><h2>Paroles</h2><button className="secondary lyrics-edit-btn" onClick={()=>{setLyricsDraft(song.lyrics??'');setEditingLyrics(true)}}><Pencil/>{song.lyrics?'Modifier':'Ajouter'}</button></div>{song.lyrics?<pre className="lyrics-text">{song.lyrics}</pre>:<p className="performance-text">Aucune parole enregistrée.</p>}</section>
-    <MetronomeCard initialBpm={song.bpm??96}/>
+    <MetronomeCard initialBpm={song.bpm??96} signature={song.timeSignature}/>
     <section className="panel notes-panel"><h2>Notes générales</h2><p className="notes">{song.notes||'Aucune note.'}</p>{song.referenceUrl&&<a href={song.referenceUrl} target="_blank" rel="noreferrer">Ouvrir le lien de référence</a>}</section>
   </div>
   {editingLyrics&&<Modal title="Paroles du morceau" onClose={()=>setEditingLyrics(false)}><textarea className="lyrics-editor" rows={18} value={lyricsDraft} onChange={e=>setLyricsDraft(e.target.value)} placeholder="Collez ou saisissez les paroles ici…"/><div className="modal-actions"><button className="secondary" onClick={()=>setEditingLyrics(false)}>Annuler</button><button className="primary" onClick={()=>void onLyricsSave(lyricsDraft).then(()=>setEditingLyrics(false))}><Save/>Enregistrer</button></div></Modal>}
@@ -301,59 +314,70 @@ function SettingsPage({theme,setTheme,songs,refresh,toast,userEmail,localCount,c
 }
 
 
-function MetronomeCard({initialBpm=96}:{initialBpm?:number}) {
+function MetronomeCard({initialBpm=96,signature='4/4'}:{initialBpm?:number;signature?:string}) {
   const [bpm,setBpm]=useState(Math.max(30,Math.min(240,initialBpm||96)))
   const [running,setRunning]=useState(false)
   const [taps,setTaps]=useState<number[]>([])
   const [pulse,setPulse]=useState(false)
-  const timer=useRef<number|null>(null)
+  const [beat,setBeat]=useState(1)
+  const scheduler=useRef<number|null>(null)
   const audio=useRef<AudioContext|null>(null)
+  const nextNoteTime=useRef(0)
+  const beatIndex=useRef(0)
+  const runningRef=useRef(false)
+  const bpmRef=useRef(bpm)
+  const beatsPerBar=Math.max(1,Math.min(12,Number.parseInt(signature?.split('/')[0]||'4',10)||4))
 
-  const clearTimer=()=>{if(timer.current!==null){window.clearInterval(timer.current);timer.current=null}}
-  const sound=()=>{
+  useEffect(()=>{bpmRef.current=bpm},[bpm])
+  const stopScheduler=()=>{if(scheduler.current!==null){window.clearInterval(scheduler.current);scheduler.current=null}}
+  const scheduleClick=(time:number,index:number)=>{
     const ctx=audio.current
-    if(!ctx||ctx.state!=='running')return
-    const osc=ctx.createOscillator()
-    const gain=ctx.createGain()
+    if(!ctx)return
+    const accent=index%beatsPerBar===0
+    const osc=ctx.createOscillator(),gain=ctx.createGain()
     osc.type='square'
-    osc.frequency.setValueAtTime(1100,ctx.currentTime)
-    gain.gain.setValueAtTime(.16,ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.055)
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.start(ctx.currentTime)
-    osc.stop(ctx.currentTime+.06)
-    setPulse(true)
-    window.setTimeout(()=>setPulse(false),70)
+    osc.frequency.setValueAtTime(accent?1500:950,time)
+    gain.gain.setValueAtTime(accent?.19:.12,time)
+    gain.gain.exponentialRampToValueAtTime(.001,time+.05)
+    osc.connect(gain);gain.connect(ctx.destination);osc.start(time);osc.stop(time+.055)
+    const delay=Math.max(0,(time-ctx.currentTime)*1000)
+    window.setTimeout(()=>{if(!runningRef.current)return;setBeat(index%beatsPerBar+1);setPulse(true);window.setTimeout(()=>setPulse(false),65)},delay)
+  }
+  const tick=()=>{
+    const ctx=audio.current
+    if(!ctx||!runningRef.current)return
+    while(nextNoteTime.current<ctx.currentTime+.12){
+      scheduleClick(nextNoteTime.current,beatIndex.current)
+      nextNoteTime.current+=60/bpmRef.current
+      beatIndex.current=(beatIndex.current+1)%beatsPerBar
+    }
   }
   const start=async()=>{
     try{
-      audio.current??=new AudioContext()
+      audio.current??=new AudioContext({latencyHint:'interactive'})
       if(audio.current.state==='suspended')await audio.current.resume()
+      runningRef.current=true
       setRunning(true)
-    }catch{setRunning(false)}
+      beatIndex.current=0
+      nextNoteTime.current=audio.current.currentTime+.04
+      stopScheduler()
+      tick()
+      scheduler.current=window.setInterval(tick,25)
+    }catch{runningRef.current=false;setRunning(false)}
   }
-  const stop=()=>{setRunning(false);clearTimer()}
-  useEffect(()=>{
-    clearTimer()
-    if(!running)return
-    sound()
-    timer.current=window.setInterval(sound,60000/bpm)
-    return clearTimer
-  },[running,bpm])
-  useEffect(()=>()=>{clearTimer();void audio.current?.close()},[])
+  const stop=()=>{runningRef.current=false;setRunning(false);stopScheduler();setBeat(1);setPulse(false)}
+  useEffect(()=>()=>{runningRef.current=false;stopScheduler();void audio.current?.close()},[])
   const tap=()=>{
     const now=performance.now()
     const recent=taps.length&&now-taps[taps.length-1]>2200?[]:taps
-    const next=[...recent,now].slice(-6)
+    const next=[...recent,now].slice(-7)
     setTaps(next)
     if(next.length>1){
-      const diffs=next.slice(1).map((t,i)=>t-next[i])
-      const avg=diffs.reduce((a,b)=>a+b,0)/diffs.length
-      setBpm(Math.max(30,Math.min(240,Math.round(60000/avg))))
+      const diffs=next.slice(1).map((t,i)=>t-next[i]).filter(v=>v>180&&v<2000)
+      if(diffs.length){const avg=diffs.reduce((a,b)=>a+b,0)/diffs.length;setBpm(Math.max(30,Math.min(240,Math.round(60000/avg))))}
     }
   }
-  return <section className="panel metronome-card"><div><span className="eyebrow">Outil musicien</span><h2>Métronome & Tap Tempo</h2><small className="metro-hint">Touchez TAP plusieurs fois pour détecter le tempo.</small></div><div className={`metro-display ${pulse?'pulse':''}`}><Gauge/><strong>{bpm}</strong><span>BPM</span></div><div className="metro-controls"><button className="secondary" onClick={()=>setBpm(v=>Math.max(30,v-1))}><Minus/></button><input aria-label="BPM" type="range" min="30" max="240" value={bpm} onChange={e=>setBpm(Number(e.target.value))}/><button className="secondary" onClick={()=>setBpm(v=>Math.min(240,v+1))}><Plus/></button><button className="secondary tap-btn" onClick={tap}>TAP</button><button className={running?'danger':'primary'} onClick={()=>void (running?Promise.resolve(stop()):start())}>{running?<><Square/>Stop</>:<><Play/>Start</>}</button></div></section>
+  return <section className="panel metronome-card"><div><span className="eyebrow">Outil musicien</span><h2>Métronome & Tap Tempo</h2><small className="metro-hint">Scheduler audio haute précision · mesure {beatsPerBar} temps</small></div><div className={`metro-display ${pulse?'pulse':''}`}><Gauge/><strong>{bpm}</strong><span>BPM · {beat}/{beatsPerBar}</span></div><div className="metro-controls"><button className="secondary" onClick={()=>setBpm(v=>Math.max(30,v-1))}><Minus/></button><input aria-label="BPM" type="range" min="30" max="240" value={bpm} onChange={e=>setBpm(Number(e.target.value))}/><button className="secondary" onClick={()=>setBpm(v=>Math.min(240,v+1))}><Plus/></button><button className="secondary tap-btn" onClick={tap}>TAP</button><button className={running?'danger':'primary'} onClick={()=>void (running?Promise.resolve(stop()):start())}>{running?<><Square/>Stop</>:<><Play/>Start</>}</button></div></section>
 }
 
 function SetlistsPage({songs,setlists,refresh,toast}:{songs:Song[];setlists:Setlist[];refresh:()=>Promise<void>;toast:(s:string)=>void}) {
