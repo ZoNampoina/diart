@@ -1,4 +1,6 @@
-import * as XLSX from 'xlsx'
+import { createRequire } from 'node:module'
+const require = createRequire(import.meta.url)
+const XLSX = require('xlsx')
 
 const file = 'Carnet de note Tonalité.xlsx'
 const wb = XLSX.readFile(file, { cellDates: true })
