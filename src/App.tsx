@@ -359,6 +359,8 @@ function SongDetail({song,backLabel,setlists,refreshSetlists,toast,onBack,onEdit
   const baseKey=song.personalKey||song.originalKey
   const workingKey=baseKey ? transposeKey(baseKey,transpose) : ''
   const workingChords=transposeChordText(song.chords??'',transpose)
+  const hasWorkingChords=hasMeaningfulChordContent(workingChords)
+  const normalizedStructure=parseStructureSequence(song.structure??'').join(' · ')
   const hasHeroMetrics=Boolean(baseKey||song.bpm!==null||song.timeSignature)
   const hasInfo=Boolean(song.originalKey||song.personalKey||song.capo!==null&&song.capo!==undefined||song.durationSeconds!==null||song.tags.length)
   const saveLyrics=()=>{if(savingLyrics)return;const next=lyricsDraft;setEditingLyrics(false);setSavingLyrics(true);void onLyricsSave(next).finally(()=>setSavingLyrics(false))}
@@ -367,8 +369,8 @@ function SongDetail({song,backLabel,setlists,refreshSetlists,toast,onBack,onEdit
   {showTranspose&&baseKey&&<section className="transpose-bar optional-tool" aria-label="Transposition"><div><span className="eyebrow">Transposition</span><b>{baseKey} → {workingKey}</b></div><div className="transpose-controls"><button className="secondary transpose-btn" disabled={transpose<=-11} onClick={()=>setTranspose(v=>Math.max(-11,v-1))}><Minus/>½ ton</button><button className="ghost transpose-reset" disabled={transpose===0} onClick={()=>setTranspose(0)}><RotateCcw/>0</button><button className="secondary transpose-btn" disabled={transpose>=11} onClick={()=>setTranspose(v=>Math.min(11,v+1))}><Plus/>½ ton</button></div></section>}
   <div className="musician-grid">
     {hasInfo&&<section className="panel info-list"><h2>Informations musicales</h2>{song.originalKey&&<div><span>Tonalité originale</span><b>{song.originalKey}</b></div>}{song.personalKey&&<div><span>Tonalité habituelle</span><b>{song.personalKey}</b></div>}{song.capo!==null&&song.capo!==undefined&&<div><span>Capo</span><b>{song.capo}</b></div>}{song.durationSeconds!==null&&<div><span>Durée</span><b>{formatDuration(song.durationSeconds)}</b></div>}{song.tags.length>0&&<div><span>Tags</span><b>{song.tags.join(', ')}</b></div>}</section>}
-    {song.structure&&<section className="panel performance-panel"><h2>Structure</h2><p className="performance-text">{song.structure}</p></section>}
-    {song.chords&&<section className="panel performance-panel chords-panel"><div className="panel-title-row"><h2>Accords / repères</h2>{transpose!==0&&<span className="transpose-chip">{formatSemitoneOffset(transpose)}</span>}</div><pre className="chord-sheet">{workingChords}</pre></section>}
+    {normalizedStructure&&<section className="panel performance-panel"><h2>Structure</h2><p className="performance-text">{normalizedStructure}</p></section>}
+    {hasWorkingChords&&<section className="panel performance-panel chords-panel"><div className="panel-title-row"><h2>Accords / repères</h2>{transpose!==0&&<span className="transpose-chip">{formatSemitoneOffset(transpose)}</span>}</div><pre className="chord-sheet">{workingChords}</pre></section>}
     {song.instrumentNotes&&<section className="panel performance-panel"><h2>Notes instrumentales</h2><p className="performance-text">{song.instrumentNotes}</p></section>}
     <section className={`panel lyrics-panel ${song.lyrics?'':'lyrics-empty'}`}><div className="panel-title-row"><h2>Paroles</h2><button className="bare-action lyrics-inline-action" aria-label={song.lyrics?'Modifier les paroles':'Ajouter des paroles'} title={song.lyrics?'Modifier les paroles':'Ajouter des paroles'} onClick={()=>{setLyricsDraft(song.lyrics??'');setEditingLyrics(true)}}><Pencil/></button></div>{song.lyrics?<pre className="lyrics-text">{song.lyrics}</pre>:<button className="lyrics-add-empty" onClick={()=>{setLyricsDraft('');setEditingLyrics(true)}}><Plus/>Ajouter des paroles</button>}</section>
     <MetronomeCard initialBpm={song.bpm??96} signature={song.timeSignature}/>
