@@ -786,32 +786,67 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
 }
 
 function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong}:{mode:'rehearsal'|'live';list:Setlist;songs:Song[];refresh:()=>Promise<void>;toast:(s:string)=>void;onClose:()=>void;onOpenSong:(s:Song)=>void}) {
+  const prefNumber=(key:string,fallback:number,min:number,max:number)=>{
+    try{const n=Number(localStorage.getItem(key));return Number.isFinite(n)?Math.max(min,Math.min(max,n)):fallback}catch{return fallback}
+  }
+  const prefBool=(key:string,fallback=false)=>{
+    try{const v=localStorage.getItem(key);return v===null?fallback:v==='1'}catch{return fallback}
+  }
   const [index,setIndex]=useState(0)
   const [view,setView]=useState<'guide'|'lyrics'>('guide')
   const [localNotes,setLocalNotes]=useState<Record<string,string>>(list.rehearsalNotes??{})
-  const [lyricsFontSize,setLyricsFontSize]=useState(22)
+  const [lyricsFontSize,setLyricsFontSize]=useState(()=>prefNumber('diart-stage-font',22,14,48))
   const [transpose,setTranspose]=useState(0)
   const [autoScroll,setAutoScroll]=useState(false)
-  const [scrollSpeed,setScrollSpeed]=useState(36)
+  const [scrollSpeed,setScrollSpeed]=useState(()=>prefNumber('diart-stage-scroll-speed',4,0.5,30))
+  const [navCollapsed,setNavCollapsed]=useState(()=>prefBool('diart-stage-nav-collapsed',false))
+  const [stageReady,setStageReady]=useState(false)
   const contentRef=useRef<HTMLDivElement>(null)
-  const song=songs[index]
+  const song=songs[index]??songs[0]
   const [noteDraft,setNoteDraft]=useState(song?localNotes[song.id]??'':'')
 
   useEffect(()=>{
-    const previous=document.body.style.overflow
+    try{localStorage.setItem('diart-stage-font',String(lyricsFontSize))}catch{}
+  },[lyricsFontSize])
+  useEffect(()=>{
+    try{localStorage.setItem('diart-stage-scroll-speed',String(scrollSpeed))}catch{}
+  },[scrollSpeed])
+  useEffect(()=>{
+    try{localStorage.setItem('diart-stage-nav-collapsed',navCollapsed?'1':'0')}catch{}
+  },[navCollapsed])
+
+  useEffect(()=>{
+    const previousBody=document.body.style.overflow
+    const previousHtml=document.documentElement.style.overflow
     document.body.style.overflow='hidden'
-    return()=>{document.body.style.overflow=previous}
+    document.documentElement.style.overflow='hidden'
+    let raf1=0,raf2=0
+    raf1=requestAnimationFrame(()=>{raf2=requestAnimationFrame(()=>{contentRef.current?.scrollTo({top:0,behavior:'auto'});setStageReady(true)})})
+    return()=>{
+      cancelAnimationFrame(raf1);cancelAnimationFrame(raf2)
+      document.body.style.overflow=previousBody
+      document.documentElement.style.overflow=previousHtml
+    }
   },[])
 
-  const hasGuide=Boolean(song?.structure||song?.chords||song?.instrumentNotes)
+  useEffect(()=>{
+    if(index>=songs.length&&songs.length)setIndex(0)
+  },[songs.length,index])
+
+  const structureParts=useMemo(()=>parseStructureSequence(song?.structure??''),[song?.structure])
+  const rawChordSections=useMemo(()=>chordGuideSections(song?.chords??''),[song?.chords])
+  const hasGuide=Boolean(structureParts.length||rawChordSections.length||song?.instrumentNotes?.trim())
+
   useEffect(()=>{
     if(!song)return
-    setView(song.structure||song.chords||song.instrumentNotes?'guide':song.lyrics?'lyrics':'guide')
+    setView(hasGuide?'guide':song.lyrics?'lyrics':'guide')
     setNoteDraft(localNotes[song.id]??'')
     setTranspose(0)
     setAutoScroll(false)
-    requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0,behavior:'auto'}))
-  },[index,song?.id])
+    let raf1=0,raf2=0
+    raf1=requestAnimationFrame(()=>{raf2=requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0,behavior:'auto'}))})
+    return()=>{cancelAnimationFrame(raf1);cancelAnimationFrame(raf2)}
+  },[index,song?.id,hasGuide])
 
   useEffect(()=>{
     if(!autoScroll)return
@@ -837,9 +872,10 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong}:{mode:'
   const baseKey=song.personalKey||song.originalKey
   const displayKey=baseKey?transposeKey(baseKey,transpose):''
   const displayChords=transposeChordText(song.chords??'',transpose)
+  const chordSections=chordGuideSections(displayChords)
   const stageStyle:CSSProperties={position:'fixed',inset:0,zIndex:10000,display:'grid',gridTemplateRows:'auto minmax(0,1fr) auto',overflow:'hidden',background:mode==='rehearsal'?'radial-gradient(circle at 70% 0,#0d3039,#030b0e 52%)':'#02090c',color:'#f2fbfc'}
 
-  return createPortal(<div className={'stage-mode '+mode} style={stageStyle}>
+  return createPortal(<div className={'stage-mode '+mode+(stageReady?' ready':'')} style={stageStyle}>
     <header className="stage-topbar" style={{zIndex:2,background:'rgba(2,9,12,.96)',borderBottom:'1px solid #17323a',display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center'}}>
       <div className="stage-list-context" style={{gridColumn:1,justifySelf:'start'}}><span>{mode==='rehearsal'?'Répétition':'Live Mode'}</span><b>{list.name}</b></div>
       <div className="stage-current-song" style={{gridColumn:2,justifySelf:'center',textAlign:'center'}}><b>{song.title}</b><small>{song.artist||'Artiste inconnu'}</small>{(hasGuide||song.lyrics)&&<div className="stage-view-tabs">{hasGuide&&<button className={view==='guide'?'active':''} onClick={()=>{setView('guide');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Repères</button>}{song.lyrics&&<button className={view==='lyrics'?'active':''} onClick={()=>{setView('lyrics');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Paroles</button>}</div>}</div>
@@ -847,22 +883,31 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong}:{mode:'
     </header>
 
     <main ref={contentRef} className="stage-content" style={{minHeight:0,height:'100%',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain'}}>
-      <div className="stage-song-head"><p>{song.artist||'Artiste inconnu'} · {index+1}/{songs.length}</p><h1>{song.title}</h1><div className="stage-metrics">{displayKey&&<strong>{displayKey}</strong>}{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div></div>
+      <div className="stage-song-head"><p>{song.artist||'Artiste inconnu'}</p><h1>{song.title}</h1><div className="stage-metrics">{displayKey&&<strong>{displayKey}</strong>}{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div></div>
 
       <div className="stage-session-tools">
         <div className="stage-control-group"><span>Paroles</span><button title="Réduire la police" onClick={()=>setLyricsFontSize(v=>Math.max(14,v-2))}><Minus/></button><b>{lyricsFontSize}</b><button title="Agrandir la police" onClick={()=>setLyricsFontSize(v=>Math.min(48,v+2))}><Plus/></button></div>
-        <div className="stage-control-group"><span>Transposer</span><button title="-1 demi-ton" onClick={()=>setTranspose(v=>Math.max(-12,v-1))}><Minus/></button><b>{formatSemitoneOffset(transpose)}</b><button title="+1 demi-ton" onClick={()=>setTranspose(v=>Math.min(12,v+1))}><Plus/></button><button title="Réinitialiser la transposition" className="stage-reset-btn" disabled={transpose===0} onClick={()=>setTranspose(0)}><RotateCcw/></button></div>
-        <div className={'stage-control-group auto-scroll-control '+(autoScroll?'active':'')}><span>Défilement</span><button className="stage-autoscroll-toggle" title={autoScroll?'Arrêter':'Démarrer'} onClick={()=>setAutoScroll(v=>!v)}>{autoScroll?<Square/>:<Play/>}</button><input aria-label="Vitesse de défilement" type="range" min="10" max="120" step="2" value={scrollSpeed} onChange={e=>setScrollSpeed(Number(e.target.value))}/><b>{scrollSpeed}</b><button title="Retour en haut" onClick={()=>{setAutoScroll(false);contentRef.current?.scrollTo({top:0,behavior:'smooth'})}}><ChevronUp/></button></div>
+        <div className="stage-control-group"><span>Transposer</span><button title="-1 demi-ton" onClick={()=>setTranspose(v=>Math.max(-12,v-1))}><Minus/></button><b>{formatSemitoneOffset(transpose)}</b><button title="+1 demi-ton" onClick={()=>setTranspose(v=>Math.min(12,v+1))}><Plus/></button><button title="Réinitialiser" className="stage-reset-btn" disabled={transpose===0} onClick={()=>setTranspose(0)}><RotateCcw/></button></div>
+        <div className={'stage-control-group auto-scroll-control '+(autoScroll?'active':'')}><span>Défilement</span><button className="stage-autoscroll-toggle" title={autoScroll?'Arrêter':'Démarrer'} onClick={()=>setAutoScroll(v=>!v)}>{autoScroll?<Square/>:<Play/>}</button><input aria-label="Vitesse de défilement" type="range" min="0.5" max="30" step="0.5" value={scrollSpeed} onChange={e=>setScrollSpeed(Number(e.target.value))}/><b>{scrollSpeed<10?scrollSpeed.toFixed(1):Math.round(scrollSpeed)}</b><button title="Retour en haut" onClick={()=>{setAutoScroll(false);contentRef.current?.scrollTo({top:0,behavior:'smooth'})}}><ChevronUp/></button></div>
       </div>
 
       {view==='lyrics'&&song.lyrics
         ?<pre className="stage-lyrics" style={{fontSize:lyricsFontSize}}>{song.lyrics}</pre>
-        :hasGuide?<div className="stage-guide">{song.structure&&<section><h3>Structure</h3><p>{song.structure}</p></section>}{song.chords&&<section><h3>Accords / repères{transpose!==0&&<small className="transpose-indicator"> · {formatSemitoneOffset(transpose)} demi-ton{Math.abs(transpose)>1?'s':''}</small>}</h3><pre>{displayChords}</pre></section>}{song.instrumentNotes&&<section><h3>Notes instrumentales</h3><p>{song.instrumentNotes}</p></section>}</div>:null}
+        :hasGuide?<div className="stage-guide stage-guide-modern">
+          {structureParts.length>0&&<section className="stage-structure-card"><h3>Structure</h3><div className="stage-structure-flow">{structureParts.map((part,i)=><span key={part+'-'+i}>{part}</span>)}</div></section>}
+          {chordSections.length>0&&<section className="stage-chords-card"><h3>Accords / repères{transpose!==0&&<small className="transpose-indicator"> · {formatSemitoneOffset(transpose)} demi-ton{Math.abs(transpose)>1?'s':''}</small>}</h3><div className="stage-chord-sections">{chordSections.map((section,i)=><article key={section.label+'-'+i}><b>{section.label}</b><pre>{section.body}</pre></article>)}</div></section>}
+          {song.instrumentNotes?.trim()&&<section className="stage-instrument-card"><h3>Notes instrumentales</h3><p>{song.instrumentNotes}</p></section>}
+        </div>:null}
 
       {mode==='rehearsal'&&<section className="rehearsal-edit-panel"><div className="panel-title-row"><div><h3>Modifications / notes de répétition</h3><small>Ces annotations restent liées à cette setlist et se synchronisent sur vos appareils.</small></div><button className="secondary" onClick={()=>{onClose();onOpenSong(song)}}><Pencil/>Modifier la fiche</button></div><textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder="Ex. Reprendre le pont 2x, sax après le refrain, descendre d’un ton…"/><button className="primary" onClick={()=>void saveNote()}><Save/>Enregistrer les modifications</button></section>}
     </main>
 
-    <footer className="stage-nav compact-stage-nav" style={{zIndex:2,background:'rgba(2,9,12,.96)',borderTop:'1px solid #17323a'}}><button className="stage-nav-btn secondary" disabled={index===0} onClick={()=>go(index-1)}><ChevronLeft/><span>Précédent</span></button><div>{index+1} / {songs.length}</div><button className="stage-nav-btn primary" disabled={index===songs.length-1} onClick={()=>go(index+1)}><span>Suivant</span><ChevronRight/></button></footer>
+    <footer className={'stage-nav compact-stage-nav '+(navCollapsed?'collapsed':'')} style={{zIndex:2,background:'rgba(2,9,12,.96)',borderTop:'1px solid #17323a'}}>
+      <button className="stage-nav-collapse" title={navCollapsed?'Déployer la navigation':'Réduire la navigation'} onClick={()=>setNavCollapsed(v=>!v)}>{navCollapsed?<ChevronUp/>:<ChevronDown/>}</button>
+      <button className="stage-nav-btn secondary" disabled={index===0} onClick={()=>go(index-1)}><ChevronLeft/><span>Précédent</span></button>
+      <div className="stage-nav-count">{index+1} / {songs.length}</div>
+      <button className="stage-nav-btn primary" disabled={index===songs.length-1} onClick={()=>go(index+1)}><span>Suivant</span><ChevronRight/></button>
+    </footer>
   </div>,document.body)
 }
 
