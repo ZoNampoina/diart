@@ -1,0 +1,12 @@
+import type { SongDraft } from './types'
+
+export const demoSongs: SongDraft[] = [
+  { title:'Lumière sur la ville', artist:'Aurora Collective', authorComposer:'M. Ranaivo', originalKey:'G', personalKey:'G', bpm:72, timeSignature:'4/4', style:'Worship', durationSeconds:302, tags:['demo','calme'], notes:'Intro piano, montée progressive au dernier refrain.', referenceUrl:'', favorite:true, source:'demo' },
+  { title:'Grâce infinie', artist:'Northline', authorComposer:'S. Andry', originalKey:'D', personalKey:'E', bpm:68, timeSignature:'6/8', style:'Worship', durationSeconds:338, tags:['demo','6/8'], notes:'Garder le couplet très léger.', referenceUrl:'', favorite:false, source:'demo' },
+  { title:'Élan', artist:'Arizona Session', authorComposer:'A. Zo', originalKey:'A', personalKey:'A', bpm:126, timeSignature:'4/4', style:'Pop Gospel', durationSeconds:254, tags:['demo','énergique'], notes:'Break batterie avant le pont.', referenceUrl:'', favorite:true, source:'demo' },
+  { title:'Source', artist:'Mada Voices', authorComposer:'L. Fara', originalKey:'Eb', personalKey:'D', bpm:74, timeSignature:'4/4', style:'Gospel', durationSeconds:289, tags:['demo','chorale'], notes:'Entrée chœur au refrain 2.', referenceUrl:'', favorite:false, source:'demo' },
+  { title:'Au-delà', artist:'Horizon Music', authorComposer:'T. Mika', originalKey:'C', personalKey:'C', bpm:132, timeSignature:'4/4', style:'Praise', durationSeconds:241, tags:['demo','louange'], notes:'Transition directe depuis un morceau en G possible.', referenceUrl:'', favorite:false, source:'demo' },
+  { title:'Respire encore', artist:'Solace', authorComposer:'N. Tiana', originalKey:'F', personalKey:'F', bpm:63, timeSignature:'3/4', style:'Ballad', durationSeconds:325, tags:['demo','ballade'], notes:'Sax après le deuxième refrain.', referenceUrl:'', favorite:true, source:'demo' },
+  { title:'Racines', artist:'Mada Voices', authorComposer:'L. Fara', originalKey:'Bb', personalKey:'A', bpm:96, timeSignature:'12/8', style:'Soul Gospel', durationSeconds:278, tags:['demo','groove'], notes:'Basse très ronde, léger derrière le temps.', referenceUrl:'', favorite:false, source:'demo' },
+  { title:'Dernière mesure', artist:'Arizona Session', authorComposer:'A. Zo', originalKey:'E', personalKey:'E', bpm:118, timeSignature:'4/4', style:'Fusion', durationSeconds:266, tags:['demo','instrumental'], notes:'Final sur arrêt net.', referenceUrl:'', favorite:false, source:'demo' }
+]
