@@ -809,3 +809,147 @@ textarea{resize:vertical}
     padding-bottom:18px!important;
   }
 }
+
+
+/* DI'ART V1.6.4 — stage scroll/centering + people/setlist refinements */
+.setlist-title-area{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) 42px!important;
+  align-items:center!important;
+  min-width:0!important;
+}
+.setlist-title-area .setlist-title-button{
+  grid-template-columns:42px minmax(0,1fr)!important;
+  padding-right:4px!important;
+}
+.setlist-toggle-preview{
+  width:40px;
+  height:40px;
+  border:0;
+  background:transparent;
+  color:var(--muted);
+  border-radius:9px;
+  display:grid;
+  place-items:center;
+  padding:0;
+}
+.setlist-toggle-preview:hover{
+  color:var(--accent2);
+  background:var(--surface2);
+}
+.setlist-toggle-preview svg{
+  width:18px;
+  height:18px;
+  transition:transform .14s ease;
+}
+.setlist-toggle-preview.open svg{
+  transform:rotate(90deg);
+}
+
+.stage-mode{
+  height:100dvh!important;
+  max-height:100dvh!important;
+  overflow:hidden!important;
+}
+.stage-topbar{
+  grid-template-columns:1fr minmax(240px,auto) 1fr!important;
+  align-items:center!important;
+  flex:none!important;
+}
+.stage-list-context{
+  grid-column:1!important;
+  justify-self:start!important;
+}
+.stage-current-song{
+  grid-column:2!important;
+  justify-self:center!important;
+  width:min(520px,42vw)!important;
+  max-width:100%!important;
+  text-align:center!important;
+}
+.stage-topbar .live-close{
+  grid-column:3!important;
+  justify-self:end!important;
+}
+.stage-content{
+  height:auto!important;
+  max-height:100%!important;
+  min-height:0!important;
+  overflow-y:scroll!important;
+  overflow-x:hidden!important;
+  -webkit-overflow-scrolling:touch!important;
+  touch-action:pan-y!important;
+  overscroll-behavior-y:contain!important;
+  scrollbar-gutter:stable;
+}
+.stage-song-head{
+  min-height:0!important;
+}
+.stage-lyrics{
+  display:block!important;
+  width:min(900px,100%)!important;
+  max-width:900px!important;
+  padding:0 12px 24px!important;
+}
+.stage-nav{
+  position:relative!important;
+  flex:none!important;
+  min-height:58px!important;
+}
+
+.quick-setlist-add .setlist-plus-btn svg{
+  width:20px;
+  height:20px;
+}
+
+.people-grid{
+  scroll-margin-top:90px;
+}
+
+@media(max-width:1024px){
+  .stage-topbar{
+    grid-template-columns:1fr minmax(200px,1.35fr) 1fr!important;
+  }
+  .stage-current-song{
+    width:auto!important;
+    max-width:min(420px,48vw)!important;
+  }
+}
+@media(max-width:760px){
+  .setlist-title-area{
+    grid-template-columns:minmax(0,1fr) 38px!important;
+  }
+  .setlist-title-area .setlist-title-button{
+    grid-template-columns:38px minmax(0,1fr)!important;
+  }
+  .setlist-toggle-preview{
+    width:36px;
+    height:36px;
+  }
+  .stage-topbar{
+    grid-template-columns:1fr minmax(150px,1.45fr) 1fr!important;
+    gap:6px!important;
+  }
+  .stage-current-song{
+    width:auto!important;
+    max-width:46vw!important;
+  }
+  .stage-current-song>b{
+    font-size:12px!important;
+  }
+  .stage-current-song>small{
+    font-size:9px!important;
+  }
+  .stage-content{
+    overflow-y:scroll!important;
+    touch-action:pan-y!important;
+  }
+}
+@media(max-width:430px){
+  .stage-topbar{
+    grid-template-columns:minmax(64px,1fr) minmax(130px,1.4fr) minmax(48px,1fr)!important;
+  }
+  .stage-current-song{
+    max-width:48vw!important;
+  }
+}
