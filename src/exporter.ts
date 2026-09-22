@@ -27,7 +27,7 @@ function flatSong(song: Song) {
     'Tonalité originale':song.originalKey, 'Tonalité personnelle':song.personalKey,
     BPM:song.bpm ?? '', Signature:song.timeSignature, Style:song.style,
     Durée:formatDuration(song.durationSeconds), Capo:song.capo ?? '', Tags:song.tags.join('; '),
-    Structure:song.structure ?? '', Accords:song.chords ?? '', 'Notes instrumentales':song.instrumentNotes ?? '', Notes:song.notes,
+    Structure:song.structure ?? '', Accords:song.chords ?? '', 'Notes instrumentales':song.instrumentNotes ?? '', Paroles:song.lyrics ?? '', Notes:song.notes,
     Lien:song.referenceUrl, Favori:song.favorite ? 'Oui':'Non', Source:song.source,
     'Date ajout':song.createdAt, 'Dernière modification':song.updatedAt
   }
