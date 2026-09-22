@@ -1,16 +1,22 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { AppSetting, Song, SongDraft } from './types'
+import type { AppSetting, Song, SongDraft, Setlist } from './types'
 import { demoSongs } from './demo'
 
 class DiartDB extends Dexie {
   songs!: EntityTable<Song, 'id'>
   settings!: EntityTable<AppSetting, 'key'>
+  setlists!: EntityTable<Setlist, 'id'>
 
   constructor() {
     super('diart-db')
     this.version(1).stores({
       songs: 'id, title, artist, authorComposer, favorite, createdAt, updatedAt, lastViewedAt, source, deletedAt',
       settings: 'key'
+    })
+    this.version(2).stores({
+      songs: 'id, title, artist, authorComposer, favorite, createdAt, updatedAt, lastViewedAt, source, deletedAt',
+      settings: 'key',
+      setlists: 'id, name, createdAt, updatedAt, deletedAt'
     })
   }
 }
@@ -66,4 +72,15 @@ export async function setSetting(key: string, value: string): Promise<void> {
 
 export async function getSetting(key: string, fallback = ''): Promise<string> {
   return (await db.settings.get(key))?.value ?? fallback
+}
+
+export async function createSetlist(name: string): Promise<Setlist> {
+  const t = now()
+  const item: Setlist = { id:crypto.randomUUID(), name:name.trim() || 'Nouvelle setlist', songIds:[], notes:'', createdAt:t, updatedAt:t, deletedAt:null }
+  await db.setlists.add(item)
+  return item
+}
+
+export async function updateSetlist(id:string, patch:Partial<Omit<Setlist,'id'|'createdAt'>>): Promise<void> {
+  await db.setlists.update(id,{...patch,updatedAt:now()})
 }
