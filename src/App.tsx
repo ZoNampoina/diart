@@ -5,7 +5,7 @@ import {
   Library, Menu, Moon, MoreHorizontal, Music2, Plus, Search, Settings, Star, Sun,
   Trash2, Upload, UserRound, UsersRound, Wifi, WifiOff, X, Pencil, Save, RotateCcw,
   Filter, ArrowUpDown, Check, AlertTriangle, Minus, ListMusic, Cloud, LogIn, LogOut,
-  Play, Square, Gauge, Maximize2, ChevronUp, ChevronDown, ListPlus
+  Play, Square, Gauge, Maximize2, ChevronUp, ChevronDown, ListPlus, BookMarked, ExternalLink, FileUp, Globe2
 } from 'lucide-react'
 import { db, createSong, ensureDemoSeed, getSetting, markViewed, setSetting, softDeleteSong, updateSong, createSetlist, updateSetlist } from './db'
 import type { ImportField, ImportMapping, ImportRowPreview, Song, SongDraft, Setlist } from './types'
@@ -13,11 +13,12 @@ import { emptySongDraft, formatDuration, normalizeKey, parseBpm, parseDuration, 
 import { parseWorkbook, rowsToPreview, suggestMapping, type ParsedWorkbook } from './importer'
 import { exportCsv, exportJson, exportXlsx, restoreJson } from './exporter'
 import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToLocal } from './cloud'
+import { recueilSources, parseChordPro } from './recueils'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
   ['authors','Auteurs',UserRound], ['favorites','Favoris',Heart], ['recent','Récents',BookOpen],
-  ['setlists','Setlists',ListMusic], ['import','Importer',Import], ['backup','Sauvegarde',Download], ['settings','Paramètres',Settings]
+  ['setlists','Setlists',ListMusic], ['recueils','Recueils',BookMarked], ['import','Importer',Import], ['backup','Sauvegarde',Download], ['settings','Paramètres',Settings]
 ] as const
 
 type Page = typeof navItems[number][0] | 'song' | 'edit' | 'new' | 'artist' | 'author' | 'setlist'
@@ -48,10 +49,12 @@ function Metric({label,value}:{label:string;value:string|number}) {
 }
 
 function SongRow({song,onOpen,onFav,action}:{song:Song;onOpen:()=>void;onFav:()=>void;action?:ReactNode}) {
-  return <div className={`song-row ${action?'has-action':''}`} onClick={onOpen} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==='Enter')onOpen()}}>
+  const key=song.personalKey||song.originalKey
+  const hasMeta=Boolean(key||song.bpm!==null||song.timeSignature)
+  return <div className={`song-row ${action?'has-action':''} ${hasMeta?'':'no-meta'}`} onClick={onOpen} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==='Enter')onOpen()}}>
     <button className={`icon-btn fav ${song.favorite?'active':''}`} aria-label={song.favorite?'Retirer des favoris':'Ajouter aux favoris'} onClick={e=>{e.stopPropagation();onFav()}}><Star size={18} fill={song.favorite?'currentColor':'none'}/></button>
     <div className="song-main"><b>{song.title}</b><span>{song.artist || 'Artiste inconnu'}{song.source==='demo'&&<em>DEMO</em>}</span></div>
-    <div className="song-meta"><strong>{song.personalKey||song.originalKey||'—'}</strong>{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div>
+    {hasMeta&&<div className="song-meta">{key&&<strong>{key}</strong>}{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div>}
     {action&&<div className="song-row-action" onClick={e=>e.stopPropagation()}>{action}</div>}
     <ChevronRight className="song-row-chevron" size={18}/>
   </div>
@@ -382,6 +385,30 @@ function SongForm({initial,presetArtist='',presetAuthor='',onCancel,onSave}:{ini
 }
 
 const fieldOptions:[ImportField,string][]=[['title','Titre *'],['artist','Artiste'],['authorComposer','Auteur / Compositeur'],['originalKey','Tonalité originale'],['personalKey','Tonalité personnelle'],['bpm','BPM'],['timeSignature','Signature rythmique'],['style','Style'],['duration','Durée'],['tags','Tags'],['notes','Notes'],['referenceUrl','Lien de référence'],['capo','Capo'],['structure','Structure'],['chords','Accords'],['instrumentNotes','Notes instrumentales'],['lyrics','Paroles']]
+
+function RecueilsPage({songs,onImport,toast}:{songs:Song[];onImport:(draft:SongDraft)=>Promise<void>;toast:(s:string)=>void}) {
+  const [query,setQuery]=useState('')
+  const [preview,setPreview]=useState<SongDraft|null>(null)
+  const [fileName,setFileName]=useState('')
+  const fileRef=useRef<HTMLInputElement>(null)
+  const duplicate=preview? songs.find(s=>s.title.trim().toLowerCase()===preview.title.trim().toLowerCase() && s.artist.trim().toLowerCase()===preview.artist.trim().toLowerCase()):null
+
+  const readChordPro=async(file:File)=>{
+    try{
+      const text=await file.text()
+      const parsed=parseChordPro(text)
+      if(parsed.title==='Morceau ChordPro') parsed.title=file.name.replace(/\.(pro|chopro|cho|crd|txt)$/i,'')
+      setPreview(parsed);setFileName(file.name)
+    }catch{toast('Impossible de lire ce fichier ChordPro.')}
+  }
+
+  return <><div className="page-head"><div><p className="eyebrow">Recueils V1 · expérimental</p><h1>Recueils</h1><p>Recherchez dans plusieurs sources, puis enrichissez votre bibliothèque DI’ART avec des formats autorisés comme ChordPro.</p></div></div>
+  <section className="panel recueil-search-panel"><div className="recueil-searchbox"><Globe2/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Titre, artiste ou chanson à rechercher…"/></div><p>DI’ART n’aspire pas automatiquement les paroles/tabs protégées : les sources externes s’ouvrent sur leur site d’origine.</p></section>
+  <div className="recueil-source-grid">{recueilSources.map(source=><section className="panel recueil-source-card" key={source.id}><div className="recueil-source-head"><span className="recueil-badge">{source.badge}</span><div><h2>{source.name}</h2><p>{source.description}</p></div></div><div className="recueil-source-actions">{source.kind==='external'?<><a className="primary recueil-action" href={query.trim()&&source.searchUrl?source.searchUrl(query.trim()):source.homepage} target="_blank" rel="noreferrer"><Search/>{query.trim()?'Rechercher':'Ouvrir'}<ExternalLink/></a><a className="secondary recueil-home" href={source.homepage} target="_blank" rel="noreferrer">Source</a></>:<><button className="primary recueil-action" onClick={()=>fileRef.current?.click()}><FileUp/>Importer ChordPro</button><a className="secondary recueil-home" href={source.homepage} target="_blank" rel="noreferrer">Format</a></>}</div></section>)}</div>
+  <section className="panel recueil-info"><BookMarked/><div><h2>Essai V1</h2><p>Les recherches Tononkira, Ultimate Guitar et Chordify restent externes. L’import complet est disponible pour vos fichiers ChordPro ; les données importées rejoignent ensuite IndexedDB et la synchronisation cloud DI’ART.</p></div></section>
+  <input ref={fileRef} hidden type="file" accept=".pro,.chopro,.cho,.crd,.txt,text/plain" onChange={e=>{const f=e.target.files?.[0];if(f)void readChordPro(f);e.currentTarget.value=''}}/>
+  {preview&&<Modal className="chordpro-preview-modal" title="Aperçu ChordPro" onClose={()=>setPreview(null)}><div className="chordpro-preview-head"><FileUp/><div><b>{preview.title}</b><small>{preview.artist||'Artiste non renseigné'} · {fileName}</small></div></div><div className="chordpro-preview-metrics">{preview.originalKey&&<div><span>Tonalité</span><b>{preview.originalKey}</b></div>}{preview.bpm!==null&&<div><span>BPM</span><b>{preview.bpm}</b></div>}{preview.capo!==null&&preview.capo!==undefined&&<div><span>Capo</span><b>{preview.capo}</b></div>}<div><span>Paroles</span><b>{preview.lyrics?.split('\n').filter(Boolean).length??0} lignes</b></div><div><span>Accords</span><b>{preview.chords?.split('\n').filter(Boolean).length??0} lignes</b></div></div>{duplicate&&<div className="duplicate-warning"><AlertTriangle/><span>Un morceau portant le même titre et le même artiste existe déjà dans DI’ART.</span></div>}<div className="chordpro-preview-body">{preview.lyrics&&<section><h3>Paroles</h3><pre>{preview.lyrics.slice(0,1800)}</pre></section>}{preview.chords&&<section><h3>Accords extraits</h3><pre>{preview.chords.slice(0,1200)}</pre></section>}</div><div className="modal-actions"><button className="secondary" onClick={()=>setPreview(null)}>Annuler</button><button className="primary" onClick={()=>void onImport(preview).then(()=>setPreview(null))}><Plus/>Ajouter à DI’ART</button></div></Modal>}</>
+}
 
 function ImportWizard({songs,refresh,toast}:{songs:Song[];refresh:()=>Promise<void>;toast:(s:string)=>void}) {
   const [step,setStep]=useState(1),[book,setBook]=useState<ParsedWorkbook|null>(null),[sheet,setSheet]=useState(''),[headers,setHeaders]=useState<string[]>([]),[mapping,setMapping]=useState<ImportMapping>({}),[preview,setPreview]=useState<ImportRowPreview[]>([]),[mode,setMode]=useState<'skip'|'create'|'fill'>('skip'),[busy,setBusy]=useState(false),[err,setErr]=useState(''),[result,setResult]=useState<{added:number;updated:number;skipped:number;errors:number}|null>(null)
