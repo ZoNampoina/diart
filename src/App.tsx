@@ -299,12 +299,55 @@ function MetronomeCard({initialBpm=96}:{initialBpm?:number}) {
   const [bpm,setBpm]=useState(Math.max(30,Math.min(240,initialBpm||96)))
   const [running,setRunning]=useState(false)
   const [taps,setTaps]=useState<number[]>([])
+  const [pulse,setPulse]=useState(false)
   const timer=useRef<number|null>(null)
   const audio=useRef<AudioContext|null>(null)
-  const click=()=>{audio.current??=new AudioContext();const ctx=audio.current;const osc=ctx.createOscillator(),gain=ctx.createGain();osc.frequency.value=1000;gain.gain.setValueAtTime(.12,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.045);osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+.05)}
-  useEffect(()=>{if(timer.current){clearInterval(timer.current);timer.current=null}if(running){click();timer.current=window.setInterval(click,60000/bpm)}return()=>{if(timer.current)clearInterval(timer.current)}},[running,bpm])
-  const tap=()=>{const now=Date.now();const next=[...taps.filter(t=>now-t<2500),now].slice(-5);setTaps(next);if(next.length>1){const diffs=next.slice(1).map((t,i)=>t-next[i]);setBpm(Math.max(30,Math.min(240,Math.round(60000/(diffs.reduce((a,b)=>a+b,0)/diffs.length)))))}} 
-  return <section className="panel metronome-card"><div><span className="eyebrow">Outil musicien</span><h2>Métronome & Tap Tempo</h2></div><div className="metro-display"><Gauge/><strong>{bpm}</strong><span>BPM</span></div><div className="metro-controls"><button className="secondary" onClick={()=>setBpm(v=>Math.max(30,v-1))}><Minus/></button><input aria-label="BPM" type="range" min="30" max="240" value={bpm} onChange={e=>setBpm(Number(e.target.value))}/><button className="secondary" onClick={()=>setBpm(v=>Math.min(240,v+1))}><Plus/></button><button className="secondary tap-btn" onClick={tap}>TAP</button><button className={running?'danger':'primary'} onClick={()=>setRunning(v=>!v)}>{running?<><Square/>Stop</>:<><Play/>Start</>}</button></div></section>
+
+  const clearTimer=()=>{if(timer.current!==null){window.clearInterval(timer.current);timer.current=null}}
+  const sound=()=>{
+    const ctx=audio.current
+    if(!ctx||ctx.state!=='running')return
+    const osc=ctx.createOscillator()
+    const gain=ctx.createGain()
+    osc.type='square'
+    osc.frequency.setValueAtTime(1100,ctx.currentTime)
+    gain.gain.setValueAtTime(.16,ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.055)
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start(ctx.currentTime)
+    osc.stop(ctx.currentTime+.06)
+    setPulse(true)
+    window.setTimeout(()=>setPulse(false),70)
+  }
+  const start=async()=>{
+    try{
+      audio.current??=new AudioContext()
+      if(audio.current.state==='suspended')await audio.current.resume()
+      setRunning(true)
+    }catch{setRunning(false)}
+  }
+  const stop=()=>{setRunning(false);clearTimer()}
+  useEffect(()=>{
+    clearTimer()
+    if(!running)return
+    sound()
+    timer.current=window.setInterval(sound,60000/bpm)
+    return clearTimer
+  },[running,bpm])
+  useEffect(()=>()=>{clearTimer();void audio.current?.close()},[])
+  const tap=()=>{
+    const now=performance.now()
+    const recent=taps.length&&now-taps[taps.length-1]>2200?[]:taps
+    const next=[...recent,now].slice(-6)
+    setTaps(next)
+    if(next.length>1){
+      const diffs=next.slice(1).map((t,i)=>t-next[i])
+      const avg=diffs.reduce((a,b)=>a+b,0)/diffs.length
+      setBpm(Math.max(30,Math.min(240,Math.round(60000/avg))))
+    }
+  }
+  return <section className="panel metronome-card"><div><span className="eyebrow">Outil musicien</span><h2>Métronome & Tap Tempo</h2><small className="metro-hint">Touchez TAP plusieurs fois pour détecter le tempo.</small></div><div className={`metro-display ${pulse?'pulse':''}`}><Gauge/><strong>{bpm}</strong><span>BPM</span></div><div className="metro-controls"><button className="secondary" onClick={()=>setBpm(v=>Math.max(30,v-1))}><Minus/></button><input aria-label="BPM" type="range" min="30" max="240" value={bpm} onChange={e=>setBpm(Number(e.target.value))}/><button className="secondary" onClick={()=>setBpm(v=>Math.min(240,v+1))}><Plus/></button><button className="secondary tap-btn" onClick={tap}>TAP</button><button className={running?'danger':'primary'} onClick={()=>void (running?Promise.resolve(stop()):start())}>{running?<><Square/>Stop</>:<><Play/>Start</>}</button></div></section>
 }
 
 function SetlistsPage({songs,setlists,refresh,toast}:{songs:Song[];setlists:Setlist[];refresh:()=>Promise<void>;toast:(s:string)=>void}) {
