@@ -20,14 +20,17 @@ const navItems = [
   ['setlists','Setlists',ListMusic], ['import','Importer',Import], ['backup','Sauvegarde',Download], ['settings','Paramètres',Settings]
 ] as const
 
-type Page = typeof navItems[number][0] | 'song' | 'edit' | 'new' | 'artist'
+type Page = typeof navItems[number][0] | 'song' | 'edit' | 'new' | 'artist' | 'setlist'
 type Toast = { id:number; text:string; action?:{label:string;run:()=>void} }
 
 function useSongs() {
   const [songs,setSongs] = useState<Song[]>([])
   const refresh = async () => setSongs((await db.songs.toArray()).filter(s=>!s.deletedAt))
+  const patchLocal=(id:string,patch:Partial<Song>)=>setSongs(list=>list.map(s=>s.id===id?{...s,...patch}:s))
+  const addLocal=(song:Song)=>setSongs(list=>list.some(s=>s.id===song.id)?list:[...list,song])
+  const removeLocal=(id:string)=>setSongs(list=>list.filter(s=>s.id!==id))
   useEffect(()=>{ void ensureDemoSeed().then(refresh) },[])
-  return { songs, refresh }
+  return { songs, refresh, patchLocal, addLocal, removeLocal }
 }
 
 function Modal({title,children,onClose,className=''}:{title:string;children:ReactNode;onClose:()=>void;className?:string}) {
@@ -55,10 +58,11 @@ function SongRow({song,onOpen,onFav,action}:{song:Song;onOpen:()=>void;onFav:()=
 }
 
 function App() {
-  const {songs,refresh}=useSongs()
+  const {songs,refresh,patchLocal,addLocal,removeLocal}=useSongs()
   const [page,setPage]=useState<Page>('dashboard')
   const [selected,setSelected]=useState<Song|null>(null)
   const [selectedArtist,setSelectedArtist]=useState('')
+  const [selectedSetlistId,setSelectedSetlistId]=useState('')
   const [presetArtist,setPresetArtist]=useState('')
   const [createMode,setCreateMode]=useState<'menu'|'artist'|'setlist'|null>(null)
   const [createName,setCreateName]=useState('')
@@ -71,6 +75,9 @@ function App() {
   const [userEmail,setUserEmail]=useState('')
   const [syncing,setSyncing]=useState(false)
   const [cloudStats,setCloudStats]=useState<{songs:number;setlists:number}|null>(null)
+  const [lastSyncAt,setLastSyncAt]=useState('')
+  const syncLockRef=useRef(false)
+  const syncTimerRef=useRef<number|null>(null)
   const searchRef=useRef<HTMLInputElement>(null)
 
   const refreshSetlists=async()=>setSetlists((await db.setlists.toArray()).filter(x=>!x.deletedAt))
@@ -82,36 +89,59 @@ function App() {
   }
 
   const refreshCloudStats=async(id=userId)=>{if(!id)return;try{setCloudStats(await getCloudStats(id))}catch{}}
+  const markSynced=()=>{const stamp=new Date().toISOString();setLastSyncAt(stamp);void setSetting('lastSyncAt',stamp)}
   const doSync=async(showToast=true)=>{
-    if(!userId||!navigator.onLine||syncing)return
-    try{setSyncing(true);await syncAll(userId);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(userId)]);if(showToast)toast('Synchronisation cloud terminée.')}
-    catch(e){if(showToast)toast(e instanceof Error?e.message:'Synchronisation impossible.')}
-    finally{setSyncing(false)}
+    if(!userId||!navigator.onLine||syncLockRef.current)return
+    syncLockRef.current=true
+    setSyncing(true)
+    try{
+      const result=await syncAll(userId)
+      if(result.pulled>0) await Promise.all([refresh(),refreshSetlists()])
+      if(showToast||result.pulled>0||result.pushed>0) await refreshCloudStats(userId)
+      markSynced()
+      if(showToast)toast('Synchronisation cloud terminée.')
+    }catch(e){if(showToast)toast(e instanceof Error?e.message:'Synchronisation impossible.')}
+    finally{syncLockRef.current=false;setSyncing(false)}
+  }
+  const scheduleSync=(delay=250)=>{
+    if(syncTimerRef.current!==null)window.clearTimeout(syncTimerRef.current)
+    syncTimerRef.current=window.setTimeout(()=>{syncTimerRef.current=null;void doSync(false)},delay)
   }
   const forcePull=async()=>{
-    if(!userId||!navigator.onLine||syncing)return
-    try{setSyncing(true);const r=await pullCloudToLocal(userId);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(userId)]);toast(`Cloud récupéré : ${r.songs} morceau(x), ${r.setlists} setlist(s).`)}
+    if(!userId||!navigator.onLine||syncLockRef.current)return
+    syncLockRef.current=true
+    setSyncing(true)
+    try{const r=await pullCloudToLocal(userId);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(userId)]);markSynced();toast(`Cloud récupéré : ${r.songs} morceau(x), ${r.setlists} setlist(s).`)}
     catch(e){toast(e instanceof Error?e.message:'Récupération cloud impossible.')}
-    finally{setSyncing(false)}
+    finally{syncLockRef.current=false;setSyncing(false)}
   }
 
-  useEffect(()=>{void getSetting('theme','dark').then(v=>setTheme((v as typeof theme)||'dark'));void refreshSetlists()},[])
+  useEffect(()=>{void getSetting('theme','dark').then(v=>setTheme((v as typeof theme)||'dark'));void getSetting('lastSyncAt','').then(setLastSyncAt);void refreshSetlists()},[])
   useEffect(()=>{
     void supabase.auth.getSession().then(({data})=>{const u=data.session?.user;setUserId(u?.id??'');setUserEmail(u?.email??'')})
     const {data}=supabase.auth.onAuthStateChange((_event,session)=>{const u=session?.user;setUserId(u?.id??'');setUserEmail(u?.email??'')})
     return()=>data.subscription.unsubscribe()
   },[])
-  useEffect(()=>{if(userId&&online){void doSync(false);void refreshCloudStats(userId)}else if(!userId)setCloudStats(null)},[userId,online])
-  const syncSignature=useMemo(()=>songs.filter(s=>s.source!=='demo').map(s=>s.id+':'+s.updatedAt).sort().join('|')+'#'+setlists.map(s=>s.id+':'+s.updatedAt).sort().join('|'),[songs,setlists])
-  useEffect(()=>{if(!userId||!online)return;const timer=setTimeout(()=>void doSync(false),1200);return()=>clearTimeout(timer)},[syncSignature,userId,online])
+  useEffect(()=>{if(userId&&online){scheduleSync(80);void refreshCloudStats(userId)}else if(!userId)setCloudStats(null)},[userId,online])
+  const syncSignature=useMemo(()=>{
+    let songLatest='',setlistLatest=''
+    let songCount=0
+    for(const s of songs){if(s.source==='demo')continue;songCount++;if(s.updatedAt>songLatest)songLatest=s.updatedAt}
+    for(const s of setlists){if(s.updatedAt>setlistLatest)setlistLatest=s.updatedAt}
+    return `${songCount}:${songLatest}#${setlists.length}:${setlistLatest}`
+  },[songs,setlists])
+  useEffect(()=>{if(!userId||!online)return;const timer=window.setTimeout(()=>scheduleSync(40),700);return()=>window.clearTimeout(timer)},[syncSignature,userId,online])
   useEffect(()=>{
     if(!userId)return
-    const channel=supabase.channel('diart-live-sync')
-      .on('postgres_changes',{event:'*',schema:'public',table:'diart_songs',filter:`user_id=eq.${userId}`},()=>void doSync(false))
-      .on('postgres_changes',{event:'*',schema:'public',table:'diart_setlists',filter:`user_id=eq.${userId}`},()=>void doSync(false))
-      .subscribe()
-    const timer=setInterval(()=>{if(navigator.onLine)void doSync(false)},60000)
-    return()=>{clearInterval(timer);void supabase.removeChannel(channel)}
+    const channel=supabase.channel(`diart-live-sync-${userId}`)
+      .on('postgres_changes',{event:'*',schema:'public',table:'diart_songs',filter:`user_id=eq.${userId}`},()=>scheduleSync(180))
+      .on('postgres_changes',{event:'*',schema:'public',table:'diart_setlists',filter:`user_id=eq.${userId}`},()=>scheduleSync(180))
+      .subscribe(status=>{if(status==='SUBSCRIBED')scheduleSync(80)})
+    const timer=window.setInterval(()=>{if(navigator.onLine) scheduleSync(100)},180000)
+    const wake=()=>{if(document.visibilityState==='visible'&&navigator.onLine)scheduleSync(60)}
+    document.addEventListener('visibilitychange',wake)
+    window.addEventListener('focus',wake)
+    return()=>{window.clearInterval(timer);document.removeEventListener('visibilitychange',wake);window.removeEventListener('focus',wake);if(syncTimerRef.current!==null)window.clearTimeout(syncTimerRef.current);void supabase.removeChannel(channel)}
   },[userId])
   useEffect(()=>{
     const resolved=theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):theme
@@ -131,12 +161,18 @@ function App() {
   const go=(p:Page)=>{setPage(p);setSidebar(false)}
   const startNewSong=(artist='')=>{if(!artist)setSelectedArtist('');setPresetArtist(artist);setSelected(null);setCreateMode(null);setCreateName('');setPage('new')}
   const openArtist=(name:string)=>{setSelectedArtist(name);setPage('artist')}
+  const openSetlist=(id:string)=>{setSelectedSetlistId(id);setPage('setlist')}
   const createNamedArtist=()=>{const name=createName.trim();if(!name)return;startNewSong(name)}
   const createNamedSetlist=async()=>{const name=createName.trim();if(!name)return;await createSetlist(name);await refreshSetlists();setCreateMode(null);setCreateName('');setPage('setlists');toast(`Setlist « ${name} » créée.`)}
-  const openSong=async(s:Song)=>{setSelected(s);setPage('song');await markViewed(s.id);await refresh()}
-  const fav=async(s:Song)=>{await updateSong(s.id,{favorite:!s.favorite});await refresh()}
-  const artists=useMemo(()=>new Set(songs.map(s=>s.artist.trim()).filter(Boolean)).size,[songs])
-  const authors=useMemo(()=>new Set(songs.map(s=>s.authorComposer.trim()).filter(Boolean)).size,[songs])
+  const openSong=(s:Song)=>{const lastViewedAt=new Date().toISOString();const next={...s,lastViewedAt};setSelected(next);patchLocal(s.id,{lastViewedAt});setPage('song');void markViewed(s.id)}
+  const fav=(s:Song)=>{const favorite=!s.favorite;const updatedAt=new Date().toISOString();patchLocal(s.id,{favorite,updatedAt});setSelected(prev=>prev?.id===s.id?{...prev,favorite,updatedAt}:prev);void updateSong(s.id,{favorite}).catch(()=>void refresh())}
+  const artistGroups=useMemo(()=>groupPeople(songs,'artist'),[songs])
+  const authorGroups=useMemo(()=>groupPeople(songs,'authorComposer'),[songs])
+  const favoriteSongs=useMemo(()=>songs.filter(s=>s.favorite),[songs])
+  const recentSongs=useMemo(()=>[...songs].sort((a,b)=>(b.lastViewedAt||b.updatedAt).localeCompare(a.lastViewedAt||a.updatedAt)).slice(0,50),[songs])
+  const artists=artistGroups.length
+  const authors=authorGroups.length
+  const currentSetlist=useMemo(()=>setlists.find(s=>s.id===selectedSetlistId)||null,[setlists,selectedSetlistId])
 
   return <div className="app-shell">
     <aside className={`sidebar ${sidebar?'open':''}`}>
@@ -154,17 +190,18 @@ function App() {
       <div className="content">
         {page==='dashboard'&&<Dashboard songs={songs} artists={artists} authors={authors} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={openSong} onGo={go} onFav={fav}/>} 
         {page==='library'&&<LibraryPage songs={songs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} searchRef={searchRef} onOpen={openSong} onFav={fav}/>} 
-        {page==='artists'&&<ArtistsPage items={groupPeople(songs,'artist')} onArtist={openArtist}/>}
+        {page==='artists'&&<ArtistsPage items={artistGroups} onArtist={openArtist}/>}
         {page==='artist'&&selectedArtist&&<ArtistDetailPage artist={selectedArtist} songs={songs.filter(s=>s.artist.trim()===selectedArtist)} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go('artists')} onOpen={openSong} onFav={fav} onAdd={()=>startNewSong(selectedArtist)}/>}
-        {page==='authors'&&<PeoplePage title="Auteurs / Compositeurs" items={groupPeople(songs,'authorComposer')} onOpen={openSong}/>}
-        {page==='favorites'&&<SimpleSongs title="Favoris" songs={songs.filter(s=>s.favorite)} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={openSong} onFav={fav}/>}
-        {page==='recent'&&<SimpleSongs title="Récents" songs={[...songs].sort((a,b)=>(b.lastViewedAt||b.updatedAt).localeCompare(a.lastViewedAt||a.updatedAt)).slice(0,50)} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={openSong} onFav={fav}/>}
-        {page==='setlists'&&<SetlistsPage songs={songs} setlists={setlists} refresh={refreshSetlists} toast={toast}/>}
-        {page==='song'&&selected&&<SongDetail song={songs.find(s=>s.id===selected.id)||selected} onBack={()=>go('library')} onEdit={()=>go('edit')} onFav={()=>void fav(songs.find(s=>s.id===selected.id)||selected)} onLyricsSave={async lyrics=>{const id=selected.id;const updatedAt=new Date().toISOString();setSelected(prev=>prev&&prev.id===id?{...prev,lyrics,updatedAt}:prev);await updateSong(id,{lyrics});void refresh();toast('Paroles enregistrées.')}} onDelete={async()=>{const id=selected.id;await softDeleteSong(id);await refresh();toast('Morceau placé dans la corbeille',{label:'Annuler',run:async()=>{await db.songs.update(id,{deletedAt:null});await refresh()}});go('library')}}/>}
-        {(page==='new'||(page==='edit'&&selected))&&<SongForm initial={page==='edit'?selected:null} presetArtist={page==='new'?presetArtist:''} onCancel={()=>go(selected?'song':selectedArtist?'artist':'library')} onSave={async draft=>{if(page==='edit'&&selected){await updateSong(selected.id,draft);await refresh();setSelected({...selected,...draft,updatedAt:new Date().toISOString()});toast('Morceau mis à jour');go('song')}else{const s=await createSong(draft);await refresh();setSelected(s);toast('Morceau ajouté');go('song')}}}/>}
+        {page==='authors'&&<PeoplePage title="Auteurs / Compositeurs" items={authorGroups} onOpen={openSong}/>}
+        {page==='favorites'&&<SimpleSongs title="Favoris" songs={favoriteSongs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={openSong} onFav={fav}/>}
+        {page==='recent'&&<SimpleSongs title="Récents" songs={recentSongs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={openSong} onFav={fav}/>}
+        {page==='setlists'&&<SetlistsPage songs={songs} setlists={setlists} refresh={refreshSetlists} toast={toast} onOpenDetail={openSetlist}/>} 
+        {page==='setlist'&&currentSetlist&&<SetlistDetailPage list={currentSetlist} songs={songs} refresh={refreshSetlists} toast={toast} onBack={()=>go('setlists')} onOpenSong={openSong}/>} 
+        {page==='song'&&selected&&<SongDetail song={songs.find(s=>s.id===selected.id)||selected} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go('library')} onEdit={()=>go('edit')} onFav={()=>void fav(songs.find(s=>s.id===selected.id)||selected)} onLyricsSave={async lyrics=>{const id=selected.id;const updatedAt=new Date().toISOString();patchLocal(id,{lyrics,updatedAt});setSelected(prev=>prev&&prev.id===id?{...prev,lyrics,updatedAt}:prev);await updateSong(id,{lyrics});toast('Paroles enregistrées.')}} onDelete={async()=>{const id=selected.id;await softDeleteSong(id);removeLocal(id);toast('Morceau placé dans la corbeille',{label:'Annuler',run:async()=>{await db.songs.update(id,{deletedAt:null});await refresh()}});go('library')}}/>}
+        {(page==='new'||(page==='edit'&&selected))&&<SongForm initial={page==='edit'?selected:null} presetArtist={page==='new'?presetArtist:''} onCancel={()=>go(selected?'song':selectedArtist?'artist':'library')} onSave={async draft=>{if(page==='edit'&&selected){await updateSong(selected.id,draft);const updatedAt=new Date().toISOString();const next={...selected,...draft,updatedAt};patchLocal(selected.id,{...draft,updatedAt});setSelected(next);toast('Morceau mis à jour');go('song')}else{const s=await createSong(draft);addLocal(s);setSelected(s);toast('Morceau ajouté');go('song')}}}/>}
         {page==='import'&&<ImportWizard songs={songs} refresh={refresh} toast={toast}/>}
         {page==='backup'&&<BackupPage songs={songs} refresh={refresh} toast={toast}/>}
-        {page==='settings'&&<SettingsPage theme={theme} setTheme={setTheme} songs={songs} refresh={refresh} toast={toast} userEmail={userEmail} localCount={songs.filter(s=>s.source!=='demo').length} cloudStats={cloudStats} syncing={syncing} onSync={()=>void doSync()} onPull={()=>void forcePull()} onSignedIn={async()=>{const {data}=await supabase.auth.getUser();const u=data.user;setUserId(u?.id??'');setUserEmail(u?.email??'');if(u){setSyncing(true);try{await pullCloudToLocal(u.id);await syncAll(u.id);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(u.id)]);toast('Cloud DI’ART connecté et récupéré.')}finally{setSyncing(false)}}}}/>}
+        {page==='settings'&&<SettingsPage theme={theme} setTheme={setTheme} songs={songs} refresh={refresh} toast={toast} userEmail={userEmail} localCount={songs.filter(s=>s.source!=='demo').length} cloudStats={cloudStats} lastSyncAt={lastSyncAt} syncing={syncing} onSync={()=>void doSync()} onPull={()=>void forcePull()} onSignedIn={async()=>{const {data}=await supabase.auth.getUser();const u=data.user;setUserId(u?.id??'');setUserEmail(u?.email??'');if(u){setSyncing(true);try{await pullCloudToLocal(u.id);await syncAll(u.id);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(u.id)]);toast('Cloud DI’ART connecté et récupéré.')}finally{setSyncing(false)}}}}/>}
       </div>
     </main>
     <nav className="bottom-nav">
