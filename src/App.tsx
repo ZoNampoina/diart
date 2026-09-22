@@ -1,4 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject, type FormEvent } from 'react'
+import { createPortal } from 'react-dom'
 import {
   BookOpen, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Heart, Home, Import,
   Library, Menu, Moon, MoreHorizontal, Music2, Plus, Search, Settings, Star, Sun,
@@ -30,9 +31,9 @@ function useSongs() {
 }
 
 function Modal({title,children,onClose,className=''}:{title:string;children:ReactNode;onClose:()=>void;className?:string}) {
-  return <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
-    <div className={`modal ${className}`}><div className="modal-head"><h3>{title}</h3><button className="icon-btn" onClick={onClose}><X/></button></div>{children}</div>
-  </div>
+  return createPortal(<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
+    <div className={`modal ${className}`} role="dialog" aria-modal="true" aria-label={title}><div className="modal-head"><h3>{title}</h3><button className="icon-btn" aria-label="Fermer" onClick={onClose}><X/></button></div>{children}</div>
+  </div>,document.body)
 }
 
 function Toasts({items}:{items:Toast[]}) {
@@ -43,12 +44,13 @@ function Metric({label,value}:{label:string;value:string|number}) {
   return <div className="metric"><span>{label}</span><strong>{value}</strong></div>
 }
 
-function SongRow({song,onOpen,onFav}:{song:Song;onOpen:()=>void;onFav:()=>void}) {
-  return <div className="song-row" onClick={onOpen} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==='Enter')onOpen()}}>
-    <button className={`icon-btn fav ${song.favorite?'active':''}`} onClick={e=>{e.stopPropagation();onFav()}}><Star size={18} fill={song.favorite?'currentColor':'none'}/></button>
+function SongRow({song,onOpen,onFav,action}:{song:Song;onOpen:()=>void;onFav:()=>void;action?:ReactNode}) {
+  return <div className={`song-row ${action?'has-action':''}`} onClick={onOpen} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==='Enter')onOpen()}}>
+    <button className={`icon-btn fav ${song.favorite?'active':''}`} aria-label={song.favorite?'Retirer des favoris':'Ajouter aux favoris'} onClick={e=>{e.stopPropagation();onFav()}}><Star size={18} fill={song.favorite?'currentColor':'none'}/></button>
     <div className="song-main"><b>{song.title}</b><span>{song.artist || 'Artiste inconnu'}{song.source==='demo'&&<em>DEMO</em>}</span></div>
-    <div className="song-meta"><strong>{song.personalKey||song.originalKey||'—'}</strong><span>{song.bpm??'—'} BPM</span><span>{song.timeSignature||'—'}</span></div>
-    <ChevronRight size={18}/>
+    <div className="song-meta"><strong>{song.personalKey||song.originalKey||'—'}</strong>{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div>
+    {action&&<div className="song-row-action" onClick={e=>e.stopPropagation()}>{action}</div>}
+    <ChevronRight className="song-row-chevron" size={18}/>
   </div>
 }
 
@@ -158,7 +160,7 @@ function App() {
         {page==='favorites'&&<SimpleSongs title="Favoris" songs={songs.filter(s=>s.favorite)} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={openSong} onFav={fav}/>}
         {page==='recent'&&<SimpleSongs title="Récents" songs={[...songs].sort((a,b)=>(b.lastViewedAt||b.updatedAt).localeCompare(a.lastViewedAt||a.updatedAt)).slice(0,50)} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={openSong} onFav={fav}/>}
         {page==='setlists'&&<SetlistsPage songs={songs} setlists={setlists} refresh={refreshSetlists} toast={toast}/>}
-        {page==='song'&&selected&&<SongDetail song={songs.find(s=>s.id===selected.id)||selected} onBack={()=>go('library')} onEdit={()=>go('edit')} onFav={()=>void fav(songs.find(s=>s.id===selected.id)||selected)} onLyricsSave={async lyrics=>{await updateSong(selected.id,{lyrics});await refresh();toast('Paroles enregistrées.')}} onDelete={async()=>{const id=selected.id;await softDeleteSong(id);await refresh();toast('Morceau placé dans la corbeille',{label:'Annuler',run:async()=>{await db.songs.update(id,{deletedAt:null});await refresh()}});go('library')}}/>}
+        {page==='song'&&selected&&<SongDetail song={songs.find(s=>s.id===selected.id)||selected} onBack={()=>go('library')} onEdit={()=>go('edit')} onFav={()=>void fav(songs.find(s=>s.id===selected.id)||selected)} onLyricsSave={async lyrics=>{const id=selected.id;const updatedAt=new Date().toISOString();setSelected(prev=>prev&&prev.id===id?{...prev,lyrics,updatedAt}:prev);await updateSong(id,{lyrics});void refresh();toast('Paroles enregistrées.')}} onDelete={async()=>{const id=selected.id;await softDeleteSong(id);await refresh();toast('Morceau placé dans la corbeille',{label:'Annuler',run:async()=>{await db.songs.update(id,{deletedAt:null});await refresh()}});go('library')}}/>}
         {(page==='new'||(page==='edit'&&selected))&&<SongForm initial={page==='edit'?selected:null} presetArtist={page==='new'?presetArtist:''} onCancel={()=>go(selected?'song':selectedArtist?'artist':'library')} onSave={async draft=>{if(page==='edit'&&selected){await updateSong(selected.id,draft);await refresh();setSelected({...selected,...draft,updatedAt:new Date().toISOString()});toast('Morceau mis à jour');go('song')}else{const s=await createSong(draft);await refresh();setSelected(s);toast('Morceau ajouté');go('song')}}}/>}
         {page==='import'&&<ImportWizard songs={songs} refresh={refresh} toast={toast}/>}
         {page==='backup'&&<BackupPage songs={songs} refresh={refresh} toast={toast}/>}
@@ -188,7 +190,7 @@ function Dashboard({songs,artists,authors,setlists,refreshSetlists,toast,onOpen,
   return <>
     <div className="page-head"><div><p className="eyebrow">Répertoire personnel</p><h1>Votre musique, immédiatement.</h1><p>Retrouvez tonalité, BPM et informations utiles en quelques secondes.</p></div></div>
     <div className="home-search"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Rechercher un titre, artiste, tonalité, BPM…"/>{q&&<button className="icon-btn" aria-label="Effacer la recherche" onClick={()=>setQ('')}><X/></button>}</div>
-    {q.trim()&&<section className="panel home-search-results"><div className="panel-title-row"><h2>Résultats</h2><span>{results.length} affiché(s)</span></div>{results.length?<div className="quick-results">{results.map(s=><div className="quick-result" key={s.id}><button className="quick-result-main" onClick={()=>onOpen(s)}><span><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}</small></span><span className="quick-meta">{s.personalKey||s.originalKey||'—'} · {s.bpm??'—'} BPM</span></button><QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/></div>)}</div>:<Empty text="Aucun résultat."/>}</section>}
+    {q.trim()&&<section className="panel home-search-results"><div className="panel-title-row"><h2>Résultats</h2><span>{results.length} affiché(s)</span></div>{results.length?<div className="quick-results">{results.map(s=><div className="quick-result" key={s.id}><button className="quick-result-main" onClick={()=>onOpen(s)}><span><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}</small></span><span className="quick-meta">{s.personalKey||s.originalKey||'—'}{s.bpm!==null?` · ${s.bpm} BPM`:''}</span></button><QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/></div>)}</div>:<Empty text="Aucun résultat."/>}</section>}
     <div className="metrics"><Metric label="Morceaux" value={songs.length}/><Metric label="Artistes" value={artists}/><Metric label="Auteurs" value={authors}/><Metric label="Favoris" value={songs.filter(s=>s.favorite).length}/></div>
     <div className="home-recent-grid"><section className="panel compact-home-panel"><h2>Récemment consultés</h2>{recent.length?recent.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/>):<Empty text="Aucun morceau consulté."/>}</section><section className="panel compact-home-panel"><h2>Ajouts récents</h2>{added.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/>)}</section></div>
     <MetronomeCard initialBpm={96}/>
@@ -211,7 +213,7 @@ function LibraryPage({songs,setlists,refreshSetlists,toast,searchRef,onOpen,onFa
     <div className="page-head compact"><div><p className="eyebrow">Bibliothèque</p><h1>{songs.length} morceaux</h1></div></div>
     <div className="toolbar"><div className="searchbox"><Search/><input ref={searchRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Titre, artiste, auteur, tonalité, BPM, tags…"/></div><button className="secondary" onClick={()=>setFilters(v=>!v)}><Filter/>Filtres</button><label className="select-wrap"><ArrowUpDown/><select value={sort} onChange={e=>setSort(e.target.value)}><option value="title">Titre A–Z</option><option value="artist">Artiste A–Z</option><option value="bpm">BPM</option><option value="updated">Modifiés récemment</option></select></label></div>
     {filters&&<div className="filters"><select value={key} onChange={e=>setKey(e.target.value)}><option value="">Toutes tonalités</option>{keys.map(x=><option key={x}>{x}</option>)}</select><input value={min} onChange={e=>setMin(e.target.value)} placeholder="BPM min"/><input value={max} onChange={e=>setMax(e.target.value)} placeholder="BPM max"/><select value={sig} onChange={e=>setSig(e.target.value)}><option value="">Toutes signatures</option>{sigs.map(x=><option key={x}>{x}</option>)}</select><select value={style} onChange={e=>setStyle(e.target.value)}><option value="">Tous styles</option>{styles.map(x=><option key={x}>{x}</option>)}</select><label><input type="checkbox" checked={favOnly} onChange={e=>setFavOnly(e.target.checked)}/> Favoris</label></div>}
-    <p className="result-count">{result.length} résultat{result.length>1?'s':''}</p><div className="songs-list">{result.length?result.map(s=><div className="library-result-wrap" key={s.id}><SongRow song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/><div className="library-setlist-action"><QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/></div></div>):<Empty text="Aucun résultat."/>}</div>
+    <p className="result-count">{result.length} résultat{result.length>1?'s':''}</p><div className="songs-list">{result.length?result.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)} action={<QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/>}/>):<Empty text="Aucun résultat."/>}</div>
   </>
 }
 
@@ -256,7 +258,7 @@ function ArtistDetailPage({artist,songs,setlists,refreshSetlists,toast,onBack,on
   const [q,setQ]=useState('')
   const deferredQ=useDeferredValue(q)
   const filtered=useMemo(()=>songs.filter(s=>searchSong(s,deferredQ)),[songs,deferredQ])
-  return <><div className="detail-nav artist-detail-nav"><button className="ghost" onClick={onBack}><ChevronLeft/>Artistes</button><button className="icon-btn artist-add-song" aria-label="Ajouter un morceau pour cet artiste" title="Ajouter un morceau" onClick={onAdd}><Plus/></button></div><div className="page-head compact artist-header"><div><p className="eyebrow">Artiste</p><h1>{artist}</h1><p>{songs.length} morceau{songs.length>1?'x':''}</p></div></div>{songs.length>8&&<div className="artist-search searchbox"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder={`Rechercher dans ${artist}…`}/></div>}<div className="songs-list artist-song-list">{filtered.length?filtered.map(s=><div className="library-result-wrap" key={s.id}><SongRow song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/><div className="library-setlist-action"><QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/></div></div>):<Empty text="Aucun morceau."/>}</div></>
+  return <><div className="detail-nav artist-detail-nav"><button className="ghost" onClick={onBack}><ChevronLeft/>Artistes</button><button className="icon-btn artist-add-song" aria-label="Ajouter un morceau pour cet artiste" title="Ajouter un morceau" onClick={onAdd}><Plus/></button></div><div className="page-head compact artist-header"><div><p className="eyebrow">Artiste</p><h1>{artist}</h1><p>{songs.length} morceau{songs.length>1?'x':''}</p></div></div>{songs.length>8&&<div className="artist-search searchbox"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder={`Rechercher dans ${artist}…`}/></div>}<div className="songs-list artist-song-list">{filtered.length?filtered.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)} action={<QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/>}/>):<Empty text="Aucun morceau."/>}</div></>
 }
 
 function PeoplePage({title,items,onOpen}:{title:string;items:[string,Song[]][];onOpen:(s:Song)=>void}) {
@@ -268,7 +270,7 @@ function PeoplePage({title,items,onOpen}:{title:string;items:[string,Song[]][];o
 }
 
 function SimpleSongs({title,songs,setlists,refreshSetlists,toast,onOpen,onFav}:{title:string;songs:Song[];setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;onOpen:(s:Song)=>void;onFav:(s:Song)=>void}) {
-  return <><div className="page-head compact"><div><p className="eyebrow">Répertoire</p><h1>{title}</h1><p>{songs.length} morceau{songs.length>1?'x':''}</p></div></div><div className="songs-list">{songs.length?songs.map(s=><div className="library-result-wrap" key={s.id}><SongRow song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/><div className="library-setlist-action"><QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/></div></div>):<Empty text="Rien à afficher."/>}</div></>
+  return <><div className="page-head compact"><div><p className="eyebrow">Répertoire</p><h1>{title}</h1><p>{songs.length} morceau{songs.length>1?'x':''}</p></div></div><div className="songs-list">{songs.length?songs.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)} action={<QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/>}/>):<Empty text="Rien à afficher."/>}</div></>
 }
 
 function SongDetail({song,onBack,onEdit,onFav,onLyricsSave,onDelete}:{song:Song;onBack:()=>void;onEdit:()=>void;onFav:()=>void;onLyricsSave:(lyrics:string)=>Promise<void>;onDelete:()=>void}) {
@@ -283,7 +285,7 @@ function SongDetail({song,onBack,onEdit,onFav,onLyricsSave,onDelete}:{song:Song;
   const workingChords=transposeChordText(song.chords??'',transpose)
   const hasHeroMetrics=Boolean(baseKey||song.bpm!==null||song.timeSignature)
   const hasInfo=Boolean(song.originalKey||song.personalKey||song.capo!==null&&song.capo!==undefined||song.durationSeconds!==null||song.tags.length)
-  const saveLyrics=async()=>{if(savingLyrics)return;setSavingLyrics(true);try{await onLyricsSave(lyricsDraft);setEditingLyrics(false)}finally{setSavingLyrics(false)}}
+  const saveLyrics=()=>{if(savingLyrics)return;const next=lyricsDraft;setEditingLyrics(false);setSavingLyrics(true);void onLyricsSave(next).finally(()=>setSavingLyrics(false))}
   return <><div className="detail-nav"><button className="ghost" onClick={onBack}><ChevronLeft/>Bibliothèque</button><div className="detail-icon-actions"><button className="bare-action" aria-label="Favori" title="Favori" onClick={onFav}><Heart fill={song.favorite?'currentColor':'none'}/></button>{baseKey&&<button className={`bare-action ${showTranspose?'active':''}`} aria-label="Transposition" title="Transposition" onClick={()=>setShowTranspose(v=>!v)}><ArrowUpDown/></button>}<button className="bare-action" aria-label="Modifier" title="Modifier" onClick={onEdit}><Pencil/></button><button className="bare-action danger-icon" aria-label="Supprimer" title="Supprimer" onClick={()=>setConfirm(true)}><Trash2/></button></div></div>
   <section className="song-hero"><div><p className="eyebrow">{song.style||'Morceau'}{song.source==='demo'?' · DEMO':''}</p><h1>{song.title}</h1><p>{song.artist||'Artiste inconnu'}{song.authorComposer?` · ${song.authorComposer}`:''}</p></div>{hasHeroMetrics&&<div className="key-bpm">{baseKey&&<div><span>Tonalité</span><strong>{workingKey}</strong>{transpose!==0&&<small>{formatSemitoneOffset(transpose)}</small>}</div>}{song.bpm!==null&&<div><span>BPM</span><strong>{song.bpm}</strong></div>}{song.timeSignature&&<div><span>Signature</span><strong>{song.timeSignature}</strong></div>}</div>}</section>
   {showTranspose&&baseKey&&<section className="transpose-bar optional-tool" aria-label="Transposition"><div><span className="eyebrow">Transposition</span><b>{baseKey} → {workingKey}</b></div><div className="transpose-controls"><button className="secondary transpose-btn" disabled={transpose<=-11} onClick={()=>setTranspose(v=>Math.max(-11,v-1))}><Minus/>½ ton</button><button className="ghost transpose-reset" disabled={transpose===0} onClick={()=>setTranspose(0)}><RotateCcw/>0</button><button className="secondary transpose-btn" disabled={transpose>=11} onClick={()=>setTranspose(v=>Math.min(11,v+1))}><Plus/>½ ton</button></div></section>}
@@ -296,7 +298,7 @@ function SongDetail({song,onBack,onEdit,onFav,onLyricsSave,onDelete}:{song:Song;
     <MetronomeCard initialBpm={song.bpm??96} signature={song.timeSignature}/>
     {(song.notes||song.referenceUrl)&&<section className="panel notes-panel"><h2>Notes générales</h2>{song.notes&&<p className="notes">{song.notes}</p>}{song.referenceUrl&&<a href={song.referenceUrl} target="_blank" rel="noreferrer">Ouvrir le lien de référence</a>}</section>}
   </div>
-  {editingLyrics&&<Modal className="lyrics-modal" title="Paroles du morceau" onClose={()=>{if(!savingLyrics)setEditingLyrics(false)}}><form className="lyrics-modal-form" onSubmit={e=>{e.preventDefault();void saveLyrics()}}><textarea autoFocus className="lyrics-editor" rows={18} value={lyricsDraft} onChange={e=>setLyricsDraft(e.target.value)} placeholder="Collez ou saisissez les paroles ici…"/><div className="modal-actions"><button type="button" className="secondary" disabled={savingLyrics} onClick={()=>setEditingLyrics(false)}>Annuler</button><button type="submit" className="primary" disabled={savingLyrics}><Save/>{savingLyrics?'Enregistrement…':'Enregistrer'}</button></div></form></Modal>}
+  {editingLyrics&&<Modal className="lyrics-modal" title="Paroles du morceau" onClose={()=>{if(!savingLyrics)setEditingLyrics(false)}}><form className="lyrics-modal-form" onSubmit={e=>{e.preventDefault();saveLyrics()}}><textarea autoFocus className="lyrics-editor" rows={18} value={lyricsDraft} onChange={e=>setLyricsDraft(e.target.value)} placeholder="Collez ou saisissez les paroles ici…"/><div className="modal-actions"><button type="button" className="secondary" disabled={savingLyrics} onClick={()=>setEditingLyrics(false)}>Annuler</button><button type="submit" className="primary" disabled={savingLyrics}><Save/>{savingLyrics?'Enregistrement…':'Enregistrer'}</button></div></form></Modal>}
   {confirm&&<Modal title="Supprimer ce morceau ?" onClose={()=>setConfirm(false)}><p>Le morceau sera masqué de la bibliothèque et pourra être restauré via l’action Annuler.</p><div className="modal-actions"><button className="secondary" onClick={()=>setConfirm(false)}>Annuler</button><button className="danger" onClick={onDelete}><Trash2/>Supprimer</button></div></Modal>}</>
 }
 
