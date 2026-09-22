@@ -669,3 +669,143 @@ textarea{resize:vertical}
   }
   .compact-home-panel .song-row-chevron{display:none}
 }
+
+
+/* DI'ART V1.6.3 — stage flow, contextual back & bare setlist add */
+.detail-icon-actions .setlist-plus-btn{
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:var(--muted)!important;
+}
+.detail-icon-actions .setlist-plus-btn:hover{
+  background:transparent!important;
+  color:var(--accent2)!important;
+}
+.detail-icon-actions .setlist-plus-btn:active{
+  transform:none!important;
+}
+
+.contextual-back{
+  justify-content:flex-start!important;
+  width:auto!important;
+  max-width:min(62vw,420px);
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+
+.setlist-detail-nav>button:first-child{
+  align-self:flex-start!important;
+  justify-content:flex-start!important;
+  width:auto!important;
+  margin-right:auto!important;
+}
+
+.stage-mode{
+  overflow:hidden!important;
+}
+.stage-topbar{
+  position:relative!important;
+  top:auto!important;
+  display:grid!important;
+  grid-template-columns:minmax(140px,.7fr) minmax(240px,1.6fr) 64px!important;
+  align-items:center!important;
+  gap:16px!important;
+  flex:none!important;
+}
+.stage-list-context{
+  min-width:0;
+}
+.stage-list-context span,
+.stage-list-context b{
+  display:block;
+}
+.stage-list-context b{
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.stage-current-song{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+}
+.stage-current-song>b{
+  max-width:100%;
+  font-size:15px;
+  line-height:1.2;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.stage-current-song>small{
+  max-width:100%;
+  margin-top:3px;
+  color:#8fb2b8;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.stage-current-song .stage-view-tabs{
+  margin-top:8px;
+}
+.stage-content{
+  overflow:auto!important;
+  min-height:0!important;
+  overscroll-behavior:contain;
+  padding-bottom:36px!important;
+}
+.stage-nav{
+  position:relative!important;
+  bottom:auto!important;
+  flex:none!important;
+}
+.stage-lyrics{
+  padding-bottom:8px;
+}
+
+@media(max-width:1024px){
+  .stage-topbar{
+    grid-template-columns:minmax(120px,.7fr) minmax(180px,1.4fr) 56px!important;
+    gap:10px!important;
+  }
+  .stage-current-song>b{font-size:14px}
+}
+@media(max-width:760px){
+  .setlist-detail-nav{
+    align-items:flex-start!important;
+  }
+  .setlist-detail-nav>button:first-child{
+    align-self:flex-start!important;
+    width:auto!important;
+    margin:0!important;
+  }
+  .setlist-mode-actions{
+    width:100%!important;
+  }
+  .stage-topbar{
+    grid-template-columns:minmax(90px,.65fr) minmax(0,1.35fr) 50px!important;
+    padding-left:10px!important;
+    padding-right:10px!important;
+  }
+  .stage-list-context span{font-size:8px!important}
+  .stage-list-context b{font-size:11px!important}
+  .stage-current-song>b{font-size:12px}
+  .stage-current-song>small{font-size:10px}
+  .stage-current-song .stage-view-tabs{
+    margin-top:5px;
+    padding:3px;
+  }
+  .stage-current-song .stage-view-tabs button{
+    padding:6px 9px!important;
+    font-size:10px;
+  }
+  .stage-content{
+    padding-top:14px!important;
+    padding-bottom:18px!important;
+  }
+}
