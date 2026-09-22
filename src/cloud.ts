@@ -41,11 +41,13 @@ export async function syncSongs(userId:string){
     else if(newer(r.updated_at,song.updatedAt)) await db.songs.put(r.payload as Song)
     remote.delete(song.id)
   }
-  for(const r of remote.values()) await db.songs.put(r.payload as Song)
+  let pulled=0
+  for(const r of remote.values()){await db.songs.put(r.payload as Song);pulled++}
   if(pushes.length){
     const {error:e}=await supabase.from('diart_songs').upsert(pushes,{onConflict:'user_id,id'})
     if(e) throw e
   }
+  return {pushed:pushes.length,pulled}
 }
 
 export async function syncSetlists(userId:string){
@@ -60,15 +62,18 @@ export async function syncSetlists(userId:string){
     else if(newer(r.updated_at,item.updatedAt)) await db.setlists.put(r.payload as Setlist)
     remote.delete(item.id)
   }
-  for(const r of remote.values()) await db.setlists.put(r.payload as Setlist)
+  let pulled=0
+  for(const r of remote.values()){await db.setlists.put(r.payload as Setlist);pulled++}
   if(pushes.length){
     const {error:e}=await supabase.from('diart_setlists').upsert(pushes,{onConflict:'user_id,id'})
     if(e) throw e
   }
+  return {pushed:pushes.length,pulled}
 }
 
 export async function syncAll(userId:string){
-  await Promise.all([syncSongs(userId),syncSetlists(userId)])
+  const [songs,setlists]=await Promise.all([syncSongs(userId),syncSetlists(userId)])
+  return {songs,setlists,pulled:songs.pulled+setlists.pulled,pushed:songs.pushed+setlists.pushed}
 }
 
 export async function getCloudStats(userId:string){
