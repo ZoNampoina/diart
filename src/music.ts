@@ -5,6 +5,12 @@ const FLAT_TO_SHARP: Record<string, string> = {
   db: 'C#', eb: 'D#', gb: 'F#', ab: 'G#', bb: 'A#'
 }
 
+const SHARP_NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
+const FLAT_NOTES = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B']
+const NOTE_INDEX: Record<string, number> = {
+  C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11
+}
+
 export function normalizeText(value: unknown): string {
   return String(value ?? '').trim().replace(/\s+/g, ' ')
 }
@@ -21,6 +27,34 @@ export function normalizeKey(value: unknown): string {
   const suffix = m[4] ?? ''
   const q = quality === 'minor' || quality === 'min' || quality === 'm' ? 'm' : quality === 'major' || quality === 'maj' ? '' : ''
   return `${root}${q}${suffix}`
+}
+
+export function transposeKey(value: string, semitones: number): string {
+  const raw = normalizeText(value)
+  if (!raw || semitones === 0) return raw
+  const match = raw.match(/^([A-Ga-g])([#b♯♭]?)(.*)$/)
+  if (!match) return raw
+  const root = match[1].toUpperCase() + match[2].replace('♯','#').replace('♭','b')
+  const index = NOTE_INDEX[root]
+  if (index === undefined) return raw
+  const preferFlats = root.includes('b')
+  const notes = preferFlats ? FLAT_NOTES : SHARP_NOTES
+  const next = (index + (semitones % 12) + 12) % 12
+  return notes[next] + (match[3] ?? '')
+}
+
+export function transposeChordText(value: string, semitones: number): string {
+  if (!value || semitones === 0) return value
+  return value.split(/(\s+|[|,;])/).map(token => {
+    const match = token.match(/^([A-Ga-g])([#b♯♭]?)(.*)$/)
+    if (!match) return token
+    return transposeKey(match[1] + match[2] + match[3], semitones)
+  }).join('')
+}
+
+export function formatSemitoneOffset(value: number): string {
+  if (value === 0) return '0'
+  return value > 0 ? `+${value}` : String(value)
 }
 
 export function parseBpm(value: unknown): number | null {
@@ -75,7 +109,7 @@ export function emptySongDraft(): SongDraft {
   return {
     title: '', artist: '', authorComposer: '', originalKey: '', personalKey: '', bpm: null,
     timeSignature: '', style: '', durationSeconds: null, tags: [], notes: '', referenceUrl: '',
-    favorite: false, source: 'manual'
+    capo: null, structure: '', chords: '', instrumentNotes: '', favorite: false, source: 'manual'
   }
 }
 
@@ -84,7 +118,8 @@ export function searchSong(song: Song, query: string): boolean {
   if (!q) return true
   const haystack = [
     song.title, song.artist, song.authorComposer, song.originalKey, song.personalKey,
-    song.bpm ?? '', song.timeSignature, song.style, song.tags.join(' '), song.notes
+    song.bpm ?? '', song.timeSignature, song.style, song.tags.join(' '), song.notes,
+    song.structure ?? '', song.chords ?? '', song.instrumentNotes ?? ''
   ].map((v) => normalizeIdentity(String(v))).join(' ')
   return haystack.includes(q)
 }
