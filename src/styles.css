@@ -233,3 +233,31 @@ textarea{resize:vertical}
   .metronome-card{grid-template-columns:1fr}.metro-display{justify-content:flex-start}.metro-controls{grid-template-columns:40px 1fr 40px}.metro-controls .tap-btn{grid-column:1/3}.metro-controls>button:last-child{grid-column:3}
   .setlist-choice-list{max-height:36dvh}
 }
+
+
+/* DI'ART V1.5.1 — stable inline setlist action */
+.song-row.has-action{grid-template-columns:40px minmax(0,1fr) minmax(150px,220px) 46px 20px}
+.song-row-action{display:grid;place-items:center;width:46px;min-width:46px}
+.song-row-action .quick-setlist-add{width:42px;height:42px;display:grid;place-items:center}
+.song-row-action .setlist-plus-btn{width:40px;height:40px;border:1px solid var(--line);background:var(--surface2);border-radius:10px}
+.song-row-action .setlist-plus-btn:hover{background:var(--surface3);color:var(--accent2)}
+.song-row-chevron{justify-self:end}
+.library-result-wrap,.library-setlist-action{position:static;width:auto;transform:none}
+.library-result-wrap>.song-row{padding-right:14px}
+.setlist-choice:disabled{opacity:1;cursor:default;border-color:color-mix(in srgb,var(--accent) 22%,var(--line));background:color-mix(in srgb,var(--accent) 8%,var(--surface2));color:var(--muted)}
+.setlist-choice.already-added svg:last-child{color:var(--accent2)}
+.modal-backdrop{isolation:isolate}
+
+@media(max-width:760px){
+  .song-row.has-action{grid-template-columns:38px minmax(0,1fr) 82px 44px 14px;gap:6px;padding:10px 8px}
+  .song-row-action{width:44px;min-width:44px}
+  .song-row-action .quick-setlist-add{width:42px;height:42px}
+  .song-row-action .setlist-plus-btn{width:40px;height:40px}
+  .library-result-wrap>.song-row{padding-right:8px;padding-bottom:10px}
+}
+@media(max-width:430px){
+  .song-row.has-action{grid-template-columns:36px minmax(0,1fr) 68px 42px}
+  .song-row.has-action>.song-row-chevron{display:none}
+  .song-row.has-action .song-meta{align-items:flex-end}
+  .song-row-action{width:42px;min-width:42px}
+}
