@@ -48,6 +48,7 @@ export function catalogRecordingToDraft(item:CatalogRecording):SongDraft{
 export interface TononkiraReference {
   title:string
   artist:string
+  lyrics:string
   sourceUrl:string
   source:string
 }
