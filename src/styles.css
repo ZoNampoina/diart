@@ -194,3 +194,42 @@ textarea{resize:vertical}
   .artist-search{position:sticky;top:calc(68px + env(safe-area-inset-top));z-index:12;margin-bottom:10px;background:var(--surface);box-shadow:var(--glow)}
   .bottom-nav button{transition:none}
 }
+
+
+/* DI'ART V1.5 — interaction cleanup */
+.global-create-btn{width:46px;min-width:46px;padding:0;border-radius:50%}
+.create-choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.create-choice-grid>button{min-height:92px;border:1px solid var(--line);background:var(--surface2);color:var(--text);border-radius:13px;padding:14px;display:grid;grid-template-columns:32px 1fr;gap:10px;align-items:center;text-align:left}.create-choice-grid>button:hover{border-color:var(--accent);background:var(--surface3)}.create-choice-grid svg{color:var(--accent2)}.create-choice-grid b,.create-choice-grid small{display:block}.create-choice-grid small{color:var(--muted);margin-top:4px;line-height:1.35}.create-name-form label{display:grid;gap:7px;color:var(--muted)}
+
+.bare-action{width:42px;height:42px;border:0;background:transparent;color:var(--muted);border-radius:9px;display:inline-grid;place-items:center;padding:0}.bare-action:hover{background:transparent;color:var(--accent2)}.bare-action.active{color:var(--accent2)}.bare-action.danger-icon:hover{color:var(--danger)}.bare-action svg{width:19px;height:19px}.detail-icon-actions{display:flex;align-items:center;gap:2px}
+.optional-tool{margin-top:-2px}.song-hero+.optional-tool{margin-bottom:14px}
+.info-list:empty{display:none}
+
+.lyrics-modal{width:min(760px,calc(100vw - 28px));padding:16px}.lyrics-modal-form{display:grid;gap:12px}.lyrics-editor{max-height:64dvh;min-height:42dvh}.lyrics-empty{min-height:auto}.lyrics-add-empty{border:1px dashed var(--line);background:transparent;color:var(--accent2);border-radius:10px;min-height:48px;padding:10px 14px;display:inline-flex;align-items:center;gap:8px}.lyrics-inline-action{width:36px;height:36px}
+
+.setlist-choice-list{display:grid;gap:7px;max-height:42dvh;overflow:auto;padding-right:2px}.setlist-choice{display:grid;grid-template-columns:24px minmax(0,1fr) 20px;gap:9px;align-items:center;width:100%;border:1px solid var(--line);background:var(--surface2);color:var(--text);border-radius:10px;padding:10px;text-align:left}.setlist-choice:hover{border-color:var(--accent);background:var(--surface3)}.setlist-choice b,.setlist-choice small{display:block}.setlist-choice small{color:var(--muted);margin-top:2px}.setlist-modal-create{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end;border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.setlist-modal-create label{display:grid;gap:6px;color:var(--muted);font-size:12px}.muted-copy{color:var(--muted);margin:8px 0}
+.quick-setlist-add .setlist-plus-btn{position:relative}.setlist-popover{display:none!important}
+
+.artist-detail-nav{margin-bottom:8px}.artist-header{margin-bottom:18px}.artist-add-song{border:1px solid var(--line);background:var(--surface2);color:var(--accent2)}.artist-song-list{margin-top:10px}
+.setlist-head{grid-template-columns:minmax(0,1fr) auto}.setlist-head-actions{display:flex;align-items:center;gap:0}
+
+.musician-grid>.metronome-card{grid-column:1/-1}
+.metronome-card{display:grid;grid-template-columns:minmax(180px,.8fr) minmax(120px,.45fr) minmax(360px,1.6fr);align-items:center;gap:14px;padding:16px;min-height:0}
+.metronome-card h2{font-size:16px;margin:2px 0}.metro-hint{font-size:10px}.metro-display strong{font-size:34px}.metro-controls{grid-template-columns:44px minmax(100px,1fr) 44px 76px 92px}.metro-controls>*{min-width:0}.metro-controls button{min-height:44px}
+
+@media(max-width:1024px){
+  .metronome-card{grid-template-columns:1fr auto;padding:14px}.metro-controls{grid-column:1/-1;grid-template-columns:44px minmax(120px,1fr) 44px 82px 100px}
+  .create-choice-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:760px){
+  .create-choice-grid{grid-template-columns:1fr}.create-choice-grid>button{min-height:72px}
+  .detail-icon-actions{gap:0}.bare-action{width:44px;height:44px}
+  .song-hero{margin-bottom:10px}.optional-tool{margin-top:0}
+  .lyrics-modal{width:100%;max-height:90dvh;border-radius:22px 22px 0 0}.lyrics-editor{min-height:45dvh;max-height:58dvh}
+  .setlist-modal-create{grid-template-columns:1fr}.setlist-modal-create .primary{width:100%}
+  .artist-detail-nav{position:sticky;top:calc(68px + env(safe-area-inset-top));z-index:14;background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(14px);padding:7px 0}
+  .metronome-card{grid-template-columns:1fr auto;gap:9px;padding:12px}.metronome-card>div:first-child{min-width:0}.metronome-card h2{font-size:14px}.metro-hint{display:none}.metro-display{justify-content:flex-end}.metro-display strong{font-size:30px}.metro-controls{grid-column:1/-1;grid-template-columns:42px minmax(80px,1fr) 42px 1fr 1fr;gap:6px}.metro-controls button{min-height:42px;padding:0 6px}.metro-controls .tap-btn{grid-column:auto}
+}
+@media(max-width:430px){
+  .metronome-card{grid-template-columns:1fr}.metro-display{justify-content:flex-start}.metro-controls{grid-template-columns:40px 1fr 40px}.metro-controls .tap-btn{grid-column:1/3}.metro-controls>button:last-child{grid-column:3}
+  .setlist-choice-list{max-height:36dvh}
+}
