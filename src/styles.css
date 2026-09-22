@@ -295,3 +295,192 @@ textarea{resize:vertical}
   .setlist-detail-metrics{grid-template-columns:1fr 1fr}.setlist-detail-metrics>div:last-child{grid-column:1/-1}
   .stage-topbar>div:first-child b{max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.stage-view-tabs button{padding:8px 11px}
 }
+
+
+/* DI'ART V1.6.1 — setlist layout reset + reliable stage presentation */
+.modern-setlist-grid{
+  transform:none!important;
+  grid-auto-rows:max-content!important;
+  align-items:start!important;
+}
+.modern-setlist-card{
+  content-visibility:visible!important;
+  contain:none!important;
+  contain-intrinsic-size:auto!important;
+  height:auto!important;
+  min-height:0!important;
+  align-self:start!important;
+  overflow:hidden!important;
+}
+.modern-setlist-card .setlist-head{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  align-items:center!important;
+  gap:8px!important;
+  width:100%!important;
+  padding:10px 12px!important;
+  min-height:68px!important;
+}
+.modern-setlist-card .setlist-title-button{
+  display:grid!important;
+  grid-template-columns:42px minmax(0,1fr) 22px!important;
+  gap:10px!important;
+  align-items:center!important;
+  width:100%!important;
+  min-height:48px!important;
+  padding:0!important;
+}
+.modern-setlist-card .setlist-title-button>div{min-width:0!important}
+.modern-setlist-card .setlist-title-button b{
+  display:block!important;
+  font-size:16px!important;
+  line-height:1.2!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+.modern-setlist-card .setlist-title-button small{
+  display:block!important;
+  margin-top:4px!important;
+  line-height:1.35!important;
+  white-space:normal!important;
+}
+.modern-setlist-card .setlist-head-actions{
+  display:flex!important;
+  flex:none!important;
+  align-items:center!important;
+}
+.modern-setlist-card .setlist-preview{
+  display:block!important;
+  height:auto!important;
+  min-height:0!important;
+  padding:10px 12px 12px!important;
+}
+.modern-setlist-card .setlist-preview-songs>div{
+  min-height:38px!important;
+}
+.modern-setlist-card .open-setlist-btn{
+  min-height:42px!important;
+  margin-top:10px!important;
+}
+
+.setlist-detail-hero{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  align-items:end!important;
+  gap:22px!important;
+  min-height:0!important;
+  padding:22px!important;
+}
+.setlist-detail-title{min-width:0}
+.setlist-detail-title h1{
+  margin:3px 0 7px!important;
+  line-height:1!important;
+}
+.setlist-detail-title>p:last-child{
+  margin:0!important;
+  color:var(--muted)!important;
+}
+.setlist-detail-metrics{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(105px,1fr))!important;
+  gap:8px!important;
+  align-self:end!important;
+}
+.setlist-detail-metrics>div{
+  display:block!important;
+  min-width:105px!important;
+  min-height:72px!important;
+  padding:12px!important;
+  border:1px solid var(--line)!important;
+  border-radius:12px!important;
+  background:var(--surface2)!important;
+}
+.setlist-detail-metrics span{
+  display:block!important;
+  font-size:10px!important;
+  line-height:1.2!important;
+  color:var(--muted)!important;
+}
+.setlist-detail-metrics b{
+  display:block!important;
+  margin-top:7px!important;
+  font-size:20px!important;
+  line-height:1!important;
+  color:var(--accent2)!important;
+}
+.setlist-manager{
+  overflow:visible!important;
+}
+.setlist-manager>.panel-title-row{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:12px!important;
+}
+.setlist-detail-song{
+  display:grid!important;
+  grid-template-columns:34px minmax(0,1fr) auto 40px 40px 40px!important;
+  align-items:center!important;
+  gap:6px!important;
+  min-height:58px!important;
+}
+.setlist-song-main{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  width:100%!important;
+  min-width:0!important;
+  border:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+  background:transparent!important;
+  color:var(--text)!important;
+  text-align:left!important;
+  padding:3px 6px!important;
+  font:inherit!important;
+}
+.setlist-song-main:hover{background:transparent!important}
+.setlist-song-main b{font-size:15px!important}
+.setlist-song-main small{font-size:11px!important}
+.setlist-number{flex:none!important}
+
+.stage-mode{
+  isolation:isolate!important;
+  width:100vw!important;
+  height:100dvh!important;
+  min-height:100vh!important;
+}
+.stage-content{
+  min-height:0!important;
+  overflow:auto!important;
+}
+.stage-topbar,.stage-nav{
+  width:100%!important;
+  box-sizing:border-box!important;
+}
+
+@media(max-width:1024px){
+  .setlist-detail-hero{
+    grid-template-columns:1fr!important;
+    align-items:stretch!important;
+  }
+  .setlist-detail-metrics{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    width:100%!important;
+  }
+  .setlist-detail-metrics>div{min-width:0!important}
+}
+@media(max-width:760px){
+  .modern-setlist-card .setlist-head{padding:8px 9px!important}
+  .modern-setlist-card .setlist-title-button{grid-template-columns:38px minmax(0,1fr) 20px!important}
+  .setlist-detail-hero{padding:16px!important}
+  .setlist-detail-metrics{grid-template-columns:repeat(3,1fr)!important}
+  .setlist-detail-song{
+    grid-template-columns:30px minmax(0,1fr) 38px 38px 38px!important;
+  }
+  .setlist-song-flags{grid-column:2/-1!important}
+}
+@media(max-width:430px){
+  .setlist-detail-metrics{grid-template-columns:1fr 1fr!important}
+  .setlist-detail-metrics>div:last-child{grid-column:1/-1!important}
+}
