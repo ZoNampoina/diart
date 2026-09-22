@@ -74,6 +74,7 @@ function App() {
   const [presetArtist,setPresetArtist]=useState('')
   const [presetAuthor,setPresetAuthor]=useState('')
   const [createMode,setCreateMode]=useState<'menu'|'artist'|'setlist'|null>(null)
+  const [recueilEntry,setRecueilEntry]=useState<'tononkira'|null>(null)
   const [createName,setCreateName]=useState('')
   const [sidebar,setSidebar]=useState(false)
   const [theme,setTheme]=useState<'dark'|'light'|'system'>('dark')
@@ -167,7 +168,7 @@ function App() {
     addEventListener('keydown',handler); return()=>removeEventListener('keydown',handler)
   },[])
 
-  const go=(p:Page)=>{setPage(p);setSidebar(false)}
+  const go=(p:Page)=>{if(p==='recueils')setRecueilEntry(null);setPage(p);setSidebar(false)}
   const startNewSong=(artist='',author='')=>{if(!artist)setSelectedArtist('');if(!author)setSelectedAuthor('');setPresetArtist(artist);setPresetAuthor(author);setSelected(null);setCreateMode(null);setCreateName('');setPage('new')}
   const currentScrollY=()=>window.scrollY||document.documentElement.scrollTop||0
   const openArtist=(name:string)=>{setArtistsScrollY(currentScrollY());setSelectedArtist(name);setPage('artist')}
@@ -229,7 +230,7 @@ function App() {
       <button onClick={()=>go('favorites')}><Heart/><span>Favoris</span></button>
       <button onClick={()=>go('setlists')}><ListMusic/><span>Setlists</span></button>
     </nav>
-    {createMode==='menu'&&<Modal title="Créer" onClose={()=>setCreateMode(null)}><div className="create-choice-grid"><button onClick={()=>startNewSong()}><Music2/><span><b>Nouveau morceau</b><small>Créer une nouvelle fiche musicale</small></span></button><button onClick={()=>{setCreateMode('artist');setCreateName('')}}><UsersRound/><span><b>Nouvel artiste</b><small>Créer son premier morceau</small></span></button><button onClick={()=>{setCreateMode('setlist');setCreateName('')}}><ListMusic/><span><b>Nouvelle setlist</b><small>Créer une liste vide</small></span></button><button onClick={()=>{setCreateMode(null);go('import')}}><Import/><span><b>Nouvel import</b><small>Importer Excel ou CSV</small></span></button></div></Modal>}
+    {createMode==='menu'&&<Modal title="Créer" onClose={()=>setCreateMode(null)}><div className="create-choice-grid"><button onClick={()=>startNewSong()}><Music2/><span><b>Nouveau morceau</b><small>Créer une nouvelle fiche musicale</small></span></button><button onClick={()=>{setCreateMode('artist');setCreateName('')}}><UsersRound/><span><b>Nouvel artiste</b><small>Créer son premier morceau</small></span></button><button onClick={()=>{setCreateMode('setlist');setCreateName('')}}><ListMusic/><span><b>Nouvelle setlist</b><small>Créer une liste vide</small></span></button><button onClick={()=>{setCreateMode(null);go('import')}}><Import/><span><b>Nouvel import</b><small>Importer Excel ou CSV</small></span></button><button onClick={()=>{setCreateMode(null);setRecueilEntry('tononkira');setPage('recueils')}}><BookMarked/><span><b>Importer depuis Tononkira</b><small>Lien Tononkira → titre/artiste → coller les paroles</small></span></button></div></Modal>}
     {createMode==='artist'&&<Modal title="Nouvel artiste" onClose={()=>setCreateMode(null)}><div className="create-name-form"><label>Nom de l’artiste<input autoFocus value={createName} onChange={e=>setCreateName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')createNamedArtist()}}/></label><div className="modal-actions"><button className="secondary" onClick={()=>setCreateMode('menu')}>Retour</button><button className="primary" disabled={!createName.trim()} onClick={createNamedArtist}><Plus/>Continuer</button></div></div></Modal>}
     {createMode==='setlist'&&<Modal title="Nouvelle setlist" onClose={()=>setCreateMode(null)}><div className="create-name-form"><label>Nom de la setlist<input autoFocus value={createName} onChange={e=>setCreateName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createNamedSetlist()}}/></label><div className="modal-actions"><button className="secondary" onClick={()=>setCreateMode('menu')}>Retour</button><button className="primary" disabled={!createName.trim()} onClick={()=>void createNamedSetlist()}><Plus/>Créer</button></div></div></Modal>}
     <Toasts items={toasts}/>
@@ -387,7 +388,7 @@ function SongForm({initial,presetArtist='',presetAuthor='',onCancel,onSave}:{ini
 
 const fieldOptions:[ImportField,string][]=[['title','Titre *'],['artist','Artiste'],['authorComposer','Auteur / Compositeur'],['originalKey','Tonalité originale'],['personalKey','Tonalité personnelle'],['bpm','BPM'],['timeSignature','Signature rythmique'],['style','Style'],['duration','Durée'],['tags','Tags'],['notes','Notes'],['referenceUrl','Lien de référence'],['capo','Capo'],['structure','Structure'],['chords','Accords'],['instrumentNotes','Notes instrumentales'],['lyrics','Paroles']]
 
-function RecueilsPage({songs,onImport,toast}:{songs:Song[];onImport:(draft:SongDraft)=>Promise<void>;toast:(s:string)=>void}) {
+function RecueilsPage({songs,entryMode,onImport,toast}:{songs:Song[];entryMode:'tononkira'|null;onImport:(draft:SongDraft)=>Promise<void>;toast:(s:string)=>void}) {
   const [query,setQuery]=useState('')
   const [preview,setPreview]=useState<SongDraft|null>(null)
   const [fileName,setFileName]=useState('')
@@ -401,6 +402,7 @@ function RecueilsPage({songs,onImport,toast}:{songs:Song[];onImport:(draft:SongD
   const [tononkiraLyrics,setTononkiraLyrics]=useState('')
   const [tononkiraLoading,setTononkiraLoading]=useState(false)
   const fileRef=useRef<HTMLInputElement>(null)
+  useEffect(()=>{if(entryMode==='tononkira')setTononkiraOpen(true)},[entryMode])
   const duplicate=preview? songs.find(s=>s.title.trim().toLowerCase()===preview.title.trim().toLowerCase() && s.artist.trim().toLowerCase()===preview.artist.trim().toLowerCase()):null
   const songKey=(title:string,artist:string)=>`${title.trim().toLowerCase()}::${artist.trim().toLowerCase()}`
   const existingKeys=useMemo(()=>new Set(songs.map(s=>songKey(s.title,s.artist))),[songs])
@@ -477,6 +479,8 @@ function RecueilsPage({songs,onImport,toast}:{songs:Song[];onImport:(draft:SongD
   }
 
   return <><div className="page-head"><div><p className="eyebrow">Recueils · Catalogue mondial</p><h1>Recueils</h1><p>Recherchez des morceaux disponibles dans des bases musicales mondiales, créez leurs fiches DI’ART, puis enrichissez-les avec paroles, accords, tonalité et BPM.</p></div></div>
+
+  <section className="panel tononkira-feature-card"><div className="tononkira-feature-mark">MG</div><div className="tononkira-feature-copy"><p className="eyebrow">Import rapide Madagascar</p><h2>Tononkira Malagasy</h2><p>Collez l’URL d’une chanson Tononkira, laissez DI’ART récupérer le titre et l’artiste, puis collez les paroles depuis votre presse-papiers.</p></div><button className="primary tononkira-feature-action" onClick={()=>setTononkiraOpen(true)}><Import/>Importer depuis Tononkira</button></section>
 
   <section className="panel global-catalog-panel"><div className="global-catalog-heading"><span className="global-catalog-icon"><Globe2/></span><div><p className="eyebrow">MusicBrainz · import direct</p><h2>Catalogue mondial</h2><p>Recherche de titres et artistes, déduplication, durée, date de sortie, tags et référence source.</p></div></div><div className="global-catalog-search"><Search/><input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void runCatalogSearch()}} placeholder="Ex. Still the One Shania Twain, Mahaleo, Hillsong…"/><button className="primary" disabled={catalogLoading||query.trim().length<2} onClick={()=>void runCatalogSearch()}>{catalogLoading?'Recherche…':'Rechercher'}</button></div>
   {catalogSearched&&<div className="catalog-results-wrap"><div className="catalog-results-head"><div><b>{catalogResults.length} résultat{catalogResults.length>1?'s':''}</b><small>{missingCatalog.length} absent{missingCatalog.length>1?'s':''} de DI’ART</small></div>{missingCatalog.length>0&&<button className="secondary catalog-bulk-add" disabled={bulkBusy} onClick={()=>void addAllMissing()}><ListPlus/>{bulkBusy?'Ajout…':`Ajouter les absents (${missingCatalog.length})`}</button>}</div><div className="catalog-results">{catalogResults.length?catalogResults.map(item=>{const exists=existingKeys.has(songKey(item.title,item.artist));return <article className={`catalog-result ${exists?'exists':''}`} key={item.id}><div className="catalog-result-main"><b>{item.title}</b><span>{item.artist||'Artiste non renseigné'}</span><small>{[item.firstReleaseDate?.slice(0,4),item.durationSeconds?formatDuration(item.durationSeconds):'',item.isrc?item.isrc:''].filter(Boolean).join(' · ')}</small></div><div className="catalog-result-tags">{item.tags.slice(0,3).map(tag=><span key={tag}>{tag}</span>)}</div><div className="catalog-result-actions">{item.sourceUrl&&<a className="bare-action" href={item.sourceUrl} target="_blank" rel="noreferrer" title="Voir la source"><ExternalLink/></a>}{exists?<span className="catalog-exists"><Check/>Déjà dans DI’ART</span>:<button className="primary" onClick={()=>void addCatalog(item)}><Plus/>Ajouter</button>}</div></article>}):<div className="catalog-empty">Aucun résultat.</div>}</div></div>}</section>
