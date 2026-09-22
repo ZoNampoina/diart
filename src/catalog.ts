@@ -59,3 +59,17 @@ export async function fetchTononkiraReference(url:string):Promise<TononkiraRefer
   if(data?.error) throw new Error(String(data.error))
   return data as TononkiraReference
 }
+
+
+export interface TononkiraSearchResult {
+  title:string
+  artist:string
+  url:string
+}
+
+export async function searchTononkira(title:string,artist=''):Promise<TononkiraSearchResult[]>{
+  const {data,error}=await supabase.functions.invoke('diart-tononkira-search',{body:{title:title.trim(),artist:artist.trim()}})
+  if(error) throw error
+  if(data?.error) throw new Error(String(data.error))
+  return Array.isArray(data?.results)?data.results:[]
+}
