@@ -19,7 +19,7 @@ const navItems = [
   ['setlists','Setlists',ListMusic], ['import','Importer',Import], ['backup','Sauvegarde',Download], ['settings','Paramètres',Settings]
 ] as const
 
-type Page = typeof navItems[number][0] | 'song' | 'edit' | 'new'
+type Page = typeof navItems[number][0] | 'song' | 'edit' | 'new' | 'artist'
 type Toast = { id:number; text:string; action?:{label:string;run:()=>void} }
 
 function useSongs() {
@@ -56,6 +56,10 @@ function App() {
   const {songs,refresh}=useSongs()
   const [page,setPage]=useState<Page>('dashboard')
   const [selected,setSelected]=useState<Song|null>(null)
+  const [selectedArtist,setSelectedArtist]=useState('')
+  const [presetArtist,setPresetArtist]=useState('')
+  const [createMode,setCreateMode]=useState<'menu'|'artist'|'setlist'|null>(null)
+  const [createName,setCreateName]=useState('')
   const [sidebar,setSidebar]=useState(false)
   const [theme,setTheme]=useState<'dark'|'light'|'system'>('dark')
   const [online,setOnline]=useState(navigator.onLine)
@@ -123,6 +127,10 @@ function App() {
   },[])
 
   const go=(p:Page)=>{setPage(p);setSidebar(false)}
+  const startNewSong=(artist='')=>{setPresetArtist(artist);setSelected(null);setCreateMode(null);setCreateName('');setPage('new')}
+  const openArtist=(name:string)=>{setSelectedArtist(name);setPage('artist')}
+  const createNamedArtist=()=>{const name=createName.trim();if(!name)return;startNewSong(name)}
+  const createNamedSetlist=async()=>{const name=createName.trim();if(!name)return;await createSetlist(name);await refreshSetlists();setCreateMode(null);setCreateName('');setPage('setlists');toast(`Setlist « ${name} » créée.`)}
   const openSong=async(s:Song)=>{setSelected(s);setPage('song');await markViewed(s.id);await refresh()}
   const fav=async(s:Song)=>{await updateSong(s.id,{favorite:!s.favorite});await refresh()}
   const artists=useMemo(()=>new Set(songs.map(s=>s.artist.trim()).filter(Boolean)).size,[songs])
@@ -139,18 +147,19 @@ function App() {
       <header className="topbar">
         <button className="icon-btn menu-btn" onClick={()=>setSidebar(v=>!v)}><Menu/></button>
         <button className="mobile-brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><img className="mobile-logo logo-night" src="./logo-night.svg" alt=""/><img className="mobile-logo logo-day" src="./logo-day.svg" alt=""/><span>DI'ART</span></button>
-        <div className="top-actions"><button className="icon-btn theme-toggle" title="Changer le thème" aria-label="Changer le thème" onClick={()=>setTheme(theme==='dark'?'light':'dark')}>{theme==='dark'?<Sun/>:<Moon/>}</button><button className="primary" onClick={()=>go('new')}><Plus size={18}/>Nouveau</button></div>
+        <div className="top-actions"><button className="icon-btn theme-toggle" title="Changer le thème" aria-label="Changer le thème" onClick={()=>setTheme(theme==='dark'?'light':'dark')}>{theme==='dark'?<Sun/>:<Moon/>}</button><button className="primary global-create-btn" aria-label="Créer" title="Créer" onClick={()=>{setCreateMode('menu');setCreateName('')}}><Plus size={22}/></button></div>
       </header>
       <div className="content">
         {page==='dashboard'&&<Dashboard songs={songs} artists={artists} authors={authors} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={openSong} onGo={go} onFav={fav}/>} 
         {page==='library'&&<LibraryPage songs={songs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} searchRef={searchRef} onOpen={openSong} onFav={fav}/>} 
-        {page==='artists'&&<PeoplePage title="Artistes" items={groupPeople(songs,'artist')} onOpen={openSong}/>}
+        {page==='artists'&&<ArtistsPage items={groupPeople(songs,'artist')} onArtist={openArtist}/>}
+        {page==='artist'&&selectedArtist&&<ArtistDetailPage artist={selectedArtist} songs={songs.filter(s=>s.artist.trim()===selectedArtist)} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go('artists')} onOpen={openSong} onFav={fav} onAdd={()=>startNewSong(selectedArtist)}/>}
         {page==='authors'&&<PeoplePage title="Auteurs / Compositeurs" items={groupPeople(songs,'authorComposer')} onOpen={openSong}/>}
-        {page==='favorites'&&<SimpleSongs title="Favoris" songs={songs.filter(s=>s.favorite)} onOpen={openSong} onFav={fav}/>}
-        {page==='recent'&&<SimpleSongs title="Récents" songs={[...songs].sort((a,b)=>(b.lastViewedAt||b.updatedAt).localeCompare(a.lastViewedAt||a.updatedAt)).slice(0,50)} onOpen={openSong} onFav={fav}/>}
+        {page==='favorites'&&<SimpleSongs title="Favoris" songs={songs.filter(s=>s.favorite)} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={openSong} onFav={fav}/>}
+        {page==='recent'&&<SimpleSongs title="Récents" songs={[...songs].sort((a,b)=>(b.lastViewedAt||b.updatedAt).localeCompare(a.lastViewedAt||a.updatedAt)).slice(0,50)} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={openSong} onFav={fav}/>}
         {page==='setlists'&&<SetlistsPage songs={songs} setlists={setlists} refresh={refreshSetlists} toast={toast}/>}
         {page==='song'&&selected&&<SongDetail song={songs.find(s=>s.id===selected.id)||selected} onBack={()=>go('library')} onEdit={()=>go('edit')} onFav={()=>void fav(songs.find(s=>s.id===selected.id)||selected)} onLyricsSave={async lyrics=>{await updateSong(selected.id,{lyrics});await refresh();toast('Paroles enregistrées.')}} onDelete={async()=>{const id=selected.id;await softDeleteSong(id);await refresh();toast('Morceau placé dans la corbeille',{label:'Annuler',run:async()=>{await db.songs.update(id,{deletedAt:null});await refresh()}});go('library')}}/>}
-        {(page==='new'||(page==='edit'&&selected))&&<SongForm initial={page==='edit'?selected:null} onCancel={()=>go(selected?'song':'library')} onSave={async draft=>{if(page==='edit'&&selected){await updateSong(selected.id,draft);await refresh();setSelected({...selected,...draft,updatedAt:new Date().toISOString()});toast('Morceau mis à jour');go('song')}else{const s=await createSong(draft);await refresh();setSelected(s);toast('Morceau ajouté');go('song')}}}/>}
+        {(page==='new'||(page==='edit'&&selected))&&<SongForm initial={page==='edit'?selected:null} presetArtist={page==='new'?presetArtist:''} onCancel={()=>go(selected?'song':selectedArtist?'artist':'library')} onSave={async draft=>{if(page==='edit'&&selected){await updateSong(selected.id,draft);await refresh();setSelected({...selected,...draft,updatedAt:new Date().toISOString()});toast('Morceau mis à jour');go('song')}else{const s=await createSong(draft);await refresh();setSelected(s);toast('Morceau ajouté');go('song')}}}/>}
         {page==='import'&&<ImportWizard songs={songs} refresh={refresh} toast={toast}/>}
         {page==='backup'&&<BackupPage songs={songs} refresh={refresh} toast={toast}/>}
         {page==='settings'&&<SettingsPage theme={theme} setTheme={setTheme} songs={songs} refresh={refresh} toast={toast} userEmail={userEmail} localCount={songs.filter(s=>s.source!=='demo').length} cloudStats={cloudStats} syncing={syncing} onSync={()=>void doSync()} onPull={()=>void forcePull()} onSignedIn={async()=>{const {data}=await supabase.auth.getUser();const u=data.user;setUserId(u?.id??'');setUserEmail(u?.email??'');if(u){setSyncing(true);try{await pullCloudToLocal(u.id);await syncAll(u.id);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(u.id)]);toast('Cloud DI’ART connecté et récupéré.')}finally{setSyncing(false)}}}}/>}
@@ -163,6 +172,9 @@ function App() {
       <button onClick={()=>go('favorites')}><Heart/><span>Favoris</span></button>
       <button onClick={()=>go('setlists')}><ListMusic/><span>Setlists</span></button>
     </nav>
+    {createMode==='menu'&&<Modal title="Créer" onClose={()=>setCreateMode(null)}><div className="create-choice-grid"><button onClick={()=>startNewSong()}><Music2/><span><b>Nouveau morceau</b><small>Créer une nouvelle fiche musicale</small></span></button><button onClick={()=>{setCreateMode('artist');setCreateName('')}}><UsersRound/><span><b>Nouvel artiste</b><small>Créer son premier morceau</small></span></button><button onClick={()=>{setCreateMode('setlist');setCreateName('')}}><ListMusic/><span><b>Nouvelle setlist</b><small>Créer une liste vide</small></span></button><button onClick={()=>{setCreateMode(null);go('import')}}><Import/><span><b>Nouvel import</b><small>Importer Excel ou CSV</small></span></button></div></Modal>}
+    {createMode==='artist'&&<Modal title="Nouvel artiste" onClose={()=>setCreateMode(null)}><div className="create-name-form"><label>Nom de l’artiste<input autoFocus value={createName} onChange={e=>setCreateName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')createNamedArtist()}}/></label><div className="modal-actions"><button className="secondary" onClick={()=>setCreateMode('menu')}>Retour</button><button className="primary" disabled={!createName.trim()} onClick={createNamedArtist}><Plus/>Continuer</button></div></div></Modal>}
+    {createMode==='setlist'&&<Modal title="Nouvelle setlist" onClose={()=>setCreateMode(null)}><div className="create-name-form"><label>Nom de la setlist<input autoFocus value={createName} onChange={e=>setCreateName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createNamedSetlist()}}/></label><div className="modal-actions"><button className="secondary" onClick={()=>setCreateMode('menu')}>Retour</button><button className="primary" disabled={!createName.trim()} onClick={()=>void createNamedSetlist()}><Plus/>Créer</button></div></div></Modal>}
     <Toasts items={toasts}/>
   </div>
 }
@@ -174,7 +186,7 @@ function Dashboard({songs,artists,authors,setlists,refreshSetlists,toast,onOpen,
   const recent=[...songs].sort((a,b)=>(b.lastViewedAt||'').localeCompare(a.lastViewedAt||'')).filter(s=>s.lastViewedAt).slice(0,3)
   const added=[...songs].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,3)
   return <>
-    <div className="page-head"><div><p className="eyebrow">Répertoire personnel</p><h1>Votre musique, immédiatement.</h1><p>Retrouvez tonalité, BPM et informations utiles en quelques secondes.</p></div><div className="actions"><button className="secondary" onClick={()=>onGo('import')}><FileSpreadsheet/>Importer</button><button className="primary" onClick={()=>onGo('new')}><Plus/>Nouveau morceau</button></div></div>
+    <div className="page-head"><div><p className="eyebrow">Répertoire personnel</p><h1>Votre musique, immédiatement.</h1><p>Retrouvez tonalité, BPM et informations utiles en quelques secondes.</p></div></div>
     <div className="home-search"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Rechercher un titre, artiste, tonalité, BPM…"/>{q&&<button className="icon-btn" aria-label="Effacer la recherche" onClick={()=>setQ('')}><X/></button>}</div>
     {q.trim()&&<section className="panel home-search-results"><div className="panel-title-row"><h2>Résultats</h2><span>{results.length} affiché(s)</span></div>{results.length?<div className="quick-results">{results.map(s=><div className="quick-result" key={s.id}><button className="quick-result-main" onClick={()=>onOpen(s)}><span><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}</small></span><span className="quick-meta">{s.personalKey||s.originalKey||'—'} · {s.bpm??'—'} BPM</span></button><QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/></div>)}</div>:<Empty text="Aucun résultat."/>}</section>}
     <div className="metrics"><Metric label="Morceaux" value={songs.length}/><Metric label="Artistes" value={artists}/><Metric label="Auteurs" value={authors}/><Metric label="Favoris" value={songs.filter(s=>s.favorite).length}/></div>
