@@ -378,13 +378,62 @@ function SongDetail({song,backLabel,setlists,refreshSetlists,toast,onBack,onEdit
   {confirm&&<Modal title="Supprimer ce morceau ?" onClose={()=>setConfirm(false)}><p>Le morceau sera masqué de la bibliothèque et pourra être restauré via l’action Annuler.</p><div className="modal-actions"><button className="secondary" onClick={()=>setConfirm(false)}>Annuler</button><button className="danger" onClick={onDelete}><Trash2/>Supprimer</button></div></Modal>}</>
 }
 
+const STRUCTURE_PARTS=['Prélude','Couplet','Refrain','Bridge','Interlude','Postlude'] as const
+
+function parseStructureSequence(value:string):string[]{
+  return value.split(/[·\n>]+/).map(x=>x.trim()).filter(Boolean)
+}
+function numberedStructureLabels(parts:string[]):string[]{
+  const totals=new Map<string,number>()
+  for(const part of parts)totals.set(part,(totals.get(part)||0)+1)
+  const seen=new Map<string,number>()
+  return parts.map(part=>{
+    const count=(seen.get(part)||0)+1
+    seen.set(part,count)
+    return (totals.get(part)||0)>1 ? part+' '+count : part
+  })
+}
+function generatedChordTemplate(parts:string[]):string{
+  return numberedStructureLabels(parts).map(label=>'['+label+']\n').join('\n').trimEnd()
+}
+function looksGeneratedChordTemplate(value:string):boolean{
+  const lines=value.split('\n').map(x=>x.trim()).filter(Boolean)
+  return lines.length===0 || lines.every(line=>/^\[[^\]]+\]$/.test(line))
+}
+
 function SongForm({initial,presetArtist='',presetAuthor='',onCancel,onSave}:{initial:Song|null;presetArtist?:string;presetAuthor?:string;onCancel:()=>void;onSave:(d:SongDraft)=>Promise<void>}) {
   const [d,setD]=useState<SongDraft>(()=>initial?{...emptySongDraft(),title:initial.title,artist:initial.artist,authorComposer:initial.authorComposer,originalKey:initial.originalKey,personalKey:initial.personalKey,bpm:initial.bpm,timeSignature:initial.timeSignature,style:initial.style,durationSeconds:initial.durationSeconds,tags:initial.tags,notes:initial.notes,referenceUrl:initial.referenceUrl,capo:initial.capo??null,structure:initial.structure??'',chords:initial.chords??'',instrumentNotes:initial.instrumentNotes??'',lyrics:initial.lyrics??'',favorite:initial.favorite,source:initial.source}:{...emptySongDraft(),artist:presetArtist,authorComposer:presetAuthor})
   const [duration,setDuration]=useState(initial?formatDuration(initial.durationSeconds)==='—'?'':formatDuration(initial.durationSeconds):'')
   const [saving,setSaving]=useState(false)
   const set=<K extends keyof SongDraft>(k:K,v:SongDraft[K])=>setD(x=>({...x,[k]:v}))
+  const sequence=useMemo(()=>parseStructureSequence(d.structure??''),[d.structure])
+  const numberedSequence=useMemo(()=>numberedStructureLabels(sequence),[sequence])
+
+  const applyStructure=(next:string[])=>{
+    setD(prev=>{
+      const shouldGenerate=!prev.chords?.trim()||looksGeneratedChordTemplate(prev.chords??'')
+      return {...prev,structure:next.join(' · '),chords:shouldGenerate?generatedChordTemplate(next):prev.chords}
+    })
+  }
+  const addStructure=(part:string)=>applyStructure([...sequence,part])
+  const removeStructure=(index:number)=>applyStructure(sequence.filter((_,i)=>i!==index))
+  const moveStructure=(index:number,delta:number)=>{
+    const next=[...sequence]
+    const target=index+delta
+    if(target<0||target>=next.length)return
+    const [item]=next.splice(index,1)
+    next.splice(target,0,item)
+    applyStructure(next)
+  }
   const submit=async(e:FormEvent)=>{e.preventDefault();if(!d.title.trim())return;setSaving(true);await onSave({...d,title:d.title.trim(),originalKey:normalizeKey(d.originalKey),personalKey:normalizeKey(d.personalKey),durationSeconds:parseDuration(duration)});setSaving(false)}
-  return <><div className="page-head compact"><div><p className="eyebrow">{initial?'Modification':'Nouveau morceau'}</p><h1>{initial?initial.title:'Ajouter un morceau'}</h1></div></div><form className="panel form-grid" onSubmit={e=>void submit(e)}><label className="span2">Titre *<input required value={d.title} onChange={e=>set('title',e.target.value)} autoFocus/></label><label>Artiste<input value={d.artist} onChange={e=>set('artist',e.target.value)}/></label><label>Auteur / Compositeur<input value={d.authorComposer} onChange={e=>set('authorComposer',e.target.value)}/></label><label>Tonalité originale<input value={d.originalKey} onChange={e=>set('originalKey',e.target.value)}/></label><label>Tonalité habituelle<input value={d.personalKey} onChange={e=>set('personalKey',e.target.value)}/></label><label>BPM<input inputMode="numeric" value={d.bpm??''} onChange={e=>set('bpm',parseBpm(e.target.value))}/></label><label>Signature<input value={d.timeSignature} onChange={e=>set('timeSignature',e.target.value)} placeholder="4/4"/></label><label>Style<input value={d.style} onChange={e=>set('style',e.target.value)}/></label><label>Durée mm:ss<input value={duration} onChange={e=>setDuration(e.target.value)} placeholder="4:30"/></label><label>Capo<input inputMode="numeric" type="number" min="0" max="12" value={d.capo??''} onChange={e=>set('capo',e.target.value===''?null:Math.max(0,Math.min(12,Number(e.target.value))))}/></label><label>Tags<input value={d.tags.join(', ')} onChange={e=>set('tags',e.target.value.split(/[;,]/).map(x=>x.trim()).filter(Boolean))}/></label><div className="form-section-title span2"><span>Préparation musicale</span><small>Informations utiles en répétition et sur scène</small></div><label className="span2">Structure<textarea rows={3} value={d.structure??''} onChange={e=>set('structure',e.target.value)} placeholder="Intro · Couplet 1 · Refrain · Couplet 2 · Pont · Refrain x2"/></label><label className="span2">Accords / repères<textarea rows={5} className="chord-input" value={d.chords??''} onChange={e=>set('chords',e.target.value)} placeholder="C   G/B   Am7   F&#10;C   G     F"/></label><label className="span2">Notes instrumentales<textarea rows={4} value={d.instrumentNotes??''} onChange={e=>set('instrumentNotes',e.target.value)} placeholder="Sax après refrain 2, basse légère au couplet, pad au pont…"/></label><label className="span2">Paroles<textarea rows={8} value={d.lyrics??''} onChange={e=>set('lyrics',e.target.value)} placeholder="Paroles du morceau…"/></label><label className="span2">Lien de référence<input value={d.referenceUrl} onChange={e=>set('referenceUrl',e.target.value)}/></label><label className="span2">Notes générales<textarea rows={5} value={d.notes} onChange={e=>set('notes',e.target.value)}/></label><div className="form-actions span2"><button type="button" className="secondary" onClick={onCancel}>Annuler</button><button className="primary" disabled={saving}><Save/>{saving?'Enregistrement…':'Enregistrer'}</button></div></form></>
+
+  return <><div className="page-head compact"><div><p className="eyebrow">{initial?'Modification':'Nouveau morceau'}</p><h1>{initial?initial.title:'Ajouter un morceau'}</h1></div></div><form className="panel form-grid" onSubmit={e=>void submit(e)}><label className="span2">Titre *<input required value={d.title} onChange={e=>set('title',e.target.value)} autoFocus/></label><label>Artiste<input value={d.artist} onChange={e=>set('artist',e.target.value)}/></label><label>Auteur / Compositeur<input value={d.authorComposer} onChange={e=>set('authorComposer',e.target.value)}/></label><label>Tonalité originale<input value={d.originalKey} onChange={e=>set('originalKey',e.target.value)}/></label><label>Tonalité habituelle<input value={d.personalKey} onChange={e=>set('personalKey',e.target.value)}/></label><label>BPM<input inputMode="numeric" value={d.bpm??''} onChange={e=>set('bpm',parseBpm(e.target.value))}/></label><label>Signature<input value={d.timeSignature} onChange={e=>set('timeSignature',e.target.value)} placeholder="4/4"/></label><label>Style<input value={d.style} onChange={e=>set('style',e.target.value)}/></label><label>Durée mm:ss<input value={duration} onChange={e=>setDuration(e.target.value)} placeholder="4:30"/></label><label>Capo<input inputMode="numeric" type="number" min="0" max="12" value={d.capo??''} onChange={e=>set('capo',e.target.value===''?null:Math.max(0,Math.min(12,Number(e.target.value))))}/></label><label>Tags<input value={d.tags.join(', ')} onChange={e=>set('tags',e.target.value.split(/[;,]/).map(x=>x.trim()).filter(Boolean))}/></label><div className="form-section-title span2"><span>Préparation musicale</span><small>Informations utiles en répétition et sur scène</small></div>
+
+  <div className="structure-builder span2"><div className="structure-builder-head"><div><b>Structure du morceau</b><small>Sélectionnez les sections dans l’ordre réel. Une même section peut être ajoutée plusieurs fois.</small></div>{sequence.length>0&&<button type="button" className="bare-action structure-clear" onClick={()=>applyStructure([])}>Effacer</button>}</div><div className="structure-options">{STRUCTURE_PARTS.map(part=><button type="button" key={part} onClick={()=>addStructure(part)}><Plus/>{part}</button>)}</div>{sequence.length>0?<div className="structure-sequence">{numberedSequence.map((label,index)=><div className="structure-chip" key={label+'-'+index}><span>{index+1}</span><b>{label}</b><button type="button" disabled={index===0} title="Déplacer avant" onClick={()=>moveStructure(index,-1)}><ChevronUp/></button><button type="button" disabled={index===sequence.length-1} title="Déplacer après" onClick={()=>moveStructure(index,1)}><ChevronDown/></button><button type="button" title="Retirer" onClick={()=>removeStructure(index)}><X/></button></div>)}</div>:<p className="structure-empty">Aucune structure sélectionnée.</p>}</div>
+
+  <label className="span2">Structure<textarea rows={3} value={d.structure??''} onChange={e=>set('structure',e.target.value)} placeholder="Prélude · Couplet · Refrain · Couplet · Bridge · Refrain · Postlude"/></label>
+  <label className="span2 chord-label"><span className="field-label-row"><span>Accords / repères</span><button type="button" className="secondary compact-field-action" disabled={!sequence.length} onClick={()=>set('chords',generatedChordTemplate(sequence))}>Générer les lignes</button></span><textarea rows={Math.max(6,sequence.length*2)} className="chord-input" value={d.chords??''} onChange={e=>set('chords',e.target.value)} placeholder="[Prélude]&#10;C  G  Am  F&#10;&#10;[Couplet]&#10;C  G/B  Am7  F"/></label>
+  <label className="span2">Notes instrumentales<textarea rows={4} value={d.instrumentNotes??''} onChange={e=>set('instrumentNotes',e.target.value)} placeholder="Sax après refrain 2, basse légère au couplet, pad au pont…"/></label><label className="span2">Paroles<textarea rows={8} value={d.lyrics??''} onChange={e=>set('lyrics',e.target.value)} placeholder="Paroles du morceau…"/></label><label className="span2">Lien de référence<input value={d.referenceUrl} onChange={e=>set('referenceUrl',e.target.value)}/></label><label className="span2">Notes générales<textarea rows={5} value={d.notes} onChange={e=>set('notes',e.target.value)}/></label><div className="form-actions span2"><button type="button" className="secondary" onClick={onCancel}>Annuler</button><button className="primary" disabled={saving}><Save/>{saving?'Enregistrement…':'Enregistrer'}</button></div></form></>
 }
 
 const fieldOptions:[ImportField,string][]=[['title','Titre *'],['artist','Artiste'],['authorComposer','Auteur / Compositeur'],['originalKey','Tonalité originale'],['personalKey','Tonalité personnelle'],['bpm','BPM'],['timeSignature','Signature rythmique'],['style','Style'],['duration','Durée'],['tags','Tags'],['notes','Notes'],['referenceUrl','Lien de référence'],['capo','Capo'],['structure','Structure'],['chords','Accords'],['instrumentNotes','Notes instrumentales'],['lyrics','Paroles']]
