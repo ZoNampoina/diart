@@ -90,7 +90,7 @@ function App() {
 
   return <div className="app-shell">
     <aside className={`sidebar ${sidebar?'open':''}`}>
-      <button className="brand" onClick={()=>go('dashboard')}><span>D</span><div><b>DI'ART</b><small>by ARIZONA</small></div></button>
+      <button className="brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><span className="brand-mark"><img className="brand-logo logo-night" src="./logo-night.svg" alt=""/><img className="brand-logo logo-day" src="./logo-day.svg" alt=""/></span><div><b>DI'ART</b><small>by ARIZONA</small></div></button>
       <nav>{navItems.map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>go(id)}><Icon size={19}/>{label}</button>)}</nav>
       <div className="sidebar-bottom">{online?<Wifi size={16}/>:<WifiOff size={16}/>} {online?'En ligne':'Hors connexion'}<small>Données locales IndexedDB</small></div>
     </aside>
@@ -98,8 +98,8 @@ function App() {
     <main className="main">
       <header className="topbar">
         <button className="icon-btn menu-btn" onClick={()=>setSidebar(v=>!v)}><Menu/></button>
-        <button className="mobile-brand" onClick={()=>go('dashboard')}>DI'ART</button>
-        <div className="top-actions"><button className="icon-btn" onClick={()=>setTheme(theme==='dark'?'light':'dark')}>{theme==='dark'?<Sun/>:<Moon/>}</button><button className="primary" onClick={()=>go('new')}><Plus size={18}/>Nouveau</button></div>
+        <button className="mobile-brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><img className="mobile-logo logo-night" src="./logo-night.svg" alt=""/><img className="mobile-logo logo-day" src="./logo-day.svg" alt=""/><span>DI'ART</span></button>
+        <div className="top-actions"><button className="icon-btn theme-toggle" title="Changer le thème" aria-label="Changer le thème" onClick={()=>setTheme(theme==='dark'?'light':'dark')}>{theme==='dark'?<Sun/>:<Moon/>}</button><button className="primary" onClick={()=>go('new')}><Plus size={18}/>Nouveau</button></div>
       </header>
       <div className="content">
         {page==='dashboard'&&<Dashboard songs={songs} artists={artists} authors={authors} onOpen={openSong} onGo={go}/>}
@@ -126,14 +126,14 @@ function App() {
   </div>
 }
 
-function Dashboard({songs,artists,authors,onOpen,onGo}:{songs:Song[];artists:number;authors:number;onOpen:(s:Song)=>void;onGo:(p:Page)=>void}) {
+function Dashboard({songs,artists,authors,onOpen,onGo,onFav}:{songs:Song[];artists:number;authors:number;onOpen:(s:Song)=>void;onGo:(p:Page)=>void;onFav:(s:Song)=>void}) {
   const recent=[...songs].sort((a,b)=>(b.lastViewedAt||'').localeCompare(a.lastViewedAt||'')).filter(s=>s.lastViewedAt).slice(0,5)
   const added=[...songs].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,5)
   return <>
     <div className="page-head"><div><p className="eyebrow">Répertoire personnel</p><h1>Votre musique, immédiatement.</h1><p>Retrouvez tonalité, BPM et informations utiles en quelques secondes.</p></div><div className="actions"><button className="secondary" onClick={()=>onGo('import')}><FileSpreadsheet/>Importer</button><button className="primary" onClick={()=>onGo('new')}><Plus/>Nouveau morceau</button></div></div>
     <button className="global-search" onClick={()=>onGo('library')}><Search/>Rechercher un titre, artiste, tonalité, BPM… <kbd>Ctrl K</kbd></button>
     <div className="metrics"><Metric label="Morceaux" value={songs.length}/><Metric label="Artistes" value={artists}/><Metric label="Auteurs" value={authors}/><Metric label="Favoris" value={songs.filter(s=>s.favorite).length}/></div>
-    <div className="two-col"><section className="panel"><h2>Récemment consultés</h2>{recent.length?recent.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>{}}/>):<Empty text="Aucun morceau consulté."/>}</section><section className="panel"><h2>Ajouts récents</h2>{added.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>{}}/>)}</section></div>
+    <div className="two-col"><section className="panel"><h2>Récemment consultés</h2>{recent.length?recent.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/>):<Empty text="Aucun morceau consulté."/>}</section><section className="panel"><h2>Ajouts récents</h2>{added.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/>)}</section></div>
   </>
 }
 
