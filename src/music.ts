@@ -22,7 +22,6 @@ export function normalizeKey(value: unknown): string {
   const m = compact.match(/^([A-Ga-g])([#b♯♭]?)(minor|major|min|maj|m)?(.*)$/)
   if (!m) return raw
   let root = m[1].toUpperCase() + m[2].replace('♯', '#').replace('♭', 'b')
-  root = FLAT_TO_SHARP[root] ?? root
   const quality = (m[3] ?? '').toLowerCase()
   const suffix = m[4] ?? ''
   const q = quality === 'minor' || quality === 'min' || quality === 'm' ? 'm' : quality === 'major' || quality === 'maj' ? '' : ''
@@ -46,9 +45,11 @@ export function transposeKey(value: string, semitones: number): string {
 export function transposeChordText(value: string, semitones: number): string {
   if (!value || semitones === 0) return value
   return value.split(/(\s+|[|,;])/).map(token => {
-    const match = token.match(/^([A-Ga-g])([#b♯♭]?)(.*)$/)
+    const match = token.match(/^([A-Ga-g][#b♯♭]?)([^/]*)(?:\/([A-Ga-g][#b♯♭]?))?(.*)$/)
     if (!match) return token
-    return transposeKey(match[1] + match[2] + match[3], semitones)
+    const root = transposeKey(match[1], semitones)
+    const bass = match[3] ? '/' + transposeKey(match[3], semitones) : ''
+    return root + (match[2] ?? '') + bass + (match[4] ?? '')
   }).join('')
 }
 
