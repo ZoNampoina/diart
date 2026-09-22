@@ -380,43 +380,86 @@ function SongDetail({song,backLabel,setlists,refreshSetlists,toast,onBack,onEdit
 
 const STRUCTURE_PARTS=['Prélude','Couplet','Refrain','Bridge','Interlude','Postlude'] as const
 
+function normalizeStructurePart(value:string):string{
+  const raw=value.trim()
+  const variation=/\(\s*(?:variation|var\.?)\s*\)$/i.test(raw)
+  const base=raw.replace(/\s+\d+\s*$/,'').replace(/\s*\(\s*(?:variation|var\.?)\s*\)\s*$/i,'').trim()
+  const canonical=STRUCTURE_PARTS.find(x=>x.toLowerCase()===base.toLowerCase())||base
+  return variation?canonical+' (variation)':canonical
+}
+function structureBase(value:string):string{
+  return normalizeStructurePart(value).replace(/\s*\(variation\)\s*$/i,'').trim()
+}
 function parseStructureSequence(value:string):string[]{
-  return value.split(/[·\n>]+/).map(x=>x.trim()).filter(Boolean)
+  return value.split(/[·\n>]+/).map(normalizeStructurePart).filter(Boolean)
 }
 function numberedStructureLabels(parts:string[]):string[]{
-  const totals=new Map<string,number>()
-  for(const part of parts)totals.set(part,(totals.get(part)||0)+1)
-  const seen=new Map<string,number>()
-  return parts.map(part=>{
-    const count=(seen.get(part)||0)+1
-    seen.set(part,count)
-    return (totals.get(part)||0)>1 ? part+' '+count : part
-  })
+  return parts.map(normalizeStructurePart)
 }
 function generatedChordTemplate(parts:string[]):string{
-  return numberedStructureLabels(parts).map(label=>'['+label+']\n').join('\n').trimEnd()
+  return numberedStructureLabels(parts).map(label=>'['+label+']').join('\n\n')
 }
-function looksGeneratedChordTemplate(value:string):boolean{
-  const lines=value.split('\n').map(x=>x.trim()).filter(Boolean)
-  return lines.length===0 || lines.every(line=>/^\[[^\]]+\]$/.test(line))
+function chordGuideSections(value:string):{label:string;body:string}[]{
+  const lines=value.split('\n')
+  const out:{label:string;body:string}[]=[]
+  let current:{label:string;body:string}|null=null
+  for(const line of lines){
+    const header=line.trim().match(/^\[([^\]]+)\]$/)
+    if(header){
+      if(current&&current.body.trim())out.push({...current,body:current.body.trim()})
+      current={label:normalizeStructurePart(header[1]),body:''}
+    }else if(line.trim()){
+      if(!current)current={label:'Accords',body:''}
+      current.body+=(current.body?'\n':'')+line.trim()
+    }
+  }
+  if(current&&current.body.trim())out.push({...current,body:current.body.trim()})
+  return out
+}
+function hasMeaningfulChordContent(value:string):boolean{
+  return chordGuideSections(value).length>0
 }
 
 function SongForm({initial,presetArtist='',presetAuthor='',onCancel,onSave}:{initial:Song|null;presetArtist?:string;presetAuthor?:string;onCancel:()=>void;onSave:(d:SongDraft)=>Promise<void>}) {
   const [d,setD]=useState<SongDraft>(()=>initial?{...emptySongDraft(),title:initial.title,artist:initial.artist,authorComposer:initial.authorComposer,originalKey:initial.originalKey,personalKey:initial.personalKey,bpm:initial.bpm,timeSignature:initial.timeSignature,style:initial.style,durationSeconds:initial.durationSeconds,tags:initial.tags,notes:initial.notes,referenceUrl:initial.referenceUrl,capo:initial.capo??null,structure:initial.structure??'',chords:initial.chords??'',instrumentNotes:initial.instrumentNotes??'',lyrics:initial.lyrics??'',favorite:initial.favorite,source:initial.source}:{...emptySongDraft(),artist:presetArtist,authorComposer:presetAuthor})
   const [duration,setDuration]=useState(initial?formatDuration(initial.durationSeconds)==='—'?'':formatDuration(initial.durationSeconds):'')
   const [saving,setSaving]=useState(false)
+  const [chordType,setChordType]=useState<'M'|'m'|'7'|'Sus'|'Aug'>('M')
+  const chordRef=useRef<HTMLTextAreaElement>(null)
   const set=<K extends keyof SongDraft>(k:K,v:SongDraft[K])=>setD(x=>({...x,[k]:v}))
   const sequence=useMemo(()=>parseStructureSequence(d.structure??''),[d.structure])
   const numberedSequence=useMemo(()=>numberedStructureLabels(sequence),[sequence])
 
-  const applyStructure=(next:string[])=>{
-    setD(prev=>{
-      const shouldGenerate=!prev.chords?.trim()||looksGeneratedChordTemplate(prev.chords??'')
-      return {...prev,structure:next.join(' · '),chords:shouldGenerate?generatedChordTemplate(next):prev.chords}
-    })
-  }
+  const applyStructure=(next:string[])=>setD(prev=>({...prev,structure:next.map(normalizeStructurePart).join(' · ')}))
   const addStructure=(part:string)=>applyStructure([...sequence,part])
   const removeStructure=(index:number)=>applyStructure(sequence.filter((_,i)=>i!==index))
+  const toggleVariation=(index:number)=>{
+    const next=[...sequence]
+    const base=structureBase(next[index])
+    next[index]=/\(variation\)$/i.test(next[index])?base:base+' (variation)'
+    applyStructure(next)
+  }
+  const appendStructureTemplate=()=>{
+    if(!sequence.length)return
+    const template=generatedChordTemplate(sequence)
+    setD(prev=>({...prev,chords:[(prev.chords??'').trimEnd(),template].filter(Boolean).join('\n\n')}))
+  }
+  const insertChord=(root:string)=>{
+    const suffix=chordType==='M'?'':chordType==='m'?'m':chordType==='7'?'7':chordType==='Sus'?'sus':'aug'
+    const token=root+suffix
+    const el=chordRef.current
+    const start=el?.selectionStart??(d.chords??'').length
+    const end=el?.selectionEnd??start
+    const value=d.chords??''
+    const before=value.slice(0,start)
+    const after=value.slice(end)
+    const left=before&&!/[\s\n]$/.test(before)?' ':''
+    const right=after&&!/^[\s\n]/.test(after)?' ':''
+    const next=before+left+token+right+after
+    const cursor=(before+left+token).length
+    set('chords',next)
+    requestAnimationFrame(()=>{chordRef.current?.focus();chordRef.current?.setSelectionRange(cursor,cursor)})
+  }
   const moveStructure=(index:number,delta:number)=>{
     const next=[...sequence]
     const target=index+delta
@@ -429,10 +472,10 @@ function SongForm({initial,presetArtist='',presetAuthor='',onCancel,onSave}:{ini
 
   return <><div className="page-head compact"><div><p className="eyebrow">{initial?'Modification':'Nouveau morceau'}</p><h1>{initial?initial.title:'Ajouter un morceau'}</h1></div></div><form className="panel form-grid" onSubmit={e=>void submit(e)}><label className="span2">Titre *<input required value={d.title} onChange={e=>set('title',e.target.value)} autoFocus/></label><label>Artiste<input value={d.artist} onChange={e=>set('artist',e.target.value)}/></label><label>Auteur / Compositeur<input value={d.authorComposer} onChange={e=>set('authorComposer',e.target.value)}/></label><label>Tonalité originale<input value={d.originalKey} onChange={e=>set('originalKey',e.target.value)}/></label><label>Tonalité habituelle<input value={d.personalKey} onChange={e=>set('personalKey',e.target.value)}/></label><label>BPM<input inputMode="numeric" value={d.bpm??''} onChange={e=>set('bpm',parseBpm(e.target.value))}/></label><label>Signature<input value={d.timeSignature} onChange={e=>set('timeSignature',e.target.value)} placeholder="4/4"/></label><label>Style<input value={d.style} onChange={e=>set('style',e.target.value)}/></label><label>Durée mm:ss<input value={duration} onChange={e=>setDuration(e.target.value)} placeholder="4:30"/></label><label>Capo<input inputMode="numeric" type="number" min="0" max="12" value={d.capo??''} onChange={e=>set('capo',e.target.value===''?null:Math.max(0,Math.min(12,Number(e.target.value))))}/></label><label>Tags<input value={d.tags.join(', ')} onChange={e=>set('tags',e.target.value.split(/[;,]/).map(x=>x.trim()).filter(Boolean))}/></label><div className="form-section-title span2"><span>Préparation musicale</span><small>Informations utiles en répétition et sur scène</small></div>
 
-  <div className="structure-builder span2"><div className="structure-builder-head"><div><b>Structure du morceau</b><small>Sélectionnez les sections dans l’ordre réel. Une même section peut être ajoutée plusieurs fois.</small></div>{sequence.length>0&&<button type="button" className="bare-action structure-clear" onClick={()=>applyStructure([])}>Effacer</button>}</div><div className="structure-options">{STRUCTURE_PARTS.map(part=><button type="button" key={part} onClick={()=>addStructure(part)}><Plus/>{part}</button>)}</div>{sequence.length>0?<div className="structure-sequence">{numberedSequence.map((label,index)=><div className="structure-chip" key={label+'-'+index}><span>{index+1}</span><b>{label}</b><button type="button" disabled={index===0} title="Déplacer avant" onClick={()=>moveStructure(index,-1)}><ChevronUp/></button><button type="button" disabled={index===sequence.length-1} title="Déplacer après" onClick={()=>moveStructure(index,1)}><ChevronDown/></button><button type="button" title="Retirer" onClick={()=>removeStructure(index)}><X/></button></div>)}</div>:<p className="structure-empty">Aucune structure sélectionnée.</p>}</div>
+  <div className="structure-builder span2"><div className="structure-builder-head"><div><b>Structure du morceau</b><small>Couplet 1/2 et Refrain 1/2 sont considérés comme la même section. Activez « Var. » uniquement si une occurrence change réellement.</small></div>{sequence.length>0&&<button type="button" className="bare-action structure-clear" onClick={()=>applyStructure([])}>Effacer</button>}</div><div className="structure-options">{STRUCTURE_PARTS.map(part=><button type="button" key={part} onClick={()=>addStructure(part)}><Plus/>{part}</button>)}</div>{sequence.length>0?<div className="structure-sequence">{numberedSequence.map((label,index)=><div className="structure-chip" key={label+'-'+index}><span>{index+1}</span><b>{label}</b><button type="button" className={/\(variation\)$/i.test(label)?'variation-active':''} title="Variation optionnelle" onClick={()=>toggleVariation(index)}>Var.</button><button type="button" disabled={index===0} title="Déplacer avant" onClick={()=>moveStructure(index,-1)}><ChevronUp/></button><button type="button" disabled={index===sequence.length-1} title="Déplacer après" onClick={()=>moveStructure(index,1)}><ChevronDown/></button><button type="button" title="Retirer" onClick={()=>removeStructure(index)}><X/></button></div>)}</div>:<p className="structure-empty">Aucune structure sélectionnée.</p>}</div>
 
   <label className="span2">Structure<textarea rows={3} value={d.structure??''} onChange={e=>set('structure',e.target.value)} placeholder="Prélude · Couplet · Refrain · Couplet · Bridge · Refrain · Postlude"/></label>
-  <label className="span2 chord-label"><span className="field-label-row"><span>Accords / repères</span><button type="button" className="secondary compact-field-action" disabled={!sequence.length} onClick={()=>set('chords',generatedChordTemplate(sequence))}>Générer les lignes</button></span><textarea rows={Math.max(6,sequence.length*2)} className="chord-input" value={d.chords??''} onChange={e=>set('chords',e.target.value)} placeholder="[Prélude]&#10;C  G  Am  F&#10;&#10;[Couplet]&#10;C  G/B  Am7  F"/></label>
+  <label className="span2 chord-label"><span className="field-label-row"><span>Accords / repères</span><button type="button" className="secondary compact-field-action" disabled={!sequence.length} onClick={appendStructureTemplate}><Plus/>Ajouter la séquence</button></span>{sequence.length>0&&<div className="chord-sequence-suggestion"><small>Séquence suggérée à ajouter</small><div>{numberedSequence.map((label,index)=><span key={label+'-'+index}>[{label}]</span>)}</div></div>}<div className="chord-assistant"><div className="chord-type-picker">{(['M','m','7','Sus','Aug'] as const).map(type=><button type="button" className={chordType===type?'active':''} key={type} onClick={()=>setChordType(type)}>{type}</button>)}</div><div className="chord-root-picker">{['A','B','C','D','E','F','G'].map(root=><button type="button" key={root} onClick={()=>insertChord(root)}>{root}</button>)}</div></div><textarea ref={chordRef} rows={Math.max(6,sequence.length*2)} className="chord-input" value={d.chords??''} onChange={e=>set('chords',e.target.value)} placeholder="[Prélude]&#10;C  G  Am  F&#10;&#10;[Couplet]&#10;C  G/B  Am7  F"/></label>
   <label className="span2">Notes instrumentales<textarea rows={4} value={d.instrumentNotes??''} onChange={e=>set('instrumentNotes',e.target.value)} placeholder="Sax après refrain 2, basse légère au couplet, pad au pont…"/></label><label className="span2">Paroles<textarea rows={8} value={d.lyrics??''} onChange={e=>set('lyrics',e.target.value)} placeholder="Paroles du morceau…"/></label><label className="span2">Lien de référence<input value={d.referenceUrl} onChange={e=>set('referenceUrl',e.target.value)}/></label><label className="span2">Notes générales<textarea rows={5} value={d.notes} onChange={e=>set('notes',e.target.value)}/></label><div className="form-actions span2"><button type="button" className="secondary" onClick={onCancel}>Annuler</button><button className="primary" disabled={saving}><Save/>{saving?'Enregistrement…':'Enregistrer'}</button></div></form></>
 }
 
