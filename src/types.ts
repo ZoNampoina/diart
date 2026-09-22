@@ -70,3 +70,13 @@ export interface ImportRowPreview {
   valid: boolean
   error?: string
 }
+
+export interface Setlist {
+  id: string
+  name: string
+  songIds: string[]
+  notes: string
+  createdAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
