@@ -110,7 +110,7 @@ export function emptySongDraft(): SongDraft {
   return {
     title: '', artist: '', authorComposer: '', originalKey: '', personalKey: '', bpm: null,
     timeSignature: '', style: '', durationSeconds: null, tags: [], notes: '', referenceUrl: '',
-    capo: null, structure: '', chords: '', instrumentNotes: '', favorite: false, source: 'manual'
+    capo: null, structure: '', chords: '', instrumentNotes: '', lyrics: '', favorite: false, source: 'manual'
   }
 }
 
@@ -120,7 +120,7 @@ export function searchSong(song: Song, query: string): boolean {
   const haystack = [
     song.title, song.artist, song.authorComposer, song.originalKey, song.personalKey,
     song.bpm ?? '', song.timeSignature, song.style, song.tags.join(' '), song.notes,
-    song.structure ?? '', song.chords ?? '', song.instrumentNotes ?? ''
+    song.structure ?? '', song.chords ?? '', song.instrumentNotes ?? '', song.lyrics ?? ''
   ].map((v) => normalizeIdentity(String(v))).join(' ')
   return haystack.includes(q)
 }
