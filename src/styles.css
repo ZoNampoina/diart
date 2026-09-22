@@ -953,3 +953,28 @@ textarea{resize:vertical}
     max-width:48vw!important;
   }
 }
+
+
+/* DI'ART V1.6.5 — bare external-add icons */
+.setlist-plus-btn,
+.song-row-action .setlist-plus-btn,
+.quick-setlist-add .setlist-plus-btn,
+.detail-icon-actions .setlist-plus-btn{
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  outline:0!important;
+}
+.setlist-plus-btn:hover,
+.song-row-action .setlist-plus-btn:hover,
+.quick-setlist-add .setlist-plus-btn:hover,
+.detail-icon-actions .setlist-plus-btn:hover{
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:var(--accent2)!important;
+}
+.setlist-plus-btn:focus-visible{
+  outline:2px solid color-mix(in srgb,var(--accent2) 55%,transparent)!important;
+  outline-offset:2px!important;
+}
