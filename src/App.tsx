@@ -102,7 +102,7 @@ function App() {
         <div className="top-actions"><button className="icon-btn theme-toggle" title="Changer le thème" aria-label="Changer le thème" onClick={()=>setTheme(theme==='dark'?'light':'dark')}>{theme==='dark'?<Sun/>:<Moon/>}</button><button className="primary" onClick={()=>go('new')}><Plus size={18}/>Nouveau</button></div>
       </header>
       <div className="content">
-        {page==='dashboard'&&<Dashboard songs={songs} artists={artists} authors={authors} onOpen={openSong} onGo={go}/>}
+        {page==='dashboard'&&<Dashboard songs={songs} artists={artists} authors={authors} onOpen={openSong} onGo={go} onFav={fav}/>} 
         {page==='library'&&<LibraryPage songs={songs} searchRef={searchRef} onOpen={openSong} onFav={fav}/>}
         {page==='artists'&&<PeoplePage title="Artistes" items={groupPeople(songs,'artist')} onOpen={openSong}/>}
         {page==='authors'&&<PeoplePage title="Auteurs / Compositeurs" items={groupPeople(songs,'authorComposer')} onOpen={openSong}/>}
