@@ -14,7 +14,7 @@ import { parseWorkbook, rowsToPreview, suggestMapping, type ParsedWorkbook } fro
 import { exportCsv, exportJson, exportXlsx, restoreJson } from './exporter'
 import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToLocal } from './cloud'
 import { recueilSources, parseChordPro } from './recueils'
-import { searchGlobalCatalog, catalogRecordingToDraft, type CatalogRecording } from './catalog'
+import { searchGlobalCatalog, catalogRecordingToDraft, fetchTononkiraReference, type CatalogRecording, type TononkiraReference } from './catalog'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -395,6 +395,11 @@ function RecueilsPage({songs,onImport,toast}:{songs:Song[];onImport:(draft:SongD
   const [catalogLoading,setCatalogLoading]=useState(false)
   const [catalogSearched,setCatalogSearched]=useState(false)
   const [bulkBusy,setBulkBusy]=useState(false)
+  const [tononkiraOpen,setTononkiraOpen]=useState(false)
+  const [tononkiraUrl,setTononkiraUrl]=useState('')
+  const [tononkiraMeta,setTononkiraMeta]=useState<TononkiraReference|null>(null)
+  const [tononkiraLyrics,setTononkiraLyrics]=useState('')
+  const [tononkiraLoading,setTononkiraLoading]=useState(false)
   const fileRef=useRef<HTMLInputElement>(null)
   const duplicate=preview? songs.find(s=>s.title.trim().toLowerCase()===preview.title.trim().toLowerCase() && s.artist.trim().toLowerCase()===preview.artist.trim().toLowerCase()):null
   const songKey=(title:string,artist:string)=>`${title.trim().toLowerCase()}::${artist.trim().toLowerCase()}`
@@ -441,15 +446,46 @@ function RecueilsPage({songs,onImport,toast}:{songs:Song[];onImport:(draft:SongD
     }finally{setBulkBusy(false)}
   }
 
+  const loadTononkiraMeta=async()=>{
+    if(!tononkiraUrl.trim())return
+    setTononkiraLoading(true)
+    try{setTononkiraMeta(await fetchTononkiraReference(tononkiraUrl))}
+    catch{toast('Impossible de lire cette référence Tononkira. Vérifiez le lien et votre connexion Cloud DI’ART.')}
+    finally{setTononkiraLoading(false)}
+  }
+
+  const pasteTononkiraLyrics=async()=>{
+    try{
+      const text=await navigator.clipboard.readText()
+      if(!text.trim()){toast('Le presse-papiers est vide.');return}
+      setTononkiraLyrics(text.trim())
+    }catch{toast('Autorisez l’accès au presse-papiers, ou collez les paroles manuellement dans le champ.')}
+  }
+
+  const importTononkira=async()=>{
+    if(!tononkiraMeta||!tononkiraLyrics.trim())return
+    const draft=emptySongDraft()
+    draft.title=tononkiraMeta.title||'Morceau Tononkira'
+    draft.artist=tononkiraMeta.artist||''
+    draft.lyrics=tononkiraLyrics.trim()
+    draft.referenceUrl=tononkiraMeta.sourceUrl
+    draft.notes='Source des paroles : Tononkira Malagasy'
+    draft.source='import'
+    await onImport(draft)
+    toast(`${draft.title} ajouté à DI’ART avec les paroles collées.`)
+    setTononkiraOpen(false);setTononkiraUrl('');setTononkiraMeta(null);setTononkiraLyrics('')
+  }
+
   return <><div className="page-head"><div><p className="eyebrow">Recueils · Catalogue mondial</p><h1>Recueils</h1><p>Recherchez des morceaux disponibles dans des bases musicales mondiales, créez leurs fiches DI’ART, puis enrichissez-les avec paroles, accords, tonalité et BPM.</p></div></div>
 
   <section className="panel global-catalog-panel"><div className="global-catalog-heading"><span className="global-catalog-icon"><Globe2/></span><div><p className="eyebrow">MusicBrainz · import direct</p><h2>Catalogue mondial</h2><p>Recherche de titres et artistes, déduplication, durée, date de sortie, tags et référence source.</p></div></div><div className="global-catalog-search"><Search/><input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void runCatalogSearch()}} placeholder="Ex. Still the One Shania Twain, Mahaleo, Hillsong…"/><button className="primary" disabled={catalogLoading||query.trim().length<2} onClick={()=>void runCatalogSearch()}>{catalogLoading?'Recherche…':'Rechercher'}</button></div>
   {catalogSearched&&<div className="catalog-results-wrap"><div className="catalog-results-head"><div><b>{catalogResults.length} résultat{catalogResults.length>1?'s':''}</b><small>{missingCatalog.length} absent{missingCatalog.length>1?'s':''} de DI’ART</small></div>{missingCatalog.length>0&&<button className="secondary catalog-bulk-add" disabled={bulkBusy} onClick={()=>void addAllMissing()}><ListPlus/>{bulkBusy?'Ajout…':`Ajouter les absents (${missingCatalog.length})`}</button>}</div><div className="catalog-results">{catalogResults.length?catalogResults.map(item=>{const exists=existingKeys.has(songKey(item.title,item.artist));return <article className={`catalog-result ${exists?'exists':''}`} key={item.id}><div className="catalog-result-main"><b>{item.title}</b><span>{item.artist||'Artiste non renseigné'}</span><small>{[item.firstReleaseDate?.slice(0,4),item.durationSeconds?formatDuration(item.durationSeconds):'',item.isrc?item.isrc:''].filter(Boolean).join(' · ')}</small></div><div className="catalog-result-tags">{item.tags.slice(0,3).map(tag=><span key={tag}>{tag}</span>)}</div><div className="catalog-result-actions">{item.sourceUrl&&<a className="bare-action" href={item.sourceUrl} target="_blank" rel="noreferrer" title="Voir la source"><ExternalLink/></a>}{exists?<span className="catalog-exists"><Check/>Déjà dans DI’ART</span>:<button className="primary" onClick={()=>void addCatalog(item)}><Plus/>Ajouter</button>}</div></article>}):<div className="catalog-empty">Aucun résultat.</div>}</div></div>}</section>
 
   <section className="panel recueil-search-panel"><div className="recueil-searchbox"><Globe2/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Même recherche pour les recueils externes…"/></div><p>Pour les paroles/tabs protégées, DI’ART ouvre la source d’origine au lieu de copier automatiquement son contenu.</p></section>
-  <div className="recueil-source-grid">{recueilSources.map(source=><section className="panel recueil-source-card" key={source.id}><div className="recueil-source-head"><span className="recueil-badge">{source.badge}</span><div><h2>{source.name}</h2><p>{source.description}</p></div></div><div className="recueil-source-actions">{source.kind==='external'?<><a className="primary recueil-action" href={query.trim()&&source.searchUrl?source.searchUrl(query.trim()):source.homepage} target="_blank" rel="noreferrer"><Search/>{query.trim()?'Rechercher':'Ouvrir'}<ExternalLink/></a><a className="secondary recueil-home" href={source.homepage} target="_blank" rel="noreferrer">Source</a></>:<><button className="primary recueil-action" onClick={()=>fileRef.current?.click()}><FileUp/>Importer ChordPro</button><a className="secondary recueil-home" href={source.homepage} target="_blank" rel="noreferrer">Format</a></>}</div></section>)}</div>
+  <div className="recueil-source-grid">{recueilSources.map(source=><section className="panel recueil-source-card" key={source.id}><div className="recueil-source-head"><span className="recueil-badge">{source.badge}</span><div><h2>{source.name}</h2><p>{source.description}</p></div></div><div className="recueil-source-actions">{source.id==='tononkira'?<><a className="primary recueil-action" href={query.trim()&&source.searchUrl?source.searchUrl(query.trim()):source.homepage} target="_blank" rel="noreferrer"><Search/>{query.trim()?'Rechercher':'Ouvrir'}<ExternalLink/></a><button className="secondary recueil-home" onClick={()=>setTononkiraOpen(true)}><Import/>Importer</button></>:source.kind==='external'?<><a className="primary recueil-action" href={query.trim()&&source.searchUrl?source.searchUrl(query.trim()):source.homepage} target="_blank" rel="noreferrer"><Search/>{query.trim()?'Rechercher':'Ouvrir'}<ExternalLink/></a><a className="secondary recueil-home" href={source.homepage} target="_blank" rel="noreferrer">Source</a></>:<><button className="primary recueil-action" onClick={()=>fileRef.current?.click()}><FileUp/>Importer ChordPro</button><a className="secondary recueil-home" href={source.homepage} target="_blank" rel="noreferrer">Format</a></>}</div></section>)}</div>
   <section className="panel recueil-info"><BookMarked/><div><h2>Principe d’alimentation de DI’ART</h2><p>Le Catalogue mondial crée les fiches de base directement. ChordPro peut fournir paroles + accords. Tononkira, Ultimate Guitar et Chordify servent ensuite de sources d’enrichissement lorsque leur contenu ne peut pas être recopié automatiquement.</p></div></section>
   <input ref={fileRef} hidden type="file" accept=".pro,.chopro,.cho,.crd,.txt,text/plain" onChange={e=>{const f=e.target.files?.[0];if(f)void readChordPro(f);e.currentTarget.value=''}}/>
+  {tononkiraOpen&&<Modal className="tononkira-import-modal" title="Importer depuis Tononkira" onClose={()=>{setTononkiraOpen(false);setTononkiraMeta(null)}}><div className="tononkira-import-flow"><p className="tononkira-note">Collez le lien de la page Tononkira. DI’ART récupère seulement le titre, l’artiste et la source. Copiez ensuite les paroles sur Tononkira puis collez-les ici.</p><label>URL Tononkira<div className="tononkira-url-row"><input value={tononkiraUrl} onChange={e=>{setTononkiraUrl(e.target.value);setTononkiraMeta(null)}} placeholder="https://tononkira.serasera.org/hira/..."/><button className="secondary" disabled={tononkiraLoading||!tononkiraUrl.trim()} onClick={()=>void loadTononkiraMeta()}>{tononkiraLoading?'Analyse…':'Analyser'}</button></div></label>{tononkiraMeta&&<div className="tononkira-meta"><div><span>Titre</span><b>{tononkiraMeta.title||'—'}</b></div><div><span>Artiste</span><b>{tononkiraMeta.artist||'Non renseigné'}</b></div><a href={tononkiraMeta.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink/>Ouvrir Tononkira</a></div>}{tononkiraMeta&&<label>Paroles<div className="lyrics-paste-head"><small>Copiez les paroles depuis la source, puis utilisez le presse-papiers ou collez-les manuellement.</small><button className="secondary" type="button" onClick={()=>void pasteTononkiraLyrics()}><Import/>Coller les paroles</button></div><textarea rows={16} value={tononkiraLyrics} onChange={e=>setTononkiraLyrics(e.target.value)} placeholder="Collez ici les paroles que vous êtes autorisé à utiliser…"/></label>}<div className="modal-actions"><button className="secondary" onClick={()=>setTononkiraOpen(false)}>Annuler</button><button className="primary" disabled={!tononkiraMeta||!tononkiraLyrics.trim()} onClick={()=>void importTononkira()}><Plus/>Ajouter à DI’ART</button></div></div></Modal>}
   {preview&&<Modal className="chordpro-preview-modal" title="Aperçu ChordPro" onClose={()=>setPreview(null)}><div className="chordpro-preview-head"><FileUp/><div><b>{preview.title}</b><small>{preview.artist||'Artiste non renseigné'} · {fileName}</small></div></div><div className="chordpro-preview-metrics">{preview.originalKey&&<div><span>Tonalité</span><b>{preview.originalKey}</b></div>}{preview.bpm!==null&&<div><span>BPM</span><b>{preview.bpm}</b></div>}{preview.capo!==null&&preview.capo!==undefined&&<div><span>Capo</span><b>{preview.capo}</b></div>}<div><span>Paroles</span><b>{preview.lyrics?.split('\n').filter(Boolean).length??0} lignes</b></div><div><span>Accords</span><b>{preview.chords?.split('\n').filter(Boolean).length??0} lignes</b></div></div>{duplicate&&<div className="duplicate-warning"><AlertTriangle/><span>Un morceau portant le même titre et le même artiste existe déjà dans DI’ART.</span></div>}<div className="chordpro-preview-body">{preview.lyrics&&<section><h3>Paroles</h3><pre>{preview.lyrics.slice(0,1800)}</pre></section>}{preview.chords&&<section><h3>Accords extraits</h3><pre>{preview.chords.slice(0,1200)}</pre></section>}</div><div className="modal-actions"><button className="secondary" onClick={()=>setPreview(null)}>Annuler</button><button className="primary" onClick={()=>void onImport(preview).then(()=>{setPreview(null);toast('Morceau ChordPro ajouté à DI’ART.')})}><Plus/>Ajouter à DI’ART</button></div></Modal>}</>
 }
 
