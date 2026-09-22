@@ -159,3 +159,38 @@ textarea{resize:vertical}
   .quick-result-main{align-items:flex-start;flex-direction:column;gap:5px}
   .quick-meta{white-space:normal}
 }
+
+
+/* DI'ART V1.4 — fluidity, lyrics and quick setlists */
+.song-row,.person-card,.quick-result,.setlist-card{content-visibility:auto;contain-intrinsic-size:auto 68px}
+.panel,.song-row,.person-card,.quick-result,.setlist-card,.bottom-nav button,.sidebar nav button{transition:background-color .14s ease,border-color .14s ease,transform .14s ease,box-shadow .14s ease,color .14s ease}
+.content{contain:layout style}
+.songs-list,.people-grid,.quick-results,.setlist-grid{transform:translateZ(0)}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+.artist-search{margin-bottom:14px;max-width:720px}
+.lyrics-panel{grid-column:span 2}.lyrics-edit-btn svg{width:16px}.lyrics-text{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit;font-size:15px;line-height:1.85;color:var(--text)}.lyrics-editor{width:100%;min-height:52vh;white-space:pre-wrap;line-height:1.65;font-family:inherit}
+
+.quick-setlist-add{position:relative;display:flex;justify-content:flex-end}
+.setlist-plus-btn{width:42px;height:42px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--accent2);display:grid;place-items:center}
+.setlist-plus-btn:hover{background:var(--surface3);border-color:var(--accent)}
+.setlist-plus-btn svg{width:19px;height:19px}
+.setlist-popover{position:absolute;z-index:70;right:0;top:calc(100% + 7px);width:min(330px,calc(100vw - 28px));background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:10px;animation:diart-pop .12s ease-out}
+@keyframes diart-pop{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:none}}
+.setlist-popover-head{display:flex;align-items:center;justify-content:space-between;padding:2px 4px 8px}.setlist-popover-head b{font-size:13px}
+.setlist-popover-list{display:grid;gap:5px;max-height:240px;overflow:auto}.setlist-popover-list>button{display:grid;grid-template-columns:20px minmax(0,1fr) 18px;gap:8px;align-items:center;width:100%;border:1px solid var(--line);background:var(--surface2);color:var(--text);border-radius:9px;padding:9px;text-align:left}.setlist-popover-list>button:hover{border-color:var(--accent);background:var(--surface3)}.setlist-popover-list>button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.setlist-popover-list small{color:var(--muted);padding:8px}
+.setlist-popover-create{display:grid;grid-template-columns:1fr auto;gap:6px;border-top:1px solid var(--line);padding-top:9px;margin-top:9px}.setlist-popover-create input{min-width:0}.setlist-popover-create .primary{padding-inline:11px}
+.quick-result{grid-template-columns:minmax(0,1fr) 50px}.library-setlist-action{width:48px;right:42px}.library-result-wrap>.song-row{padding-right:96px}
+
+.metro-display.pulse strong{color:var(--gold)}.metro-display.pulse svg{color:var(--gold)}
+.metro-controls button,.metro-controls input{touch-action:manipulation}
+.metro-controls input[type="range"]{accent-color:var(--accent2)}
+
+@media(max-width:760px){
+  .lyrics-panel{grid-column:span 1}.lyrics-text{font-size:14px;line-height:1.75}.lyrics-editor{min-height:48vh}
+  .setlist-popover{position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));top:auto;width:auto;max-height:65dvh}
+  .setlist-popover-list{max-height:34dvh}
+  .quick-result{grid-template-columns:minmax(0,1fr) 48px}.library-result-wrap>.song-row{padding-right:70px;padding-bottom:10px}.library-setlist-action{left:auto;right:8px;top:50%;bottom:auto;transform:translateY(-50%);width:48px}
+  .artist-search{position:sticky;top:calc(68px + env(safe-area-inset-top));z-index:12;margin-bottom:10px;background:var(--surface);box-shadow:var(--glow)}
+  .bottom-nav button{transition:none}
+}
