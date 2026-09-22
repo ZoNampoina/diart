@@ -88,6 +88,8 @@ function App() {
     return()=>data.subscription.unsubscribe()
   },[])
   useEffect(()=>{if(userId&&online)void doSync(false)},[userId,online])
+  const syncSignature=useMemo(()=>songs.filter(s=>s.source!=='demo').map(s=>s.id+':'+s.updatedAt).sort().join('|')+'#'+setlists.map(s=>s.id+':'+s.updatedAt).sort().join('|'),[songs,setlists])
+  useEffect(()=>{if(!userId||!online)return;const timer=setTimeout(()=>void doSync(false),1200);return()=>clearTimeout(timer)},[syncSignature,userId,online])
   useEffect(()=>{
     if(!userId)return
     const channel=supabase.channel('diart-live-sync')
@@ -143,7 +145,7 @@ function App() {
         {(page==='new'||(page==='edit'&&selected))&&<SongForm initial={page==='edit'?selected:null} onCancel={()=>go(selected?'song':'library')} onSave={async draft=>{if(page==='edit'&&selected){await updateSong(selected.id,draft);await refresh();setSelected({...selected,...draft,updatedAt:new Date().toISOString()});toast('Morceau mis à jour');go('song')}else{const s=await createSong(draft);await refresh();setSelected(s);toast('Morceau ajouté');go('song')}}}/>}
         {page==='import'&&<ImportWizard songs={songs} refresh={refresh} toast={toast}/>}
         {page==='backup'&&<BackupPage songs={songs} refresh={refresh} toast={toast}/>}
-        {page==='settings'&&<SettingsPage theme={theme} setTheme={setTheme} songs={songs} refresh={refresh} toast={toast} userEmail={userEmail} syncing={syncing} onSync={()=>void doSync()} onSignedIn={async()=>{const {data}=await supabase.auth.getUser();setUserId(data.user?.id??'');setUserEmail(data.user?.email??'');await doSync()}}/>}
+        {page==='settings'&&<SettingsPage theme={theme} setTheme={setTheme} songs={songs} refresh={refresh} toast={toast} userEmail={userEmail} syncing={syncing} onSync={()=>void doSync()} onSignedIn={async()=>{const {data}=await supabase.auth.getUser();const u=data.user;setUserId(u?.id??'');setUserEmail(u?.email??'');if(u){setSyncing(true);try{await syncAll(u.id);await Promise.all([refresh(),refreshSetlists()]);toast('Cloud DI’ART connecté et synchronisé.')}finally{setSyncing(false)}}}}/>}
       </div>
     </main>
     <nav className="bottom-nav">
