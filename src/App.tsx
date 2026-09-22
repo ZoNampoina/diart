@@ -11,7 +11,7 @@ import type { ImportField, ImportMapping, ImportRowPreview, Song, SongDraft, Set
 import { emptySongDraft, formatDuration, normalizeKey, parseBpm, parseDuration, searchSong, transposeKey, transposeChordText, formatSemitoneOffset } from './music'
 import { parseWorkbook, rowsToPreview, suggestMapping, type ParsedWorkbook } from './importer'
 import { exportCsv, exportJson, exportXlsx, restoreJson } from './exporter'
-import { supabase, syncAll, signIn, signOut, signUp } from './cloud'
+import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToLocal } from './cloud'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -64,6 +64,7 @@ function App() {
   const [userId,setUserId]=useState('')
   const [userEmail,setUserEmail]=useState('')
   const [syncing,setSyncing]=useState(false)
+  const [cloudStats,setCloudStats]=useState<{songs:number;setlists:number}|null>(null)
   const searchRef=useRef<HTMLInputElement>(null)
 
   const refreshSetlists=async()=>setSetlists((await db.setlists.toArray()).filter(x=>!x.deletedAt))
@@ -74,10 +75,17 @@ function App() {
     setTimeout(()=>setToasts(x=>x.filter(t=>t.id!==id)),4500)
   }
 
+  const refreshCloudStats=async(id=userId)=>{if(!id)return;try{setCloudStats(await getCloudStats(id))}catch{}}
   const doSync=async(showToast=true)=>{
     if(!userId||!navigator.onLine||syncing)return
-    try{setSyncing(true);await syncAll(userId);await Promise.all([refresh(),refreshSetlists()]);if(showToast)toast('Synchronisation cloud terminée.')}
+    try{setSyncing(true);await syncAll(userId);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(userId)]);if(showToast)toast('Synchronisation cloud terminée.')}
     catch(e){if(showToast)toast(e instanceof Error?e.message:'Synchronisation impossible.')}
+    finally{setSyncing(false)}
+  }
+  const forcePull=async()=>{
+    if(!userId||!navigator.onLine||syncing)return
+    try{setSyncing(true);const r=await pullCloudToLocal(userId);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(userId)]);toast(`Cloud récupéré : ${r.songs} morceau(x), ${r.setlists} setlist(s).`)}
+    catch(e){toast(e instanceof Error?e.message:'Récupération cloud impossible.')}
     finally{setSyncing(false)}
   }
 
@@ -87,7 +95,7 @@ function App() {
     const {data}=supabase.auth.onAuthStateChange((_event,session)=>{const u=session?.user;setUserId(u?.id??'');setUserEmail(u?.email??'')})
     return()=>data.subscription.unsubscribe()
   },[])
-  useEffect(()=>{if(userId&&online)void doSync(false)},[userId,online])
+  useEffect(()=>{if(userId&&online){void doSync(false);void refreshCloudStats(userId)}else if(!userId)setCloudStats(null)},[userId,online])
   const syncSignature=useMemo(()=>songs.filter(s=>s.source!=='demo').map(s=>s.id+':'+s.updatedAt).sort().join('|')+'#'+setlists.map(s=>s.id+':'+s.updatedAt).sort().join('|'),[songs,setlists])
   useEffect(()=>{if(!userId||!online)return;const timer=setTimeout(()=>void doSync(false),1200);return()=>clearTimeout(timer)},[syncSignature,userId,online])
   useEffect(()=>{
@@ -134,8 +142,8 @@ function App() {
         <div className="top-actions"><button className="icon-btn theme-toggle" title="Changer le thème" aria-label="Changer le thème" onClick={()=>setTheme(theme==='dark'?'light':'dark')}>{theme==='dark'?<Sun/>:<Moon/>}</button><button className="primary" onClick={()=>go('new')}><Plus size={18}/>Nouveau</button></div>
       </header>
       <div className="content">
-        {page==='dashboard'&&<Dashboard songs={songs} artists={artists} authors={authors} onOpen={openSong} onGo={go} onFav={fav}/>} 
-        {page==='library'&&<LibraryPage songs={songs} searchRef={searchRef} onOpen={openSong} onFav={fav}/>}
+        {page==='dashboard'&&<Dashboard songs={songs} artists={artists} authors={authors} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={openSong} onGo={go} onFav={fav}/>} 
+        {page==='library'&&<LibraryPage songs={songs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} searchRef={searchRef} onOpen={openSong} onFav={fav}/>} 
         {page==='artists'&&<PeoplePage title="Artistes" items={groupPeople(songs,'artist')} onOpen={openSong}/>}
         {page==='authors'&&<PeoplePage title="Auteurs / Compositeurs" items={groupPeople(songs,'authorComposer')} onOpen={openSong}/>}
         {page==='favorites'&&<SimpleSongs title="Favoris" songs={songs.filter(s=>s.favorite)} onOpen={openSong} onFav={fav}/>}
@@ -145,7 +153,7 @@ function App() {
         {(page==='new'||(page==='edit'&&selected))&&<SongForm initial={page==='edit'?selected:null} onCancel={()=>go(selected?'song':'library')} onSave={async draft=>{if(page==='edit'&&selected){await updateSong(selected.id,draft);await refresh();setSelected({...selected,...draft,updatedAt:new Date().toISOString()});toast('Morceau mis à jour');go('song')}else{const s=await createSong(draft);await refresh();setSelected(s);toast('Morceau ajouté');go('song')}}}/>}
         {page==='import'&&<ImportWizard songs={songs} refresh={refresh} toast={toast}/>}
         {page==='backup'&&<BackupPage songs={songs} refresh={refresh} toast={toast}/>}
-        {page==='settings'&&<SettingsPage theme={theme} setTheme={setTheme} songs={songs} refresh={refresh} toast={toast} userEmail={userEmail} syncing={syncing} onSync={()=>void doSync()} onSignedIn={async()=>{const {data}=await supabase.auth.getUser();const u=data.user;setUserId(u?.id??'');setUserEmail(u?.email??'');if(u){setSyncing(true);try{await syncAll(u.id);await Promise.all([refresh(),refreshSetlists()]);toast('Cloud DI’ART connecté et synchronisé.')}finally{setSyncing(false)}}}}/>}
+        {page==='settings'&&<SettingsPage theme={theme} setTheme={setTheme} songs={songs} refresh={refresh} toast={toast} userEmail={userEmail} localCount={songs.filter(s=>s.source!=='demo').length} cloudStats={cloudStats} syncing={syncing} onSync={()=>void doSync()} onPull={()=>void forcePull()} onSignedIn={async()=>{const {data}=await supabase.auth.getUser();const u=data.user;setUserId(u?.id??'');setUserEmail(u?.email??'');if(u){setSyncing(true);try{await pullCloudToLocal(u.id);await syncAll(u.id);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(u.id)]);toast('Cloud DI’ART connecté et récupéré.')}finally{setSyncing(false)}}}}/>}
       </div>
     </main>
     <nav className="bottom-nav">
