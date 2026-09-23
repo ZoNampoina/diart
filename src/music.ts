@@ -32,7 +32,7 @@ export function normalizeKey(value: unknown): string {
 
 export function transposeKey(value: string, semitones: number): string {
   const raw = normalizeText(value)
-  if (!raw || semitones === 0) return raw
+  if (!raw) return raw
   const match = raw.match(/^([A-Ga-g])([#b♯♭]?)(.*)$/)
   if (!match) return raw
   const root = match[1].toUpperCase() + match[2].replace('♯','#').replace('♭','b')
@@ -46,7 +46,7 @@ export function transposeKey(value: string, semitones: number): string {
 }
 
 export function transposeChordText(value: string, semitones: number): string {
-  if (!value || semitones === 0) return value
+  if (!value) return value
   return value.split(/(\s+|[|,;])/).map(token => {
     const match = token.match(/^([A-Ga-g][#b♯♭]?)([^/]*)(?:\/([A-Ga-g][#b♯♭]?))?(.*)$/)
     if (!match) return token
