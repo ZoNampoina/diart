@@ -5083,3 +5083,257 @@ input:-webkit-autofill:focus{
     min-height:43px!important;
   }
 }
+
+
+/* DI'ART V2.4.5 — flush Android controls & motion system */
+
+/* Global motion: theme changes feel continuous without slowing interaction. */
+:root,
+body,
+.main,
+.topbar,
+.sidebar,
+.panel,
+.song-row,
+.person-card,
+.searchbox,
+.stage-mode,
+.stage-topbar,
+.stage-session-tools,
+.stage-control-group,
+.rehearsal-edit-panel,
+.stage-view-tabs,
+.stage-view-tabs button{
+  transition:
+    background-color .24s ease,
+    background .24s ease,
+    color .22s ease,
+    border-color .22s ease,
+    box-shadow .22s ease!important;
+}
+
+/* Page/menu change */
+.page-transition-surface{
+  animation:diartPageIn .22s cubic-bezier(.2,.72,.2,1) both;
+}
+@keyframes diartPageIn{
+  from{opacity:.35;transform:translateY(7px)}
+  to{opacity:1;transform:translateY(0)}
+}
+
+/* Popup appearance */
+.modal-backdrop{
+  animation:diartBackdropIn .18s ease both;
+}
+.modal{
+  transform-origin:center top;
+  animation:diartModalIn .22s cubic-bezier(.16,.8,.25,1) both;
+}
+@keyframes diartBackdropIn{
+  from{opacity:0;backdrop-filter:blur(0)}
+  to{opacity:1;backdrop-filter:blur(8px)}
+}
+@keyframes diartModalIn{
+  from{opacity:0;transform:translateY(10px) scale(.975)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+
+/* Sidebar/menu motion */
+.sidebar{
+  transition:
+    transform .25s cubic-bezier(.2,.72,.2,1),
+    background-color .24s ease,
+    border-color .22s ease!important;
+}
+.scrim{
+  animation:diartScrimIn .2s ease both;
+}
+@keyframes diartScrimIn{
+  from{opacity:0}
+  to{opacity:1}
+}
+
+/* Theme switch feedback */
+.stage-mode.stage-theme-light,
+.stage-mode.stage-theme-dark{
+  animation:diartThemeSwitch .26s ease both;
+}
+@keyframes diartThemeSwitch{
+  0%{filter:brightness(.94);opacity:.94}
+  55%{filter:brightness(1.035);opacity:1}
+  100%{filter:brightness(1);opacity:1}
+}
+
+/* Song-to-song stage transition. Direction follows previous/next. */
+.stage-song-motion.motion-next{
+  animation:diartSongNext .26s cubic-bezier(.2,.72,.2,1) both;
+}
+.stage-song-motion.motion-prev{
+  animation:diartSongPrev .26s cubic-bezier(.2,.72,.2,1) both;
+}
+@keyframes diartSongNext{
+  from{opacity:.2;transform:translateX(26px)}
+  to{opacity:1;transform:translateX(0)}
+}
+@keyframes diartSongPrev{
+  from{opacity:.2;transform:translateX(-26px)}
+  to{opacity:1;transform:translateX(0)}
+}
+
+/* Open/reduce bodies */
+.collapsible-body{
+  overflow:hidden;
+  transform-origin:top;
+  transition:
+    max-height .28s cubic-bezier(.2,.72,.2,1),
+    opacity .2s ease,
+    transform .24s ease,
+    margin .24s ease!important;
+}
+.collapsible-body.is-expanded{
+  max-height:1200px;
+  opacity:1;
+  transform:translateY(0) scaleY(1);
+}
+.collapsible-body.is-collapsed{
+  max-height:0!important;
+  opacity:0;
+  transform:translateY(-5px) scaleY(.985);
+  margin-top:0!important;
+  margin-bottom:0!important;
+  pointer-events:none;
+}
+.stage-tools-body.is-collapsed{
+  padding-top:0!important;
+  padding-bottom:0!important;
+}
+.optional-metronome-body{
+  width:100%;
+}
+.optional-metronome-body.is-expanded{
+  margin-top:10px;
+}
+.optional-metronome-body .metronome-card{
+  margin:0!important;
+}
+.setlist-preview{
+  animation:diartExpandIn .2s cubic-bezier(.2,.72,.2,1) both;
+}
+.setlist-preview-more[open] .setlist-preview-overflow{
+  animation:diartExpandIn .2s cubic-bezier(.2,.72,.2,1) both;
+}
+@keyframes diartExpandIn{
+  from{opacity:0;transform:translateY(-6px)}
+  to{opacity:1;transform:translateY(0)}
+}
+
+/* Stage arrows at the true left/right edge. */
+.stage-nav.compact-stage-nav .stage-nav-inner{
+  padding-left:0!important;
+  padding-right:0!important;
+}
+.stage-nav.compact-stage-nav .stage-nav-btn:first-child{
+  justify-self:start!important;
+  margin-left:0!important;
+  border-top-left-radius:0!important;
+  border-bottom-left-radius:0!important;
+}
+.stage-nav.compact-stage-nav .stage-nav-btn:last-child{
+  justify-self:end!important;
+  margin-right:0!important;
+  border-top-right-radius:0!important;
+  border-bottom-right-radius:0!important;
+}
+
+/* Android: controls touch the header instead of floating below it. */
+@media(max-width:820px){
+  .content{
+    padding-top:0!important;
+  }
+  .song-detail-actions,
+  .library-toolbar,
+  .stage-entry-actions{
+    margin-top:0!important;
+    padding-top:0!important;
+  }
+  .song-detail-actions{
+    min-height:43px;
+    margin-bottom:5px!important;
+    align-items:center!important;
+  }
+  .song-detail-actions>span{
+    display:none;
+  }
+  .song-detail-actions .detail-icon-actions{
+    width:100%;
+    justify-content:flex-end!important;
+    flex-wrap:nowrap!important;
+    gap:2px!important;
+  }
+  .song-detail-actions .bare-action,
+  .song-detail-actions .setlist-plus-btn{
+    width:36px!important;
+    min-width:36px!important;
+    height:38px!important;
+    min-height:38px!important;
+    padding:0!important;
+  }
+  .library-toolbar{
+    min-height:44px;
+    margin-top:0!important;
+    margin-bottom:5px!important;
+  }
+  .stage-entry-actions{
+    min-height:44px;
+    margin-bottom:5px!important;
+    align-items:center!important;
+  }
+  .stage-entry-actions>span{
+    display:none;
+  }
+  .stage-entry-actions .setlist-mode-actions{
+    width:100%!important;
+    justify-content:flex-end!important;
+    margin:0!important;
+  }
+
+  .stage-nav.compact-stage-nav .stage-nav-inner{
+    padding:0!important;
+  }
+  .stage-nav.compact-stage-nav .stage-nav-btn{
+    width:44px!important;
+    min-width:44px!important;
+    height:46px!important;
+    min-height:46px!important;
+  }
+}
+
+@media(max-width:430px){
+  .song-detail-actions .detail-icon-actions{
+    gap:0!important;
+  }
+  .song-detail-actions .bare-action,
+  .song-detail-actions .setlist-plus-btn{
+    width:33px!important;
+    min-width:33px!important;
+  }
+  .stage-entry-actions .setlist-mode-actions button{
+    height:36px!important;
+    min-height:36px!important;
+  }
+}
+
+/* Motion accessibility */
+@media(prefers-reduced-motion:reduce){
+  .page-transition-surface,
+  .modal-backdrop,
+  .modal,
+  .scrim,
+  .stage-mode.stage-theme-light,
+  .stage-mode.stage-theme-dark,
+  .stage-song-motion,
+  .setlist-preview,
+  .setlist-preview-overflow{
+    animation:none!important;
+  }
+}
