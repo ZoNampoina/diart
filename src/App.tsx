@@ -807,7 +807,7 @@ function normalizeImportedLyrics(value:string):string{
     if(!line.trim()){if(out.length&&out[out.length-1]!=='')out.push('');continue}
     out.push(line.trim())
   }
-  while(out[0]==='')out.shift();while(out.at(-1)==='')out.pop()
+  while(out[0]==='')out.shift();while(out.length&&out[out.length-1]==='')out.pop()
   return out.join('\n').replace(/\n{3,}/g,'\n\n').trim()
 }
 
