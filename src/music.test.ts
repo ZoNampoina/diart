@@ -5,6 +5,9 @@ describe('music utils', () => {
   it('normalizes keys', () => {
     expect(normalizeKey('g min')).toBe('Gm')
     expect(normalizeKey('Eb')).toBe('Eb')
+    expect(normalizeKey('A#')).toBe('Bb')
+    expect(normalizeKey('D#')).toBe('Eb')
+    expect(normalizeKey('G#')).toBe('Ab')
   })
   it('parses bpm and durations', () => {
     expect(parseBpm('Tempo 72 BPM')).toBe(72)
@@ -15,6 +18,10 @@ describe('music utils', () => {
     expect(transposeKey('Bb', 2)).toBe('C')
     expect(transposeKey('F#m7', -2)).toBe('Em7')
     expect(transposeChordText('C G/B Am7 F', 2)).toBe('D A/C# Bm7 G')
+    expect(transposeKey('G',3)).toBe('Bb')
+    expect(transposeKey('C',3)).toBe('Eb')
+    expect(transposeKey('F',3)).toBe('Ab')
+    expect(transposeChordText('A# D# G#',0)).toBe('Bb Eb Ab')
   })
   it('parses tags and duplicate identity', () => {
     expect(parseTags('Worship; 6/8, Worship')).toEqual(['Worship','6/8'])
