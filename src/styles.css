@@ -3086,3 +3086,254 @@ textarea{resize:vertical}
     font-size:11px!important;
   }
 }
+
+
+/* DI'ART V2.4 — stable stage handoff, balanced navigation, compact result lists, About */
+.stage-current-song{
+  min-height:60px;
+  display:grid!important;
+  grid-template-rows:32px 28px;
+  align-items:center;
+  justify-items:center;
+}
+.stage-header-identity{
+  display:grid!important;
+  align-content:center;
+  min-height:32px;
+  margin:0!important;
+  opacity:0;
+  visibility:hidden;
+  transform:translateY(4px);
+  transition:opacity .24s ease,transform .24s ease,visibility 0s linear .24s;
+  animation:none!important;
+  pointer-events:none;
+}
+.stage-current-song.identity-visible .stage-header-identity{
+  display:grid!important;
+  opacity:1;
+  visibility:visible;
+  transform:translateY(0);
+  transition:opacity .24s ease,transform .24s ease,visibility 0s linear 0s;
+}
+.stage-current-song.identity-hidden .stage-header-identity{
+  display:grid!important;
+}
+.stage-song-head{
+  will-change:opacity,transform;
+  transition:opacity .28s ease,transform .28s ease!important;
+}
+.stage-song-head.handoff{
+  opacity:0!important;
+  transform:translateY(-10px)!important;
+  pointer-events:none;
+}
+
+.stage-nav.compact-stage-nav{
+  width:100%!important;
+  grid-template-columns:1fr 76px 1fr!important;
+  align-items:center!important;
+  justify-items:center!important;
+  gap:12px!important;
+  padding:6px clamp(18px,5vw,72px)!important;
+}
+.stage-nav.compact-stage-nav .stage-nav-btn{
+  width:min(190px,100%)!important;
+  min-height:38px!important;
+  justify-content:center!important;
+  justify-self:center!important;
+}
+.stage-nav.compact-stage-nav .stage-nav-btn:first-child,
+.stage-nav.compact-stage-nav .stage-nav-btn:last-child{
+  justify-content:center!important;
+  justify-self:center!important;
+}
+.stage-nav.compact-stage-nav .stage-nav-count{
+  width:76px!important;
+  min-width:76px!important;
+  text-align:center!important;
+  justify-self:center!important;
+}
+
+.recueil-results-scroll{
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  padding-right:4px;
+}
+.tononkira-search-results.recueil-results-scroll{
+  max-height:372px;
+}
+.external-recueil-results.recueil-results-scroll{
+  max-height:330px;
+}
+.recueil-results-scroll::-webkit-scrollbar,
+.scroll-five::-webkit-scrollbar{
+  width:6px;
+}
+.recueil-results-scroll::-webkit-scrollbar-thumb,
+.scroll-five::-webkit-scrollbar-thumb{
+  border-radius:999px;
+  background:color-mix(in srgb,var(--accent2) 45%,var(--surface3));
+}
+.setlist-preview-songs.scroll-five{
+  max-height:286px;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  padding-right:4px;
+}
+
+.post-import-modal{
+  width:min(560px,calc(100vw - 28px));
+}
+.post-import-success{
+  display:grid;
+  grid-template-columns:34px minmax(0,1fr);
+  gap:10px;
+  align-items:center;
+  padding:12px;
+  border:1px solid color-mix(in srgb,var(--accent2) 35%,var(--line));
+  border-radius:12px;
+  background:color-mix(in srgb,var(--accent) 8%,var(--surface2));
+}
+.post-import-success>svg{
+  color:var(--accent2);
+}
+.post-import-success b,
+.post-import-success span{
+  display:block;
+}
+.post-import-success span{
+  margin-top:3px;
+  color:var(--muted);
+}
+.post-import-actions{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  margin-top:14px;
+}
+.result-card .post-import-actions{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+}
+
+.about-hero{
+  display:grid;
+  grid-template-columns:72px minmax(0,1fr);
+  gap:18px;
+  align-items:start;
+}
+.about-mark{
+  width:64px;
+  height:64px;
+  display:grid;
+  place-items:center;
+  border-radius:18px;
+  background:color-mix(in srgb,var(--accent) 16%,var(--surface2));
+  color:var(--accent2);
+}
+.about-mark svg{width:30px;height:30px}
+.about-hero h2{margin:5px 0 8px}
+.about-hero p{margin:0;color:var(--muted);line-height:1.65}
+.about-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+  margin-top:12px;
+}
+.about-grid .panel p{
+  color:var(--muted);
+  line-height:1.6;
+}
+.about-grid .panel p b{
+  color:var(--text);
+}
+.about-stats{
+  margin-top:12px;
+}
+.about-stat-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+}
+.about-version{
+  margin-top:12px;
+  display:grid;
+  gap:0;
+  padding:0;
+  overflow:hidden;
+}
+.about-version>div{
+  display:grid;
+  grid-template-columns:minmax(140px,.5fr) minmax(0,1fr);
+  gap:12px;
+  padding:11px 14px;
+  border-bottom:1px solid var(--line);
+}
+.about-version>div:last-child{border-bottom:0}
+.about-version span{color:var(--muted)}
+.about-version b{text-align:right}
+
+@media(max-width:900px) and (min-width:761px){
+  .stage-nav.compact-stage-nav{
+    grid-template-columns:1fr 68px 1fr!important;
+    padding-inline:36px!important;
+  }
+  .stage-nav.compact-stage-nav .stage-nav-btn{
+    width:min(170px,100%)!important;
+  }
+  .about-stat-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+}
+@media(max-width:760px){
+  .stage-current-song{
+    min-height:54px;
+    grid-template-rows:28px 26px;
+  }
+  .stage-nav.compact-stage-nav{
+    grid-template-columns:1fr 58px 1fr!important;
+    padding:5px 10px!important;
+    gap:8px!important;
+  }
+  .stage-nav.compact-stage-nav .stage-nav-btn{
+    width:58px!important;
+    min-width:58px!important;
+    height:46px!important;
+    min-height:46px!important;
+    border-radius:12px!important;
+  }
+  .stage-nav.compact-stage-nav .stage-nav-btn svg{
+    width:27px!important;
+    height:27px!important;
+  }
+  .stage-nav.compact-stage-nav .stage-nav-count{
+    width:58px!important;
+    min-width:58px!important;
+  }
+  .post-import-actions{
+    grid-template-columns:1fr;
+  }
+  .result-card .post-import-actions{
+    grid-template-columns:1fr;
+  }
+  .about-grid{
+    grid-template-columns:1fr;
+  }
+  .about-stat-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .about-hero{
+    grid-template-columns:52px minmax(0,1fr);
+  }
+  .about-mark{
+    width:48px;
+    height:48px;
+    border-radius:14px;
+  }
+  .about-mark svg{width:24px;height:24px}
+  .about-version>div{
+    grid-template-columns:1fr;
+  }
+  .about-version b{text-align:left}
+}
