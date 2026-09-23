@@ -1,8 +1,9 @@
 import type { Song, SongDraft } from './types'
 
-const FLAT_TO_SHARP: Record<string, string> = {
-  Db: 'C#', Eb: 'D#', Gb: 'F#', Ab: 'G#', Bb: 'A#',
-  db: 'C#', eb: 'D#', gb: 'F#', ab: 'G#', bb: 'A#'
+const CANONICAL_ENHARMONIC: Record<string,string> = {
+  'A#':'Bb',
+  'D#':'Eb',
+  'G#':'Ab'
 }
 
 const SHARP_NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
@@ -22,6 +23,7 @@ export function normalizeKey(value: unknown): string {
   const m = compact.match(/^([A-Ga-g])([#b♯♭]?)(minor|major|min|maj|m)?(.*)$/)
   if (!m) return raw
   let root = m[1].toUpperCase() + m[2].replace('♯', '#').replace('♭', 'b')
+  root = CANONICAL_ENHARMONIC[root] ?? root
   const quality = (m[3] ?? '').toLowerCase()
   const suffix = m[4] ?? ''
   const q = quality === 'minor' || quality === 'min' || quality === 'm' ? 'm' : quality === 'major' || quality === 'maj' ? '' : ''
@@ -39,7 +41,8 @@ export function transposeKey(value: string, semitones: number): string {
   const preferFlats = root.includes('b')
   const notes = preferFlats ? FLAT_NOTES : SHARP_NOTES
   const next = (index + (semitones % 12) + 12) % 12
-  return notes[next] + (match[3] ?? '')
+  const nextRoot = CANONICAL_ENHARMONIC[notes[next]] ?? notes[next]
+  return nextRoot + (match[3] ?? '')
 }
 
 export function transposeChordText(value: string, semitones: number): string {
