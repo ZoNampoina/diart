@@ -794,28 +794,24 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong}:{mode:'
   const prefBool=(key:string,fallback=false)=>{
     try{const v=localStorage.getItem(key);return v===null?fallback:v==='1'}catch{return fallback}
   }
+  const orderedSongs=useMemo(()=>songs.filter(Boolean),[songs])
   const [index,setIndex]=useState(0)
   const [view,setView]=useState<'guide'|'lyrics'>('guide')
   const [localNotes,setLocalNotes]=useState<Record<string,string>>(list.rehearsalNotes??{})
   const [lyricsFontSize,setLyricsFontSize]=useState(()=>prefNumber('diart-stage-font',22,14,48))
   const [transpose,setTranspose]=useState(0)
   const [autoScroll,setAutoScroll]=useState(false)
-  const [scrollSpeed,setScrollSpeed]=useState(()=>prefNumber('diart-stage-scroll-speed',4,0.5,30))
-  const [navCollapsed,setNavCollapsed]=useState(()=>prefBool('diart-stage-nav-collapsed',false))
-  const [stageReady,setStageReady]=useState(false)
+  const [scrollSpeed,setScrollSpeed]=useState(()=>prefNumber('diart-stage-scroll-speed',2,0.05,20))
+  const [toolsCollapsed,setToolsCollapsed]=useState(()=>prefBool('diart-stage-tools-collapsed',false))
+  const [showHeaderIdentity,setShowHeaderIdentity]=useState(false)
   const contentRef=useRef<HTMLDivElement>(null)
-  const song=songs[index]??songs[0]
+  const songHeadRef=useRef<HTMLDivElement>(null)
+  const song=orderedSongs[index]??orderedSongs[0]
   const [noteDraft,setNoteDraft]=useState(song?localNotes[song.id]??'':'')
 
-  useEffect(()=>{
-    try{localStorage.setItem('diart-stage-font',String(lyricsFontSize))}catch{}
-  },[lyricsFontSize])
-  useEffect(()=>{
-    try{localStorage.setItem('diart-stage-scroll-speed',String(scrollSpeed))}catch{}
-  },[scrollSpeed])
-  useEffect(()=>{
-    try{localStorage.setItem('diart-stage-nav-collapsed',navCollapsed?'1':'0')}catch{}
-  },[navCollapsed])
+  useEffect(()=>{try{localStorage.setItem('diart-stage-font',String(lyricsFontSize))}catch{}},[lyricsFontSize])
+  useEffect(()=>{try{localStorage.setItem('diart-stage-scroll-speed',String(scrollSpeed))}catch{}},[scrollSpeed])
+  useEffect(()=>{try{localStorage.setItem('diart-stage-tools-collapsed',toolsCollapsed?'1':'0')}catch{}},[toolsCollapsed])
 
   useEffect(()=>{
     const previousBody=document.body.style.overflow
@@ -823,7 +819,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong}:{mode:'
     document.body.style.overflow='hidden'
     document.documentElement.style.overflow='hidden'
     let raf1=0,raf2=0
-    raf1=requestAnimationFrame(()=>{raf2=requestAnimationFrame(()=>{contentRef.current?.scrollTo({top:0,behavior:'auto'});setStageReady(true)})})
+    raf1=requestAnimationFrame(()=>{raf2=requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0,behavior:'auto'}))})
     return()=>{
       cancelAnimationFrame(raf1);cancelAnimationFrame(raf2)
       document.body.style.overflow=previousBody
@@ -832,8 +828,8 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong}:{mode:'
   },[])
 
   useEffect(()=>{
-    if(index>=songs.length&&songs.length)setIndex(0)
-  },[songs.length,index])
+    if(index>=orderedSongs.length&&orderedSongs.length)setIndex(0)
+  },[orderedSongs.length,index])
 
   const structureParts=useMemo(()=>parseStructureSequence(song?.structure??''),[song?.structure])
   const rawChordSections=useMemo(()=>chordGuideSections(song?.chords??''),[song?.chords])
@@ -845,6 +841,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong}:{mode:'
     setNoteDraft(localNotes[song.id]??'')
     setTranspose(0)
     setAutoScroll(false)
+    setShowHeaderIdentity(false)
     let raf1=0,raf2=0
     raf1=requestAnimationFrame(()=>{raf2=requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0,behavior:'auto'}))})
     return()=>{cancelAnimationFrame(raf1);cancelAnimationFrame(raf2)}
@@ -854,12 +851,14 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong}:{mode:'
     if(!autoScroll)return
     let raf=0
     let last=performance.now()
+    let virtualTop=contentRef.current?.scrollTop??0
     const tick=(now:number)=>{
       const el=contentRef.current
       if(!el)return
-      const dt=Math.min(80,now-last)
+      const dt=Math.min(100,now-last)
       last=now
-      el.scrollTop+=scrollSpeed*dt/1000
+      virtualTop+=scrollSpeed*dt/1000
+      el.scrollTop=virtualTop
       if(el.scrollTop+el.clientHeight>=el.scrollHeight-2){setAutoScroll(false);return}
       raf=requestAnimationFrame(tick)
     }
@@ -870,27 +869,44 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong}:{mode:'
   if(!song)return null
 
   const saveNote=async()=>{const next={...localNotes,[song.id]:noteDraft};setLocalNotes(next);await updateSetlist(list.id,{rehearsalNotes:next});void refresh();toast('Notes de répétition enregistrées.')}
-  const go=(next:number)=>{if(next<0||next>=songs.length)return;setAutoScroll(false);setIndex(next)}
+  const go=(delta:number)=>{
+    setAutoScroll(false)
+    setIndex(current=>Math.max(0,Math.min(orderedSongs.length-1,current+delta)))
+  }
+  const handleStageScroll=()=>{
+    const scroller=contentRef.current
+    const head=songHeadRef.current
+    if(!scroller||!head)return
+    const threshold=Math.max(36,head.offsetHeight-18)
+    const next=scroller.scrollTop>threshold
+    setShowHeaderIdentity(prev=>prev===next?prev:next)
+  }
   const baseKey=song.personalKey||song.originalKey
   const displayKey=baseKey?transposeKey(baseKey,transpose):''
   const displayChords=transposeChordText(song.chords??'',transpose)
   const chordSections=chordGuideSections(displayChords)
   const stageStyle:CSSProperties={position:'fixed',inset:0,zIndex:10000,display:'grid',gridTemplateRows:'auto minmax(0,1fr) auto',overflow:'hidden',background:mode==='rehearsal'?'radial-gradient(circle at 70% 0,#0d3039,#030b0e 52%)':'#02090c',color:'#f2fbfc'}
 
-  return createPortal(<div className={'stage-mode '+mode+(stageReady?' ready':'')} style={stageStyle}>
-    <header className="stage-topbar" style={{zIndex:2,background:'rgba(2,9,12,.96)',borderBottom:'1px solid #17323a',display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center'}}>
+  return createPortal(<div className={'stage-mode '+mode} style={stageStyle}>
+    <header className="stage-topbar" style={{zIndex:4,background:'rgba(2,9,12,.96)',borderBottom:'1px solid #17323a',display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center'}}>
       <div className="stage-list-context" style={{gridColumn:1,justifySelf:'start'}}><span>{mode==='rehearsal'?'Répétition':'Live Mode'}</span><b>{list.name}</b></div>
-      <div className="stage-current-song" style={{gridColumn:2,justifySelf:'center',textAlign:'center'}}><b>{song.title}</b><small>{song.artist||'Artiste inconnu'}</small>{(hasGuide||song.lyrics)&&<div className="stage-view-tabs">{hasGuide&&<button className={view==='guide'?'active':''} onClick={()=>{setView('guide');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Repères</button>}{song.lyrics&&<button className={view==='lyrics'?'active':''} onClick={()=>{setView('lyrics');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Paroles</button>}</div>}</div>
-      <button className="live-close" style={{gridColumn:3,justifySelf:'end'}} onClick={onClose}><X/></button>
+      <div className={'stage-current-song '+(showHeaderIdentity?'identity-visible':'identity-hidden')} style={{gridColumn:2,justifySelf:'center',textAlign:'center'}}>
+        {showHeaderIdentity&&<div className="stage-header-identity"><b>{song.title}</b><small>{song.artist||'Artiste inconnu'}</small></div>}
+        {(hasGuide||song.lyrics)&&<div className="stage-view-tabs">{hasGuide&&<button type="button" className={view==='guide'?'active':''} onClick={()=>{setView('guide');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Repères</button>}{song.lyrics&&<button type="button" className={view==='lyrics'?'active':''} onClick={()=>{setView('lyrics');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Paroles</button>}</div>}
+      </div>
+      <button type="button" className="live-close" style={{gridColumn:3,justifySelf:'end'}} onClick={onClose}><X/></button>
     </header>
 
-    <main ref={contentRef} className="stage-content" style={{minHeight:0,height:'100%',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain'}}>
-      <div className="stage-song-head"><p>{song.artist||'Artiste inconnu'}</p><h1>{song.title}</h1><div className="stage-metrics">{displayKey&&<strong>{displayKey}</strong>}{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div></div>
+    <main ref={contentRef} className="stage-content" onScroll={handleStageScroll} style={{minHeight:0,height:'100%',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',touchAction:'pan-y'}}>
+      <div ref={songHeadRef} className="stage-song-head"><p>{song.artist||'Artiste inconnu'}</p><h1>{song.title}</h1><div className="stage-metrics">{displayKey&&<strong>{displayKey}</strong>}{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div></div>
 
-      <div className="stage-session-tools">
-        <div className="stage-control-group"><span>Paroles</span><button title="Réduire la police" onClick={()=>setLyricsFontSize(v=>Math.max(14,v-2))}><Minus/></button><b>{lyricsFontSize}</b><button title="Agrandir la police" onClick={()=>setLyricsFontSize(v=>Math.min(48,v+2))}><Plus/></button></div>
-        <div className="stage-control-group"><span>Transposer</span><button title="-1 demi-ton" onClick={()=>setTranspose(v=>Math.max(-12,v-1))}><Minus/></button><b>{formatSemitoneOffset(transpose)}</b><button title="+1 demi-ton" onClick={()=>setTranspose(v=>Math.min(12,v+1))}><Plus/></button><button title="Réinitialiser" className="stage-reset-btn" disabled={transpose===0} onClick={()=>setTranspose(0)}><RotateCcw/></button></div>
-        <div className={'stage-control-group auto-scroll-control '+(autoScroll?'active':'')}><span>Défilement</span><button className="stage-autoscroll-toggle" title={autoScroll?'Arrêter':'Démarrer'} onClick={()=>setAutoScroll(v=>!v)}>{autoScroll?<Square/>:<Play/>}</button><input aria-label="Vitesse de défilement" type="range" min="0.5" max="30" step="0.5" value={scrollSpeed} onChange={e=>setScrollSpeed(Number(e.target.value))}/><b>{scrollSpeed<10?scrollSpeed.toFixed(1):Math.round(scrollSpeed)}</b><button title="Retour en haut" onClick={()=>{setAutoScroll(false);contentRef.current?.scrollTo({top:0,behavior:'smooth'})}}><ChevronUp/></button></div>
+      <div className={'stage-session-tools '+(toolsCollapsed?'collapsed':'')}>
+        <button type="button" className="stage-tools-toggle" title={toolsCollapsed?'Afficher les réglages':'Minimiser les réglages'} onClick={()=>setToolsCollapsed(v=>!v)}>{toolsCollapsed?<ChevronDown/>:<ChevronUp/>}<span>{toolsCollapsed?'Réglages':'Masquer'}</span></button>
+        {!toolsCollapsed&&<div className="stage-tools-body">
+          <div className="stage-control-group"><span>Paroles</span><button type="button" title="Réduire la police" onClick={()=>setLyricsFontSize(v=>Math.max(14,v-2))}><Minus/></button><b>{lyricsFontSize}</b><button type="button" title="Agrandir la police" onClick={()=>setLyricsFontSize(v=>Math.min(48,v+2))}><Plus/></button></div>
+          <div className="stage-control-group"><span>Transposer</span><button type="button" title="-1 demi-ton" onClick={()=>setTranspose(v=>Math.max(-12,v-1))}><Minus/></button><b>{formatSemitoneOffset(transpose)}</b><button type="button" title="+1 demi-ton" onClick={()=>setTranspose(v=>Math.min(12,v+1))}><Plus/></button><button type="button" title="Réinitialiser" className="stage-reset-btn" disabled={transpose===0} onClick={()=>setTranspose(0)}><RotateCcw/></button></div>
+          <div className={'stage-control-group auto-scroll-control '+(autoScroll?'active':'')}><span>Défilement</span><button type="button" className="stage-autoscroll-toggle" title={autoScroll?'Arrêter':'Démarrer'} onClick={()=>setAutoScroll(v=>!v)}>{autoScroll?<Square/>:<Play/>}</button><input aria-label="Vitesse de défilement" type="range" min="0.05" max="20" step="0.05" value={scrollSpeed} onChange={e=>setScrollSpeed(Number(e.target.value))}/><b>{scrollSpeed<1?scrollSpeed.toFixed(2):scrollSpeed<10?scrollSpeed.toFixed(1):Math.round(scrollSpeed)}</b><button type="button" title="Retour en haut" onClick={()=>{setAutoScroll(false);contentRef.current?.scrollTo({top:0,behavior:'smooth'})}}><ChevronUp/></button></div>
+        </div>}
       </div>
 
       {view==='lyrics'&&song.lyrics
@@ -901,14 +917,13 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong}:{mode:'
           {song.instrumentNotes?.trim()&&<section className="stage-instrument-card"><h3>Notes instrumentales</h3><p>{song.instrumentNotes}</p></section>}
         </div>:null}
 
-      {mode==='rehearsal'&&<section className="rehearsal-edit-panel"><div className="panel-title-row"><div><h3>Modifications / notes de répétition</h3><small>Ces annotations restent liées à cette setlist et se synchronisent sur vos appareils.</small></div><button className="secondary" onClick={()=>{onClose();onOpenSong(song)}}><Pencil/>Modifier la fiche</button></div><textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder="Ex. Reprendre le pont 2x, sax après le refrain, descendre d’un ton…"/><button className="primary" onClick={()=>void saveNote()}><Save/>Enregistrer les modifications</button></section>}
+      {mode==='rehearsal'&&<section className="rehearsal-edit-panel"><div className="panel-title-row"><div><h3>Modifications / notes de répétition</h3><small>Ces annotations restent liées à cette setlist et se synchronisent sur vos appareils.</small></div><button type="button" className="secondary" onClick={()=>{onClose();onOpenSong(song)}}><Pencil/>Modifier la fiche</button></div><textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder="Ex. Reprendre le pont 2x, sax après le refrain, descendre d’un ton…"/><button type="button" className="primary" onClick={()=>void saveNote()}><Save/>Enregistrer les modifications</button></section>}
     </main>
 
-    <footer className={'stage-nav compact-stage-nav '+(navCollapsed?'collapsed':'')} style={{zIndex:2,background:'rgba(2,9,12,.96)',borderTop:'1px solid #17323a'}}>
-      <button className="stage-nav-collapse" title={navCollapsed?'Déployer la navigation':'Réduire la navigation'} onClick={()=>setNavCollapsed(v=>!v)}>{navCollapsed?<ChevronUp/>:<ChevronDown/>}</button>
-      <button className="stage-nav-btn secondary" disabled={index===0} onClick={()=>go(index-1)}><ChevronLeft/><span>Précédent</span></button>
-      <div className="stage-nav-count">{index+1} / {songs.length}</div>
-      <button className="stage-nav-btn primary" disabled={index===songs.length-1} onClick={()=>go(index+1)}><span>Suivant</span><ChevronRight/></button>
+    <footer className="stage-nav compact-stage-nav" style={{zIndex:5,background:'rgba(2,9,12,.97)',borderTop:'1px solid #17323a'}}>
+      <button type="button" className="stage-nav-btn secondary" disabled={index===0} onClick={()=>go(-1)}><ChevronLeft/><span>Précédent</span></button>
+      <div className="stage-nav-count">{index+1} / {orderedSongs.length}</div>
+      <button type="button" className="stage-nav-btn primary" disabled={index===orderedSongs.length-1} onClick={()=>go(1)}><span>Suivant</span><ChevronRight/></button>
     </footer>
   </div>,document.body)
 }
