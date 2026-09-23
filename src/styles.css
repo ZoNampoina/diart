@@ -7141,3 +7141,43 @@ body,
   .stage-control-group.stage-role-control button.active,
   .stage-control-group button.active{animation:none!important}
 }
+
+
+/* DI'ART 2.5.2 — stage edge scrollbar + lyrics recueil action */
+.stage-content{
+  width:100%!important;
+  max-width:none!important;
+  margin:0!important;
+  box-sizing:border-box!important;
+  padding-left:max(22px,calc((100vw - 1180px)/2 + 22px))!important;
+  padding-right:max(22px,calc((100vw - 1180px)/2 + 22px))!important;
+  scrollbar-gutter:stable!important;
+}
+.lyrics-missing-actions{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.lyrics-recueil-search{
+  min-height:48px;
+}
+@media(max-width:1180px){
+  .stage-content{
+    padding-left:20px!important;
+    padding-right:20px!important;
+  }
+}
+@media(max-width:820px){
+  .stage-content{
+    padding-left:12px!important;
+    padding-right:12px!important;
+  }
+  .lyrics-missing-actions{
+    display:grid;
+    grid-template-columns:1fr;
+  }
+  .lyrics-missing-actions>button{
+    width:100%;
+  }
+}
