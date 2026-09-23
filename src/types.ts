@@ -83,7 +83,7 @@ export interface Setlist {
   songIds: string[]
   notes: string
   rehearsalNotes?: Record<string,string>
-  songOverrides?: Record<string,{key?:string;bpm?:number|null;notes?:string}>
+  songOverrides?: Record<string,{key?:string;bpm?:number|null;notes?:string;transpose?:number}>
   createdAt: string
   updatedAt: string
   deletedAt: string | null
