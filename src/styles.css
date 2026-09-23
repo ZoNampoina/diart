@@ -7478,3 +7478,15 @@ body,
     animation:none!important;
   }
 }
+
+
+/* DI'ART 2.5.6 — explicit setlist key selection */
+.stage-transpose-control button.active{
+  color:var(--accent2)!important;
+  border-color:color-mix(in srgb,var(--accent2) 44%,transparent)!important;
+  background:color-mix(in srgb,var(--accent) 15%,transparent)!important;
+}
+.stage-transpose-control>b{
+  min-width:34px;
+  text-align:center;
+}
