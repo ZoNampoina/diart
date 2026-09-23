@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject, type FormEvent, type CSSProperties, type PointerEvent } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject, type FormEvent, type CSSProperties, type PointerEvent, type TouchEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
   BookOpen, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Heart, Home, Import,
@@ -497,7 +497,7 @@ function SongDetail({song,backLabel,setlists,refreshSetlists,toast,onBack,onEdit
   const normalizedStructure=parseStructureSequence(song.structure??'').join(' · ')
   const hasInfo=Boolean(song.originalKey||song.personalKey||song.capo!==null&&song.capo!==undefined||song.durationSeconds!==null||song.tags.length)
   const saveLyrics=()=>{if(savingLyrics)return;const next=lyricsDraft;setEditingLyrics(false);setSavingLyrics(true);void onLyricsSave(next).finally(()=>setSavingLyrics(false))}
-  return <><div className="detail-nav"><button className="ghost contextual-back" onClick={onBack}><ChevronLeft/>{backLabel}</button><div className="detail-icon-actions"><QuickSetlistAdd song={song} setlists={setlists} refresh={refreshSetlists} toast={toast}/><button className="bare-action" aria-label="Plein écran" title="Plein écran" onClick={()=>setFullscreen(true)}><Maximize2/></button><button className="bare-action" aria-label="Favori" title="Favori" onClick={onFav}><Heart fill={song.favorite?'currentColor':'none'}/></button>{baseKey&&<button className={`bare-action ${showTranspose?'active':''}`} aria-label="Transposition" title="Transposition" onClick={()=>setShowTranspose(v=>!v)}><ArrowUpDown/></button>}<button className="bare-action" aria-label="Modifier" title="Modifier" onClick={onEdit}><Pencil/></button><button className="bare-action danger-icon" aria-label="Supprimer" title="Supprimer" onClick={()=>setConfirm(true)}><Trash2/></button></div></div>
+  return <><div className="detail-nav song-detail-actions"><span/><div className="detail-icon-actions"><button className="bare-action" aria-label="Favori" title="Favori" onClick={onFav}><Heart fill={song.favorite?'currentColor':'none'}/></button><QuickSetlistAdd song={song} setlists={setlists} refresh={refreshSetlists} toast={toast}/>{baseKey&&<button className={`bare-action ${showTranspose?'active':''}`} aria-label="Transposition" title="Transposition" onClick={()=>setShowTranspose(v=>!v)}><ArrowUpDown/></button>}<button className="bare-action" aria-label="Plein écran" title="Plein écran" onClick={()=>setFullscreen(true)}><Maximize2/></button><button className="bare-action" aria-label="Modifier" title="Modifier" onClick={onEdit}><Pencil/></button><button className="bare-action danger-icon" aria-label="Supprimer" title="Supprimer" onClick={()=>setConfirm(true)}><Trash2/></button></div></div>
   <section className="song-hero"><div><p className="eyebrow">{song.style||'Morceau'}{song.source==='demo'?' · DEMO':''}</p><h1>{song.title}</h1><p>{song.artist?<button type="button" className="artist-link-inline" onClick={()=>onArtist(song.artist)}>{song.artist}</button>:'Artiste inconnu'}{song.authorComposer?` · ${song.authorComposer}`:''}</p></div><div className="key-bpm">{baseKey&&<div><span>Tonalité</span><strong>{workingKey}</strong>{transpose!==0&&<small>{formatSemitoneOffset(transpose)}</small>}</div>}{song.bpm!==null&&<div><span>BPM</span><strong>{song.bpm}</strong></div>}{song.timeSignature&&<div><span>Signature</span><strong>{song.timeSignature}</strong></div>}</div></section>
   {showTranspose&&baseKey&&<section className="transpose-bar optional-tool" aria-label="Transposition"><div><span className="eyebrow">Transposition</span><b>{baseKey} → {workingKey}</b></div><div className="transpose-controls"><button className="secondary transpose-btn" disabled={transpose<=-11} onClick={()=>setTranspose(v=>Math.max(-11,v-1))}><Minus/>½ ton</button><button className="ghost transpose-reset" disabled={transpose===0} onClick={()=>setTranspose(0)}><RotateCcw/>0</button><button className="secondary transpose-btn" disabled={transpose>=11} onClick={()=>setTranspose(v=>Math.min(11,v+1))}><Plus/>½ ton</button></div></section>}
   <div className="musician-grid">
@@ -1001,6 +1001,7 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
   const [artistPick,setArtistPick]=useState('')
   const [orderIds,setOrderIds]=useState<string[]>(()=>[...list.songIds])
   const [draggingId,setDraggingId]=useState<string|null>(null)
+  const [dragShiftId,setDragShiftId]=useState<string|null>(null)
   const holdTimer=useRef<number|null>(null)
   const dragIndex=useRef<number|null>(null)
   const dragPointer=useRef<number|null>(null)
@@ -1045,6 +1046,7 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
     const to=target?Number(target.dataset.setlistIndex):-1
     const from=dragIndex.current
     if(!Number.isInteger(to)||to<0||to>=orderRef.current.length||to===from)return
+    setDragShiftId(orderRef.current[to]??null)
     const ids=[...orderRef.current]
     const [moved]=ids.splice(from,1)
     ids.splice(to,0,moved)
@@ -1059,6 +1061,7 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
     dragIndex.current=null
     dragPointer.current=null
     setDraggingId(null)
+    setDragShiftId(null)
     await updateSetlist(list.id,{songIds:orderRef.current})
     void refresh()
   }
@@ -1066,7 +1069,7 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
 
   return <><div className="detail-nav setlist-detail-nav stage-entry-actions"><span/><div className="setlist-mode-actions"><button type="button" className="secondary" disabled={!listSongs.length} onClick={()=>setStage('rehearsal')}><Play/>Répétition</button><button type="button" className="primary" disabled={!listSongs.length} onClick={()=>setStage('live')}><Maximize2/>Live Mode</button></div></div>
   <section className="setlist-detail-hero" style={{minHeight:0}}><div className="setlist-detail-title"><span className="setlist-hero-icon"><ListMusic/></span><p className="eyebrow">Setlist</p><h1>{list.name}</h1><p>{listSongs.length} morceau{listSongs.length>1?'x':''} · {lyricsCount} avec paroles</p></div>{(totalSeconds>0||avgBpm!==null||lyricsCount>0)&&<div className="setlist-detail-metrics" role="list">{totalSeconds>0&&<div role="listitem"><span>Durée</span><b>{formatDuration(totalSeconds)}</b></div>}{avgBpm!==null&&<div role="listitem"><span>BPM moyen</span><b>{avgBpm}</b></div>}{lyricsCount>0&&<div role="listitem"><span>Paroles</span><b>{lyricsCount}/{listSongs.length}</b></div>}</div>}</section>
-  <section className="panel setlist-manager"><div className="panel-title-row"><div><h2>Ordre des morceaux</h2><small className="setlist-order-hint">Sur tablette et Android : maintenir un morceau puis le déplacer.</small></div><button className="primary setlist-add-button" onClick={()=>setAddOpen(true)}><ListPlus/>Ajouter des morceaux</button></div><div className="setlist-detail-songs">{listSongs.length?listSongs.map((s,i)=><div className={'setlist-detail-song '+(draggingId===s.id?'dragging':'')} data-setlist-index={i} key={s.id}><span className="setlist-number">{i+1}</span><span className="setlist-drag-grip" aria-label="Maintenir puis déplacer" title="Maintenir puis déplacer" onPointerDown={e=>startHold(e,i)} onPointerMove={dragMove} onPointerUp={e=>void finishDrag(e)} onPointerCancel={e=>void finishDrag(e)}><GripVertical/></span><button className="setlist-song-main" onClick={()=>{if(!draggingId)onOpenSong(s)}}><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}{s.bpm!==null?' · '+s.bpm+' BPM':''}</small></button><strong className="setlist-song-key">{s.personalKey||s.originalKey||'—'}</strong><div className="setlist-song-flags">{s.lyrics&&<span>Paroles</span>}{list.rehearsalNotes?.[s.id]&&<span>Notes</span>}</div><button className="bare-action setlist-move-btn" disabled={i===0} aria-label="Monter" onClick={()=>void move(i,-1)}><ChevronUp/></button><button className="bare-action setlist-move-btn" disabled={i===listSongs.length-1} aria-label="Descendre" onClick={()=>void move(i,1)}><ChevronDown/></button><button className="bare-action danger-icon setlist-remove-btn" aria-label="Retirer" onClick={()=>void remove(s.id)}><X/></button></div>):<Empty text="Cette setlist est vide."/>}</div></section>
+  <section className="panel setlist-manager"><div className="panel-title-row"><div><h2>Ordre des morceaux</h2><small className="setlist-order-hint">Sur tablette et Android : maintenir un morceau puis le déplacer.</small></div><button className="primary setlist-add-button" onClick={()=>setAddOpen(true)}><ListPlus/>Ajouter des morceaux</button></div><div className={'setlist-detail-songs '+(draggingId?'drag-active':'')}>{listSongs.length?listSongs.map((s,i)=><div className={'setlist-detail-song '+(draggingId===s.id?'dragging ':'')+(dragShiftId===s.id?'drag-shift':'')} data-setlist-index={i} key={s.id}><span className="setlist-number">{i+1}</span><span className="setlist-drag-grip" aria-label="Maintenir puis déplacer" title="Maintenir puis déplacer" onPointerDown={e=>startHold(e,i)} onPointerMove={dragMove} onPointerUp={e=>void finishDrag(e)} onPointerCancel={e=>void finishDrag(e)}><GripVertical/></span><button className="setlist-song-main" onClick={()=>{if(!draggingId)onOpenSong(s)}}><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}{s.bpm!==null?' · '+s.bpm+' BPM':''}</small></button><strong className="setlist-song-key">{s.personalKey||s.originalKey||'—'}</strong><div className="setlist-song-flags">{s.lyrics&&<span>Paroles</span>}{list.rehearsalNotes?.[s.id]&&<span>Notes</span>}</div><button className="bare-action setlist-move-btn" disabled={i===0} aria-label="Monter" onClick={()=>void move(i,-1)}><ChevronUp/></button><button className="bare-action setlist-move-btn" disabled={i===listSongs.length-1} aria-label="Descendre" onClick={()=>void move(i,1)}><ChevronDown/></button><button className="bare-action danger-icon setlist-remove-btn" aria-label="Retirer" onClick={()=>void remove(s.id)}><X/></button></div>):<Empty text="Cette setlist est vide."/>}</div></section>
   {addOpen&&<Modal className="setlist-add-modal" title="Ajouter des morceaux" onClose={closeAdd}><div className="setlist-add-mode"><button className={addMode==='song'?'active':''} onClick={()=>{setAddMode('song');setArtistPick('');setAddQuery('')}}><Search/>Rechercher un morceau</button><button className={addMode==='artist'?'active':''} onClick={()=>{setAddMode('artist');setArtistPick('');setAddQuery('')}}><UsersRound/>Rechercher un artiste</button></div><div className="setlist-add-search"><Search/><input value={addQuery} onChange={e=>setAddQuery(e.target.value)} placeholder={addMode==='song'?'Titre, artiste, tonalité, BPM…':'Nom de l’artiste…'}/>{addQuery&&<button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={()=>setAddQuery('')}><X/></button>}</div>{addMode==='song'?<div className="setlist-add-results">{songMatches.length?songMatches.map(s=><button key={s.id} onClick={()=>void addAndStay(s.id)}><span><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}</small></span><span>{s.personalKey||s.originalKey||'—'}{s.bpm!==null?' · '+s.bpm+' BPM':''}</span><Plus/></button>):<p className="muted-copy">Aucun morceau disponible.</p>}</div>:artistPick?<><button className="ghost setlist-artist-back" onClick={()=>setArtistPick('')}><ChevronLeft/>Artistes</button><div className="setlist-add-results">{artistSongs.map(s=><button key={s.id} onClick={()=>void addAndStay(s.id)}><span><b>{s.title}</b><small>{s.artist}</small></span><span>{s.personalKey||s.originalKey||'—'}{s.bpm!==null?' · '+s.bpm+' BPM':''}</span><Plus/></button>)}</div></>:<div className="setlist-artist-results">{artistMatches.map(a=><button key={a} onClick={()=>setArtistPick(a)}><span className="avatar">{a[0]}</span><span><b>{a}</b><small>{available.filter(s=>s.artist.trim()===a).length} morceau(x) disponible(s)</small></span><ChevronRight/></button>)}</div>}</Modal>}
   {stage&&<SetlistStage mode={stage} list={list} songs={listSongs} refresh={refresh} toast={toast} onClose={()=>setStage(null)} onOpenSong={onOpenSong}/>}
   </>
@@ -1092,6 +1095,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const [showHeaderIdentity,setShowHeaderIdentity]=useState(false)
   const contentRef=useRef<HTMLDivElement>(null)
   const songHeadRef=useRef<HTMLDivElement>(null)
+  const swipeStart=useRef<{x:number;y:number}|null>(null)
   const song=orderedSongs[index]??orderedSongs[0]
   const [noteDraft,setNoteDraft]=useState(song?localNotes[song.id]??'':'')
 
@@ -1162,6 +1166,21 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     setAutoScroll(false)
     setIndex(current=>Math.max(0,Math.min(orderedSongs.length-1,current+delta)))
   }
+  const beginSwipe=(e:TouchEvent<HTMLElement>)=>{
+    if(standalone||e.touches.length!==1){swipeStart.current=null;return}
+    const t=e.touches[0]
+    swipeStart.current={x:t.clientX,y:t.clientY}
+  }
+  const endSwipe=(e:TouchEvent<HTMLElement>)=>{
+    const start=swipeStart.current
+    swipeStart.current=null
+    if(!start||standalone||e.changedTouches.length!==1)return
+    const t=e.changedTouches[0]
+    const dx=t.clientX-start.x
+    const dy=t.clientY-start.y
+    if(Math.abs(dx)<58||Math.abs(dx)<Math.abs(dy)*1.25)return
+    go(dx>0?-1:1)
+  }
   const handleStageScroll=()=>{
     const scroller=contentRef.current
     const head=songHeadRef.current
@@ -1183,7 +1202,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
 
   return createPortal(<div className={'stage-mode '+mode+' stage-theme-'+stageTheme} data-stage-theme={stageTheme} style={stageStyle}>
     <header className="stage-topbar" style={{zIndex:4,background:'rgba(2,9,12,.96)',borderBottom:'1px solid #17323a',display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center'}}>
-      <div className="stage-list-context" style={{gridColumn:1,justifySelf:'start'}}><span>{standalone?'Plein écran':mode==='rehearsal'?'Répétition':'Live Mode'}</span>{!standalone&&<b>{list.name}</b>}</div>
+      {!standalone?<div className="stage-list-context" style={{gridColumn:1,justifySelf:'start'}}><span>{mode==='rehearsal'?'Répétition':'Live Mode'}</span><b>{list.name}</b></div>:<span/>}
       <div className={'stage-current-song '+(showHeaderIdentity?'identity-visible':'identity-hidden')} style={{gridColumn:2,justifySelf:'center',textAlign:'center'}}>
         <div className="stage-header-identity" aria-hidden={!showHeaderIdentity}><b>{song.title}</b><small>{song.artist||'Artiste inconnu'}</small></div>
         {(hasGuide||song.lyrics)&&<div className="stage-view-tabs">{hasGuide&&<button type="button" className={view==='guide'?'active':''} onClick={()=>{setView('guide');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Repères</button>}{song.lyrics&&<button type="button" className={view==='lyrics'?'active':''} onClick={()=>{setView('lyrics');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Paroles</button>}</div>}
@@ -1191,7 +1210,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
       <div className="stage-top-actions" style={{gridColumn:3,justifySelf:'end'}}><button type="button" className="stage-theme-toggle" aria-label={stageTheme==='dark'?'Passer en mode jour':'Passer en mode nuit'} title={stageTheme==='dark'?'Mode jour':'Mode nuit'} onClick={()=>setStageTheme(t=>t==='dark'?'light':'dark')}>{stageTheme==='dark'?<Sun/>:<Moon/>}</button><button type="button" className="live-close" onClick={onClose} aria-label="Fermer"><X/></button></div>
     </header>
 
-    <main ref={contentRef} className="stage-content" onScroll={handleStageScroll} style={{minHeight:0,height:'100%',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',touchAction:'pan-y'}}>
+    <main ref={contentRef} className="stage-content" onScroll={handleStageScroll} onTouchStart={beginSwipe} onTouchEnd={endSwipe} style={{minHeight:0,height:'100%',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',touchAction:'pan-y'}}>
       <div ref={songHeadRef} className={'stage-song-head '+(showHeaderIdentity?'handoff':'')}><p>{song.artist||'Artiste inconnu'}</p><h1>{song.title}</h1><div className="stage-metrics">{displayKey&&<strong>{displayKey}</strong>}{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div></div>
 
       <div className={'stage-session-tools '+(toolsCollapsed?'collapsed':'')}>
