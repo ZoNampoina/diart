@@ -139,6 +139,9 @@ function App() {
   const [syncMode,setSyncMode]=useState<SyncMode>('auto')
   const [syncIntervalMinutes,setSyncIntervalMinutes]=useState<SyncInterval>(15)
   const [syncPrefsReady,setSyncPrefsReady]=useState(false)
+  const [syncConflicts,setSyncConflicts]=useState<SyncConflict[]>([])
+  const [shortcuts,setShortcuts]=useState<Record<string,string>>(()=>{try{return {...DEFAULT_SHORTCUTS,...JSON.parse(localStorage.getItem('diart-shortcuts')||'{}')}}catch{return DEFAULT_SHORTCUTS}})
+  const [gestures,setGestures]=useState(()=>{try{return {...DEFAULT_GESTURES,...JSON.parse(localStorage.getItem('diart-gestures')||'{}')}}catch{return DEFAULT_GESTURES}})
   const syncLockRef=useRef(false)
   const syncTimerRef=useRef<number|null>(null)
   const searchRef=useRef<HTMLInputElement>(null)
@@ -158,7 +161,8 @@ function App() {
     syncLockRef.current=true
     setSyncing(true)
     try{
-      const result=await syncAll(userId)
+      const result=await syncAll(userId,lastSyncAt)
+      if(result.conflicts.length)setSyncConflicts(result.conflicts)
       if(result.pulled>0) await Promise.all([refresh(),refreshSetlists()])
       if(showToast||result.pulled>0||result.pushed>0) await refreshCloudStats(userId)
       markSynced()
@@ -171,7 +175,7 @@ function App() {
     if(syncTimerRef.current!==null)window.clearTimeout(syncTimerRef.current)
     syncTimerRef.current=window.setTimeout(()=>{syncTimerRef.current=null;void doSync(false)},delay)
   }
-  const recordActivity=async(kind:ActivityKind,label:string,details:string,meta:{songId?:string|null;songTitle?:string;source?:string}={})=>{
+  const recordActivity=async(kind:ActivityKind,label:string,details:string,meta:{songId?:string|null;songTitle?:string;source?:string;sessionId?:string;setlistId?:string;setlistName?:string}={})=>{
     await logActivity(kind,label,details,meta)
   }
   const forcePull=async()=>{
@@ -215,12 +219,28 @@ function App() {
     document.documentElement.dataset.theme=resolved
     void setSetting('theme',theme)
   },[theme])
+  useEffect(()=>{try{localStorage.setItem('diart-shortcuts',JSON.stringify(shortcuts))}catch{}},[shortcuts])
+  useEffect(()=>{try{localStorage.setItem('diart-gestures',JSON.stringify(gestures))}catch{}},[gestures])
 
   useEffect(()=>{
     const textInputs=document.querySelectorAll<HTMLInputElement>('input:not([type="email"]):not([type="password"]):not([type="file"]):not([type="radio"]):not([type="checkbox"]):not([type="range"])')
     textInputs.forEach(el=>{el.setAttribute('autocomplete','off');el.setAttribute('data-lpignore','true');el.setAttribute('data-1p-ignore','true')})
     document.querySelectorAll<HTMLTextAreaElement>('textarea').forEach(el=>{el.setAttribute('autocomplete','off');el.setAttribute('data-lpignore','true');el.setAttribute('data-1p-ignore','true')})
   })
+  useEffect(()=>{
+    const onShortcut=(e:KeyboardEvent)=>{
+      const target=e.target as HTMLElement|null
+      if(target&&['INPUT','TEXTAREA','SELECT'].includes(target.tagName))return
+      const key=e.key.toLowerCase()
+      if(key===shortcuts.search){e.preventDefault();go('library');setTimeout(()=>searchRef.current?.focus(),50)}
+      else if(key===shortcuts.newSong){e.preventDefault();startNewSong()}
+      else if(key===shortcuts.setlists){e.preventDefault();go('setlists')}
+      else if(key===shortcuts.favorites){e.preventDefault();go('favorites')}
+    }
+    window.addEventListener('keydown',onShortcut)
+    return()=>window.removeEventListener('keydown',onShortcut)
+  },[shortcuts,page,selectedArtist,selectedAuthor])
+
   useEffect(()=>{
     const on=()=>setOnline(true),off=()=>setOnline(false)
     addEventListener('online',on); addEventListener('offline',off)
