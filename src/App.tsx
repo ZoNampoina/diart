@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.5.8'
+const APP_VERSION='2.5.9'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -184,6 +184,7 @@ function App() {
   const [artistsScrollY,setArtistsScrollY]=useState(0)
   const [authorsScrollY,setAuthorsScrollY]=useState(0)
   const [selectedSetlistId,setSelectedSetlistId]=useState('')
+  const [setlistSongKeyDraft,setSetlistSongKeyDraft]=useState<{listId:string;songId:string;key:string}|null>(null)
   const [presetArtist,setPresetArtist]=useState('')
   const [presetAuthor,setPresetAuthor]=useState('')
   const [createMode,setCreateMode]=useState<'menu'|'artist'|'setlist'|null>(null)
@@ -355,7 +356,11 @@ function App() {
     const lastViewedAt=new Date().toISOString()
     const next={...s,lastViewedAt}
     const fallback:Record<string,string>={dashboard:'Accueil',library:'Bibliothèque',artist:selectedArtist||'Artiste',artists:'Artistes',favorites:'Favoris',recent:'Récents',setlist:currentSetlist?.name||'Setlist',setlists:'Setlists',author:selectedAuthor||'Auteur',authors:'Auteurs'}
-    setSongBack(origin??{page,label:fallback[page]||'Retour'})
+    const resolvedOrigin=origin??{page,label:fallback[page]||'Retour'}
+    setSongBack(resolvedOrigin)
+    if(resolvedOrigin.page==='setlist'&&currentSetlist){
+      setSetlistSongKeyDraft({listId:currentSetlist.id,songId:s.id,key:setlistSongDisplayKey(currentSetlist,s)||s.originalKey||''})
+    }else setSetlistSongKeyDraft(null)
     setSelected(next);patchLocal(s.id,{lastViewedAt});setPage('song');void markViewed(s.id)
   }
   const fav=(s:Song)=>{const favorite=!s.favorite;const favoriteStatus:FavoriteStatus=favorite?(s.favoriteStatus||'favorite'):'';const updatedAt=new Date().toISOString();patchLocal(s.id,{favorite,favoriteStatus,updatedAt});setSelected(prev=>prev?.id===s.id?{...prev,favorite,favoriteStatus,updatedAt}:prev);void updateSong(s.id,{favorite,favoriteStatus}).catch(()=>void refresh())}
@@ -366,6 +371,22 @@ function App() {
   const artists=artistGroups.length
   const authors=authorGroups.length
   const currentSetlist=useMemo(()=>setlists.find(s=>s.id===selectedSetlistId)||null,[setlists,selectedSetlistId])
+  const returnFromSong=async()=>{
+    if(songBack.page==='setlist'&&selected&&currentSetlist&&setlistSongKeyDraft?.listId===currentSetlist.id&&setlistSongKeyDraft.songId===selected.id){
+      const song=songs.find(s=>s.id===selected.id)||selected
+      const key=normalizeKey(setlistSongKeyDraft.key||song.originalKey||'')
+      const transpose=song.originalKey&&key?keyOffsetFromOriginal(song.originalKey,key):0
+      const currentOverrides=currentSetlist.songOverrides??{}
+      const songOverride={...(currentOverrides[song.id]??{}),key,transpose}
+      await updateSetlist(currentSetlist.id,{songOverrides:{...currentOverrides,[song.id]:songOverride}})
+      await refreshSetlists()
+      setSetlistSongKeyDraft(null)
+      setPage('setlist')
+      return
+    }
+    setSetlistSongKeyDraft(null)
+    go(songBack.page)
+  }
   const sectionMeta=(()=>{
     const parentLabel=(p:Page)=>{
       if(p==='dashboard')return "DI'ART by ARIZONA"
@@ -389,7 +410,7 @@ function App() {
     if(page==='artist')return {label:'ARTISTES',back:()=>go('artists')}
     if(page==='author')return {label:'AUTEUR',back:()=>go('authors')}
     if(page==='setlist')return {label:'SETLISTS',back:()=>go('setlists')}
-    if(page==='song')return {label:parentLabel(songBack.page),back:()=>go(songBack.page)}
+    if(page==='song')return {label:parentLabel(songBack.page),back:()=>void returnFromSong()}
     if(page==='new'||page==='edit'){
       const backPage:Page=selected?'song':selectedArtist?'artist':selectedAuthor?'author':'library'
       return {label:parentLabel(backPage),back:()=>go(backPage)}
@@ -420,7 +441,7 @@ function App() {
         {page==='recent'&&<SimpleSongs title="Récents" songs={recentSongs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={s=>openSong(s,{page:'recent',label:'Récents'})} onFav={fav}/>} 
         {page==='setlists'&&<SetlistsPage songs={songs} setlists={setlists} refresh={refreshSetlists} toast={toast} onOpenDetail={openSetlist} onOpenSong={s=>openSong(s,{page:'setlists',label:'Setlists'})}/>} 
         {page==='setlist'&&currentSetlist&&<SetlistDetailPage list={currentSetlist} songs={songs} refresh={refreshSetlists} toast={toast} onBack={()=>go('setlists')} onOpenSong={s=>openSong(s,{page:'setlist',label:currentSetlist.name})}/>} 
-        {page==='song'&&selected&&<SongDetail song={songs.find(s=>s.id===selected.id)||selected} backLabel={songBack.label} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go(songBack.page)} onEdit={()=>go('edit')} onArtist={name=>{setSelectedArtist(name);setPage('artist')}} onFav={()=>void fav(songs.find(s=>s.id===selected.id)||selected)} onRecueilSearch={prefill=>openRecueilSearch(prefill)} onLyricsSave={async lyrics=>{const id=selected.id;const updatedAt=new Date().toISOString();patchLocal(id,{lyrics,updatedAt});setSelected(prev=>prev&&prev.id===id?{...prev,lyrics,updatedAt}:prev);await updateSong(id,{lyrics});await recordActivity('update','Paroles modifiées','Paroles mises à jour depuis la fiche morceau',{songId:id,songTitle:selected.title});toast('Paroles enregistrées.')}} onDelete={async()=>{const id=selected.id;const title=selected.title;await softDeleteSong(id);removeLocal(id);await recordActivity('delete','Morceau supprimé',title,{songId:id,songTitle:title});toast('Morceau placé dans la corbeille',{label:'Annuler',run:async()=>{await db.songs.update(id,{deletedAt:null});await recordActivity('restore','Suppression annulée',title,{songId:id,songTitle:title});await refresh()}});go('library')}}/>}
+        {page==='song'&&selected&&<SongDetail song={songs.find(s=>s.id===selected.id)||selected} backLabel={songBack.label} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go(songBack.page)} onEdit={()=>go('edit')} onArtist={name=>{setSelectedArtist(name);setPage('artist')}} onFav={()=>void fav(songs.find(s=>s.id===selected.id)||selected)} setlistKey={songBack.page==='setlist'&&setlistSongKeyDraft?.songId===selected.id?setlistSongKeyDraft.key:undefined} onSetlistKey={key=>{if(currentSetlist&&selected)setSetlistSongKeyDraft({listId:currentSetlist.id,songId:selected.id,key})}} onRecueilSearch={prefill=>openRecueilSearch(prefill)} onLyricsSave={async lyrics=>{const id=selected.id;const updatedAt=new Date().toISOString();patchLocal(id,{lyrics,updatedAt});setSelected(prev=>prev&&prev.id===id?{...prev,lyrics,updatedAt}:prev);await updateSong(id,{lyrics});await recordActivity('update','Paroles modifiées','Paroles mises à jour depuis la fiche morceau',{songId:id,songTitle:selected.title});toast('Paroles enregistrées.')}} onDelete={async()=>{const id=selected.id;const title=selected.title;await softDeleteSong(id);removeLocal(id);await recordActivity('delete','Morceau supprimé',title,{songId:id,songTitle:title});toast('Morceau placé dans la corbeille',{label:'Annuler',run:async()=>{await db.songs.update(id,{deletedAt:null});await recordActivity('restore','Suppression annulée',title,{songId:id,songTitle:title});await refresh()}});go('library')}}/>}
         {(page==='new'||(page==='edit'&&selected))&&<SongForm initial={page==='edit'?selected:null} songs={songs} presetArtist={page==='new'?presetArtist:''} presetAuthor={page==='new'?presetAuthor:''} onCancel={()=>go(selected?'song':selectedArtist?'artist':selectedAuthor?'author':'library')} onSave={async draft=>{if(page==='edit'&&selected){await updateSong(selected.id,draft);const updatedAt=new Date().toISOString();const next={...selected,...draft,updatedAt};patchLocal(selected.id,{...draft,updatedAt});setSelected(next);await recordActivity('update','Morceau modifié',draft.title,{songId:selected.id,songTitle:draft.title});toast('Morceau mis à jour');go('song')}else{const s=await createSong(draft);addLocal(s);setSelected(s);await recordActivity('create','Morceau créé',s.title,{songId:s.id,songTitle:s.title});toast('Morceau ajouté');go('song')}}} onMergeDuplicate={async(draft,duplicate)=>{if(page==='edit'&&selected){const current:Song={...selected,...draft,updatedAt:new Date().toISOString()};await mergeSongs(current,duplicate);go('song')}else{const virtual:Song={...draft,id:'draft',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),lastViewedAt:null,deletedAt:null};const mergedDraft=mergeSongDraft(duplicate,virtual);await updateSong(duplicate.id,mergedDraft);const updatedAt=new Date().toISOString();patchLocal(duplicate.id,{...mergedDraft,updatedAt});setSelected({...duplicate,...mergedDraft,updatedAt});await recordActivity('merge','Doublon fusionné',`Les informations saisies ont été fusionnées dans « ${duplicate.title} »`,{songId:duplicate.id,songTitle:duplicate.title});toast('Fusion effectuée avec le morceau existant.');go('song')}}}/>}
         {page==='recueils'&&<RecueilsPage songs={songs} entryMode={recueilEntry} prefill={recueilPrefill} toast={toast} onImport={async draft=>{const s=await createSong(draft);addLocal(s);await recordActivity('import','Import depuis recueil',draft.title,{songId:s.id,songTitle:s.title,source:draft.referenceUrl||'Recueil'});return s}} onComplete={async(id,patch)=>{const old=songs.find(s=>s.id===id);await updateSong(id,patch);patchLocal(id,{...patch,updatedAt:new Date().toISOString()});await recordActivity('complete','Complétion depuis recueil',Object.keys(patch).join(', '),{songId:id,songTitle:old?.title,source:'Recueil'})}} onViewImported={s=>openSong(s,{page:'recueils',label:'Recueils'})} onEditImported={s=>{setSongBack({page:'recueils',label:'Recueils'});setSelected(s);setPage('edit')}}/>} 
         {page==='import'&&<ImportWizard songs={songs} refresh={refresh} toast={toast} onRecord={recordActivity} onLibrary={()=>go('library')}/>} 
@@ -627,20 +648,21 @@ function SimpleSongs({title,songs,setlists,refreshSetlists,toast,onOpen,onFav}:{
   return <><div className="songs-list">{songs.length?songs.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)} action={<QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/>}/>):<Empty text="Rien à afficher."/>}</div></>
 }
 
-function SongDetail({song,backLabel,setlists,refreshSetlists,toast,onBack,onEdit,onArtist,onFav,onLyricsSave,onRecueilSearch,onDelete}:{song:Song;backLabel:string;setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;onBack:()=>void;onEdit:()=>void;onArtist:(name:string)=>void;onFav:()=>void;onLyricsSave:(lyrics:string)=>Promise<void>;onRecueilSearch:(prefill:{title:string;artist:string})=>void;onDelete:()=>void}) {
+function SongDetail({song,backLabel,setlists,refreshSetlists,toast,onBack,onEdit,onArtist,onFav,onLyricsSave,onRecueilSearch,onDelete,setlistKey,onSetlistKey}:{song:Song;backLabel:string;setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;onBack:()=>void;onEdit:()=>void;onArtist:(name:string)=>void;onFav:()=>void;onLyricsSave:(lyrics:string)=>Promise<void>;onRecueilSearch:(prefill:{title:string;artist:string})=>void;onDelete:()=>void;setlistKey?:string;onSetlistKey?:(key:string)=>void}) {
   const [editingLyrics,setEditingLyrics]=useState(false)
   const [savingLyrics,setSavingLyrics]=useState(false)
   const [lyricsDraft,setLyricsDraft]=useState(song.lyrics??'')
   const [confirm,setConfirm]=useState(false)
   const [showTranspose,setShowTranspose]=useState(false)
-  const [transpose,setTranspose]=useState(0)
+  const [transpose,setTranspose]=useState(()=>song.originalKey&&setlistKey?keyOffsetFromOriginal(song.originalKey,setlistKey):0)
   const [fullscreen,setFullscreen]=useState(false)
   const [showMetronome,setShowMetronome]=useState(false)
   const originalKey=song.originalKey||song.personalKey
   const habitualDistinct=Boolean(song.personalKey&&normalizeKey(song.personalKey)!==normalizeKey(originalKey))
   const baseKey=originalKey
   const workingKey=baseKey ? transposeKey(baseKey,transpose) : ''
-  const chooseKey=(key:string)=>{if(!baseKey||!key)return;const next=keyOffsetFromOriginal(baseKey,key);setTranspose(next);setShowTranspose(next!==0)}
+  const applyTranspose=(next:number)=>{setTranspose(next);setShowTranspose(next!==0);if(baseKey&&onSetlistKey)onSetlistKey(transposeKey(baseKey,next))}
+  const chooseKey=(key:string)=>{if(!baseKey||!key)return;applyTranspose(keyOffsetFromOriginal(baseKey,key))}
   const workingChords=transposeChordText(song.chords??'',transpose)
   const hasWorkingChords=hasMeaningfulChordContent(workingChords)
   const normalizedStructure=parseStructureSequence(song.structure??'').join(' · ')
@@ -648,7 +670,7 @@ function SongDetail({song,backLabel,setlists,refreshSetlists,toast,onBack,onEdit
   const saveLyrics=()=>{if(savingLyrics)return;const next=lyricsDraft;setEditingLyrics(false);setSavingLyrics(true);void onLyricsSave(next).finally(()=>setSavingLyrics(false))}
   return <><div className="detail-nav song-detail-actions"><span/><div className="detail-icon-actions"><button className="bare-action" aria-label="Favori" title="Favori" onClick={onFav}><Heart fill={song.favorite?'currentColor':'none'}/></button><QuickSetlistAdd song={song} setlists={setlists} refresh={refreshSetlists} toast={toast}/>{baseKey&&<button className={`bare-action ${showTranspose?'active':''}`} aria-label="Transposition" title="Transposition" onClick={()=>setShowTranspose(v=>!v)}><ArrowUpDown/></button>}<button className="bare-action" aria-label="Plein écran" title="Plein écran" onClick={()=>setFullscreen(true)}><Maximize2/></button><button className="bare-action" aria-label="Modifier" title="Modifier" onClick={onEdit}><Pencil/></button><button className="bare-action danger-icon" aria-label="Supprimer" title="Supprimer" onClick={()=>setConfirm(true)}><Trash2/></button></div></div>
   <section className="song-hero"><div><p className="eyebrow">{song.style||'Morceau'}{song.source==='demo'?' · DEMO':''}</p><h1>{song.title}</h1><p>{song.artist?<button type="button" className="artist-link-inline" onClick={()=>onArtist(song.artist)}>{song.artist}</button>:'Artiste inconnu'}{song.authorComposer&&normalizeIdentity(song.authorComposer)!==normalizeIdentity(song.artist)?` · ${song.authorComposer}`:''}</p></div><div className="key-bpm">{baseKey&&<div className="song-key-card"><span>Tonalité</span><strong>{workingKey}</strong>{transpose!==0&&<small>{formatSemitoneOffset(transpose)} depuis l’originale</small>}{song.originalKey&&<div className="song-key-choices"><button type="button" className={transpose===0?'active':''} onClick={()=>chooseKey(song.originalKey)}>Originale · {song.originalKey}</button>{habitualDistinct&&<button type="button" className={normalizeKey(workingKey)===normalizeKey(song.personalKey)?'active':''} onClick={()=>chooseKey(song.personalKey)}>Habituelle · {song.personalKey}</button>}</div>}</div>}{song.bpm!==null&&<div><span>BPM</span><strong>{song.bpm}</strong></div>}{song.timeSignature&&<div><span>Signature</span><strong>{song.timeSignature}</strong></div>}</div></section>
-  {showTranspose&&baseKey&&<section className="transpose-bar optional-tool" aria-label="Transposition"><div><span className="eyebrow">Transposition depuis l’originale</span><b>{baseKey} → {workingKey}</b></div><div className="transpose-controls"><button className="secondary transpose-btn" disabled={transpose<=-11} onClick={()=>setTranspose(v=>Math.max(-11,v-1))}><Minus/>½ ton</button><button className="ghost transpose-reset" disabled={transpose===0} onClick={()=>setTranspose(0)}><RotateCcw/>0</button><button className="secondary transpose-btn" disabled={transpose>=11} onClick={()=>setTranspose(v=>Math.min(11,v+1))}><Plus/>½ ton</button></div></section>}
+  {showTranspose&&baseKey&&<section className="transpose-bar optional-tool" aria-label="Transposition"><div><span className="eyebrow">Transposition depuis l’originale</span><b>{baseKey} → {workingKey}</b></div><div className="transpose-controls"><button className="secondary transpose-btn" disabled={transpose<=-11} onClick={()=>applyTranspose(Math.max(-11,transpose-1))}><Minus/>½ ton</button><button className="ghost transpose-reset" disabled={transpose===0} onClick={()=>applyTranspose(0)}><RotateCcw/>0</button><button className="secondary transpose-btn" disabled={transpose>=11} onClick={()=>applyTranspose(Math.min(11,transpose+1))}><Plus/>½ ton</button></div></section>}
   <div className="musician-grid">
     {hasInfo&&<section className="panel info-list"><h2>Informations musicales</h2>{song.originalKey&&<button type="button" className={'info-key-row '+(transpose===0?'active':'')} onClick={()=>chooseKey(song.originalKey)}><span>Tonalité originale</span><b>{song.originalKey}</b></button>}{habitualDistinct&&<button type="button" className={'info-key-row '+(normalizeKey(workingKey)===normalizeKey(song.personalKey)?'active':'')} onClick={()=>chooseKey(song.personalKey)}><span>Tonalité habituelle</span><b>{song.personalKey}</b></button>}{song.capo!=null&&<div><span>Capo</span><b>{song.capo}</b></div>}{song.durationSeconds!=null&&<div><span>Durée</span><b>{formatDuration(song.durationSeconds)}</b></div>}{song.tags.length>0&&<div><span>Tags</span><b>{song.tags.join(', ')}</b></div>}{song.favoriteStatus&&<div><span>Statut personnel</span><b>{FAVORITE_STATUS_OPTIONS.find(([v])=>v===song.favoriteStatus)?.[1]}</b></div>}</section>}
     {normalizedStructure&&<section className="panel performance-panel"><h2>Structure</h2><p className="performance-text">{normalizedStructure}</p></section>}
