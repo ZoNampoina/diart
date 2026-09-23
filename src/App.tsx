@@ -68,6 +68,38 @@ function SongRow({song,onOpen,onFav,action}:{song:Song;onOpen:()=>void;onFav:()=
   </div>
 }
 
+
+function mergeSongDraft(primary:Song,secondary:Song):SongDraft{
+  const pick=(a:string|undefined,b:string|undefined)=>String(a??'').trim()?String(a):String(b??'')
+  const combineNotes=(a:string|undefined,b:string|undefined)=>{
+    const aa=String(a??'').trim(),bb=String(b??'').trim()
+    if(!aa)return bb
+    if(!bb||normalizeIdentity(aa)===normalizeIdentity(bb))return aa
+    return aa+'\n\n'+bb
+  }
+  return {
+    title:pick(primary.title,secondary.title),
+    artist:pick(primary.artist,secondary.artist),
+    authorComposer:pick(primary.authorComposer,secondary.authorComposer),
+    originalKey:pick(primary.originalKey,secondary.originalKey),
+    personalKey:pick(primary.personalKey,secondary.personalKey),
+    bpm:primary.bpm??secondary.bpm,
+    timeSignature:pick(primary.timeSignature,secondary.timeSignature),
+    style:pick(primary.style,secondary.style),
+    durationSeconds:primary.durationSeconds??secondary.durationSeconds,
+    tags:[...new Set([...(primary.tags??[]),...(secondary.tags??[])])],
+    notes:combineNotes(primary.notes,secondary.notes),
+    referenceUrl:pick(primary.referenceUrl,secondary.referenceUrl),
+    capo:primary.capo??secondary.capo??null,
+    structure:pick(primary.structure,secondary.structure),
+    chords:hasMeaningfulChordContent(primary.chords??'')?(primary.chords??''):(secondary.chords??''),
+    instrumentNotes:combineNotes(primary.instrumentNotes,secondary.instrumentNotes),
+    lyrics:pick(primary.lyrics,secondary.lyrics),
+    favorite:primary.favorite||secondary.favorite,
+    source:primary.source==='demo'?secondary.source:primary.source
+  }
+}
+
 function App() {
   const {songs,refresh,patchLocal,addLocal,removeLocal}=useSongs()
   const [page,setPage]=useState<Page>('dashboard')
@@ -188,6 +220,28 @@ function App() {
   const openSetlist=(id:string)=>{setSelectedSetlistId(id);setPage('setlist')}
   const createNamedArtist=()=>{const name=createName.trim();if(!name)return;startNewSong(name)}
   const createNamedSetlist=async()=>{const name=createName.trim();if(!name)return;await createSetlist(name);await refreshSetlists();setCreateMode(null);setCreateName('');setPage('setlists');toast(`Setlist « ${name} » créée.`)}
+  const deleteSongs=async(items:Song[])=>{
+    for(const song of items){await softDeleteSong(song.id);removeLocal(song.id);await recordActivity('delete','Morceau supprimé',song.title,{songId:song.id,songTitle:song.title})}
+    toast(items.length>1?`${items.length} morceaux placés dans la corbeille.`:'Morceau placé dans la corbeille.')
+  }
+  const mergeSongs=async(primary:Song,secondary:Song)=>{
+    const draft=mergeSongDraft(primary,secondary)
+    await updateSong(primary.id,draft)
+    await softDeleteSong(secondary.id)
+    const updatedAt=new Date().toISOString()
+    patchLocal(primary.id,{...draft,updatedAt})
+    removeLocal(secondary.id)
+    for(const list of setlists){
+      if(!list.songIds.includes(secondary.id))continue
+      const replaced=list.songIds.map(id=>id===secondary.id?primary.id:id)
+      const deduped=replaced.filter((id,i)=>replaced.indexOf(id)===i)
+      await updateSetlist(list.id,{songIds:deduped})
+    }
+    await refreshSetlists()
+    if(selected?.id===secondary.id)setSelected({...primary,...draft,updatedAt})
+    await recordActivity('merge','Morceaux fusionnés',`« ${secondary.title} » fusionné dans « ${draft.title} »`,{songId:primary.id,songTitle:draft.title})
+    toast('Fusion terminée. Le doublon a été placé dans la corbeille.')
+  }
   const openSong=(s:Song,origin?:{page:Page;label:string})=>{
     const lastViewedAt=new Date().toISOString()
     const next={...s,lastViewedAt}
@@ -219,7 +273,7 @@ function App() {
       </header>
       <div className="content">
         {page==='dashboard'&&<Dashboard songs={songs} artists={artists} authors={authors} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={s=>openSong(s,{page:'dashboard',label:'Accueil'})} onGo={go} onFav={fav}/>} 
-        {page==='library'&&<LibraryPage songs={songs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} searchRef={searchRef} onOpen={s=>openSong(s,{page:'library',label:'Bibliothèque'})} onFav={fav}/>} 
+        {page==='library'&&<LibraryPage songs={songs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} searchRef={searchRef} onOpen={s=>openSong(s,{page:'library',label:'Bibliothèque'})} onFav={fav} onDeleteMany={deleteSongs} onMerge={mergeSongs}/>} 
         {page==='artists'&&<ArtistsPage items={artistGroups} restoreY={artistsScrollY} onArtist={openArtist}/>} 
         {page==='artist'&&selectedArtist&&<ArtistDetailPage artist={selectedArtist} songs={songs.filter(s=>s.artist.trim()===selectedArtist)} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go('artists')} onOpen={s=>openSong(s,{page:'artist',label:selectedArtist})} onFav={fav} onAdd={()=>startNewSong(selectedArtist)}/>}
         {page==='authors'&&<AuthorsPage items={authorGroups} restoreY={authorsScrollY} onAuthor={openAuthor}/>}
