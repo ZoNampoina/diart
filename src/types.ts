@@ -83,3 +83,17 @@ export interface Setlist {
   updatedAt: string
   deletedAt: string | null
 }
+
+
+export type ActivityKind = 'create'|'update'|'import'|'complete'|'delete'|'restore'|'merge'|'export'|'backup_restore'
+
+export interface ActivityEntry {
+  id:string
+  kind:ActivityKind
+  label:string
+  details:string
+  songId?:string|null
+  songTitle?:string
+  source?:string
+  createdAt:string
+}
