@@ -897,26 +897,55 @@ function normalizeImportedLyrics(value:string):string{
     .replace(/\u00a0/g,' ')
     .split('\n')
     .map(line=>line.replace(/[ \t]+$/,'').trimStart())
+
+  const isSection=(line:string)=>/^\[(?:Couplet|Refrain|Pré-refrain|Pré refrain|Bridge|Pont|Prélude|Prelude|Interlude|Postlude|Intro|Outro)[^\]]*\]$/i.test(line.trim())
   const out:string[]=[]
-  for(const raw of lines){
-    const line=raw.trimEnd()
-    const section=/^\[(?:Couplet|Refrain|Pré-refrain|Bridge|Prélude|Interlude|Postlude)[^\]]*\]$/i.test(line.trim())
-    if(!line.trim()){
-      if(out.length&&out[out.length-1]!=='')out.push('')
-      continue
+  let pendingBlankCount=0
+
+  const flushBlank=(nextLine:string)=>{
+    if(!out.length){pendingBlankCount=0;return}
+    const previous=out[out.length-1]
+    const previousIsSection=isSection(previous)
+    const nextIsSection=isSection(nextLine)
+
+    // Tononkira génère souvent un faux blanc entre chaque vers.
+    // Un seul blanc entre deux lignes normales est donc supprimé.
+    // Deux blancs ou plus sont considérés comme une vraie séparation de strophe.
+    if(!previousIsSection&&!nextIsSection&&pendingBlankCount>=2&&previous!==''){
+      out.push('')
     }
-    if(section){
-      if(out.length&&out[out.length-1]!=='')out.push('')
-      out.push(line.trim())
-      continue
+    // Une nouvelle section doit être séparée visuellement de la précédente.
+    if(nextIsSection&&previous!==''&&!previousIsSection){
+      out.push('')
     }
-    out.push(line.trim())
+    pendingBlankCount=0
   }
+
+  for(const raw of lines){
+    const line=raw.trim()
+    if(!line){
+      pendingBlankCount+=1
+      continue
+    }
+
+    flushBlank(line)
+
+    if(isSection(line)){
+      // Jamais de ligne vide entre le titre de section et son premier vers.
+      if(out[out.length-1]===''&&out.length>=2&&isSection(out[out.length-2]))out.pop()
+      out.push(line)
+      continue
+    }
+
+    out.push(line)
+  }
+
   while(out[0]==='')out.shift()
   while(out.length&&out[out.length-1]==='')out.pop()
+
   return out.join('\n')
     .replace(/\n{3,}/g,'\n\n')
-    .replace(/(\[(?:Couplet|Refrain|Pré-refrain|Bridge|Prélude|Interlude|Postlude)[^\]]*\])\n\n+/g,'$1\n')
+    .replace(/(\[(?:Couplet|Refrain|Pré-refrain|Pré refrain|Bridge|Pont|Prélude|Prelude|Interlude|Postlude|Intro|Outro)[^\]]*\])\n\n+/gi,'$1\n')
     .trim()
 }
 
