@@ -5579,3 +5579,392 @@ body,
     animation:none!important;
   }
 }
+
+
+/* DI'ART V2.4.7 — independent stage footer + unified search ergonomics */
+
+/* Stage footer elements are fixed overlays and never participate in page sizing. */
+.stage-floating-tools{
+  position:fixed!important;
+  left:max(12px,env(safe-area-inset-left))!important;
+  bottom:max(10px,env(safe-area-inset-bottom))!important;
+  z-index:14!important;
+  width:min(360px,calc(100vw - 120px))!important;
+  pointer-events:none!important;
+}
+.stage-floating-tools .stage-session-tools{
+  width:100%!important;
+  max-width:100%!important;
+  margin:0!important;
+  padding:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  gap:3px!important;
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  pointer-events:auto!important;
+}
+.stage-floating-tools .stage-session-tools.collapsed{
+  width:max-content!important;
+}
+.stage-floating-tools .stage-tools-toggle{
+  min-height:28px!important;
+  height:28px!important;
+  padding:0 3px!important;
+  border:0!important;
+  border-radius:6px!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#82b8c1!important;
+}
+.stage-floating-tools .stage-tools-toggle:hover{
+  background:transparent!important;
+  color:#b1dbe0!important;
+}
+.stage-floating-tools .stage-tools-body{
+  width:100%!important;
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  justify-content:flex-start!important;
+  gap:2px!important;
+}
+.stage-floating-tools .stage-control-group{
+  width:auto!important;
+  max-width:100%!important;
+  min-width:0!important;
+  min-height:28px!important;
+  margin:0!important;
+  padding:1px 2px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:3px!important;
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+}
+.stage-floating-tools .stage-control-group>span{
+  min-width:62px!important;
+  color:#8eabb0!important;
+  text-align:left!important;
+  font-size:8px!important;
+  letter-spacing:.04em!important;
+}
+.stage-floating-tools .stage-control-group>b{
+  min-width:30px!important;
+  color:#dceef0!important;
+  font-size:10px!important;
+  text-align:center!important;
+}
+.stage-floating-tools .stage-control-group button{
+  width:26px!important;
+  min-width:26px!important;
+  height:26px!important;
+  min-height:26px!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:6px!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#91cbd2!important;
+}
+.stage-floating-tools .stage-control-group button:hover{
+  background:transparent!important;
+  color:#d4f2f5!important;
+}
+.stage-floating-tools .stage-control-group button svg{
+  width:14px!important;
+  height:14px!important;
+}
+.stage-floating-tools .auto-scroll-control input[type="range"]{
+  width:82px!important;
+  min-width:82px!important;
+  max-width:82px!important;
+  flex:0 0 82px!important;
+}
+.stage-floating-tools .stage-tools-body.is-collapsed{
+  padding:0!important;
+  margin:0!important;
+}
+
+/* Independent bottom-right position counter */
+.stage-floating-count{
+  position:fixed!important;
+  right:max(14px,env(safe-area-inset-right))!important;
+  bottom:max(12px,env(safe-area-inset-bottom))!important;
+  z-index:14!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#91aeb4!important;
+  font-size:11px!important;
+  font-weight:800!important;
+  letter-spacing:.08em!important;
+  pointer-events:none!important;
+}
+.stage-theme-light .stage-floating-count{
+  color:var(--stage-muted)!important;
+}
+.stage-theme-light .stage-floating-tools .stage-tools-toggle,
+.stage-theme-light .stage-floating-tools .stage-control-group button{
+  color:var(--stage-accent)!important;
+}
+.stage-theme-light .stage-floating-tools .stage-control-group>span{
+  color:var(--stage-muted)!important;
+}
+.stage-theme-light .stage-floating-tools .stage-control-group>b{
+  color:var(--stage-text)!important;
+}
+
+/* The top-left header returns to identity only. */
+.stage-left-stack{
+  animation:none!important;
+}
+.stage-left-stack .stage-session-tools{
+  display:none!important;
+}
+
+/* Setlist creation and order heading */
+.new-setlist-name-input{
+  min-height:44px!important;
+  font-size:15px!important;
+  font-weight:700!important;
+  letter-spacing:-.01em!important;
+  padding:10px 13px!important;
+}
+.setlist-create-standalone{
+  min-width:0!important;
+  width:min(560px,100%)!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  gap:7px!important;
+}
+.setlist-create-standalone .primary{
+  min-width:92px!important;
+}
+.setlist-order-head{
+  display:grid!important;
+  grid-template-columns:1fr auto 1fr!important;
+  align-items:center!important;
+  gap:10px!important;
+}
+.setlist-order-head h2{
+  grid-column:2!important;
+  margin:0!important;
+  text-align:center!important;
+}
+.setlist-order-head .setlist-add-button{
+  grid-column:3!important;
+  justify-self:end!important;
+}
+
+/* Android: repetition/live line is fully transparent and compact. */
+@media(max-width:820px){
+  .setlist-detail-nav.stage-entry-actions{
+    position:relative!important;
+    top:auto!important;
+    z-index:auto!important;
+    min-height:38px!important;
+    margin:0 0 4px!important;
+    padding:0!important;
+    background:transparent!important;
+    border:0!important;
+    box-shadow:none!important;
+    backdrop-filter:none!important;
+  }
+  .stage-entry-actions .setlist-mode-actions{
+    width:100%!important;
+    display:flex!important;
+    justify-content:flex-end!important;
+    align-items:center!important;
+    gap:5px!important;
+    margin:0!important;
+    padding:0!important;
+    background:transparent!important;
+    border:0!important;
+    box-shadow:none!important;
+  }
+  .stage-entry-actions .setlist-mode-actions button{
+    min-height:34px!important;
+    height:34px!important;
+    padding:0 8px!important;
+    gap:4px!important;
+    border-radius:8px!important;
+    font-size:10px!important;
+  }
+  .stage-entry-actions .setlist-mode-actions button svg{
+    width:14px!important;
+    height:14px!important;
+  }
+
+  .new-setlist-name-input{
+    min-height:40px!important;
+    height:40px!important;
+    font-size:14px!important;
+    padding:8px 11px!important;
+  }
+  .setlist-create-standalone{
+    grid-template-columns:minmax(0,1fr) 78px!important;
+    gap:5px!important;
+  }
+  .setlist-create-standalone .primary{
+    min-width:78px!important;
+    min-height:40px!important;
+    height:40px!important;
+    padding:0 8px!important;
+    font-size:10px!important;
+  }
+
+  .setlist-order-head{
+    grid-template-columns:44px minmax(0,1fr) 44px!important;
+    position:relative!important;
+  }
+  .setlist-order-head h2{
+    grid-column:2!important;
+    font-size:15px!important;
+  }
+  .setlist-order-head .setlist-add-button{
+    grid-column:3!important;
+    width:40px!important;
+    min-width:40px!important;
+    height:40px!important;
+    min-height:40px!important;
+    padding:0!important;
+    font-size:0!important;
+  }
+  .setlist-order-head .setlist-add-button svg{
+    width:18px!important;
+    height:18px!important;
+  }
+
+  /* Home and artist searches inherit the same visual language as Library. */
+  .home-search,
+  .artist-search.searchbox,
+  .library-toolbar .searchbox{
+    width:100%!important;
+    min-height:40px!important;
+    height:40px!important;
+    margin:0 0 7px!important;
+    padding:0 8px 0 10px!important;
+    display:flex!important;
+    align-items:center!important;
+    gap:7px!important;
+    background:color-mix(in srgb,var(--surface2) 78%,transparent)!important;
+    border:1px solid color-mix(in srgb,var(--line) 82%,transparent)!important;
+    border-radius:12px!important;
+    box-shadow:none!important;
+    outline:0!important;
+  }
+  .home-search:focus-within,
+  .artist-search.searchbox:focus-within,
+  .library-toolbar .searchbox:focus-within{
+    border-color:color-mix(in srgb,var(--accent2) 58%,var(--line))!important;
+    box-shadow:0 0 0 2px color-mix(in srgb,var(--accent2) 10%,transparent)!important;
+  }
+  .home-search>svg,
+  .artist-search.searchbox>svg,
+  .library-toolbar .searchbox>svg{
+    width:17px!important;
+    height:17px!important;
+    flex:none!important;
+    color:var(--accent2)!important;
+  }
+  .home-search input,
+  .artist-search.searchbox input,
+  .library-toolbar .searchbox input{
+    min-width:0!important;
+    min-height:38px!important;
+    height:38px!important;
+    flex:1 1 auto!important;
+    padding:0!important;
+    border:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+    outline:0!important;
+    font-size:16px!important;
+  }
+  .home-search .search-clear,
+  .artist-search.searchbox .search-clear,
+  .library-toolbar .searchbox .search-clear{
+    width:30px!important;
+    min-width:30px!important;
+    height:30px!important;
+    min-height:30px!important;
+    padding:0!important;
+    border:0!important;
+    background:transparent!important;
+  }
+
+  .stage-floating-tools{
+    left:max(8px,env(safe-area-inset-left))!important;
+    bottom:max(6px,env(safe-area-inset-bottom))!important;
+    width:min(280px,calc(100vw - 90px))!important;
+  }
+  .stage-floating-count{
+    right:max(9px,env(safe-area-inset-right))!important;
+    bottom:max(8px,env(safe-area-inset-bottom))!important;
+    font-size:9px!important;
+  }
+  .stage-floating-tools .stage-control-group>span{
+    min-width:52px!important;
+    font-size:7px!important;
+  }
+  .stage-floating-tools .auto-scroll-control input[type="range"]{
+    width:58px!important;
+    min-width:58px!important;
+    max-width:58px!important;
+    flex-basis:58px!important;
+  }
+}
+
+/* Desktop: keep the principal search bars visible beneath the sticky topbar. */
+@media(min-width:821px){
+  .home-search,
+  .library-toolbar,
+  .artist-search.searchbox{
+    position:sticky!important;
+    top:76px!important;
+    z-index:16!important;
+  }
+  .home-search,
+  .artist-search.searchbox{
+    box-shadow:0 8px 22px color-mix(in srgb,var(--bg) 48%,transparent)!important;
+  }
+  .library-toolbar{
+    padding:6px 0!important;
+    background:color-mix(in srgb,var(--bg) 88%,transparent)!important;
+    backdrop-filter:blur(12px)!important;
+  }
+}
+
+/* Smooth floating footer appearance */
+.stage-floating-tools{
+  animation:diartFooterToolsIn .24s cubic-bezier(.2,.72,.2,1) both;
+}
+.stage-floating-count{
+  animation:diartFooterCountIn .24s ease both;
+}
+@keyframes diartFooterToolsIn{
+  from{opacity:0;transform:translateY(8px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@keyframes diartFooterCountIn{
+  from{opacity:0;transform:translateX(7px)}
+  to{opacity:1;transform:translateX(0)}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .stage-floating-tools,
+  .stage-floating-count{
+    animation:none!important;
+  }
+}
