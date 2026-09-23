@@ -1,11 +1,12 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { AppSetting, Song, SongDraft, Setlist } from './types'
+import type { ActivityEntry, ActivityKind, AppSetting, Song, SongDraft, Setlist } from './types'
 import { demoSongs } from './demo'
 
 class DiartDB extends Dexie {
   songs!: EntityTable<Song, 'id'>
   settings!: EntityTable<AppSetting, 'key'>
   setlists!: EntityTable<Setlist, 'id'>
+  activity!: EntityTable<ActivityEntry, 'id'>
 
   constructor() {
     super('diart-db')
@@ -17,6 +18,12 @@ class DiartDB extends Dexie {
       songs: 'id, title, artist, authorComposer, favorite, createdAt, updatedAt, lastViewedAt, source, deletedAt',
       settings: 'key',
       setlists: 'id, name, createdAt, updatedAt, deletedAt'
+    })
+    this.version(3).stores({
+      songs: 'id, title, artist, authorComposer, favorite, createdAt, updatedAt, lastViewedAt, source, deletedAt',
+      settings: 'key',
+      setlists: 'id, name, createdAt, updatedAt, deletedAt',
+      activity: 'id, kind, songId, source, createdAt'
     })
   }
 }
@@ -83,4 +90,15 @@ export async function createSetlist(name: string): Promise<Setlist> {
 
 export async function updateSetlist(id:string, patch:Partial<Omit<Setlist,'id'|'createdAt'>>): Promise<void> {
   await db.setlists.update(id,{...patch,updatedAt:now()})
+}
+
+
+export async function logActivity(kind:ActivityKind,label:string,details:string,meta:{songId?:string|null;songTitle?:string;source?:string}={}):Promise<ActivityEntry>{
+  const entry:ActivityEntry={id:crypto.randomUUID(),kind,label,details,createdAt:now(),songId:meta.songId??null,songTitle:meta.songTitle??'',source:meta.source??''}
+  await db.activity.add(entry)
+  return entry
+}
+
+export async function listActivity(limit=300):Promise<ActivityEntry[]>{
+  return db.activity.orderBy('createdAt').reverse().limit(limit).toArray()
 }
