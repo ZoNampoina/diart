@@ -3832,3 +3832,56 @@ textarea{resize:vertical}
     width:100%;
   }
 }
+
+
+/* DI'ART V2.4.2 — Android search + stable setlist editor */
+@media(max-width:760px){
+  /* Artist/author searches must stay in normal flow when the virtual keyboard opens. */
+  .artist-search.searchbox{
+    position:relative!important;
+    top:auto!important;
+    z-index:auto!important;
+    width:100%!important;
+    max-width:none!important;
+    margin-bottom:10px!important;
+    background:color-mix(in srgb,var(--surface2) 78%,transparent)!important;
+  }
+  .artist-search.searchbox input{
+    width:100%!important;
+    min-width:0!important;
+    flex:1 1 auto!important;
+  }
+
+  /* Keep the add-songs dialog attached to the top of the visible viewport.
+     Android's keyboard can resize dvh without pushing this sheet below the screen. */
+  .modal-backdrop:has(.setlist-add-modal){
+    align-items:start!important;
+    padding:calc(10px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom))!important;
+    overflow:hidden!important;
+  }
+  .setlist-add-modal{
+    width:100%!important;
+    max-width:780px!important;
+    max-height:calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom))!important;
+    margin:0 auto!important;
+    border-radius:18px!important;
+    display:flex!important;
+    flex-direction:column!important;
+    overflow:hidden!important;
+  }
+  .setlist-add-modal .modal-head,
+  .setlist-add-modal .setlist-add-mode,
+  .setlist-add-modal .setlist-add-search,
+  .setlist-add-modal .setlist-artist-back{
+    flex:0 0 auto;
+  }
+  .setlist-add-modal .setlist-add-results,
+  .setlist-add-modal .setlist-artist-results{
+    flex:1 1 auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    overflow-y:auto!important;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+  }
+}
