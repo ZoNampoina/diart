@@ -39,7 +39,7 @@ const KEY_OPTIONS=['Ab','A','Bb','B','C','C#','D','Eb','E','F','F#','G'] as cons
 const SIGNATURE_OPTIONS=['2/4','3/4','4/4','5/4','6/8','7/8','9/8','12/8'] as const
 const MUSICIAN_ROLES=['Piano','Clavier','Guitare','Basse','Batterie','Sax','Chœurs','Chef'] as const
 const FAVORITE_STATUS_OPTIONS:[FavoriteStatus,string][]=[['','Aucun statut'],['favorite','Favori'],['learn','À apprendre'],['rehearse','À répéter'],['mastered','Maîtrisé'],['review','À revoir']]
-const DEFAULT_SHORTCUTS={search:'/',newSong:'n',setlists:'s',favorites:'f',live:'l'}
+const DEFAULT_SHORTCUTS={search:'/',newSong:'n',setlists:'s',favorites:'f'}
 const DEFAULT_GESTURES={swipeSongs:true,doubleTapTools:true,longPressLock:true}
 
 function useSongs() {
@@ -104,8 +104,10 @@ function mergeSongDraft(primary:Song,secondary:Song):SongDraft{
     structure:pick(primary.structure,secondary.structure),
     chords:hasMeaningfulChordContent(primary.chords??'')?(primary.chords??''):(secondary.chords??''),
     instrumentNotes:combineNotes(primary.instrumentNotes,secondary.instrumentNotes),
+    musicianNotes:Object.fromEntries([...new Set([...Object.keys(primary.musicianNotes??{}),...Object.keys(secondary.musicianNotes??{})])].map(role=>[role,combineNotes(primary.musicianNotes?.[role],secondary.musicianNotes?.[role])])),
     lyrics:pick(primary.lyrics,secondary.lyrics),
     favorite:primary.favorite||secondary.favorite,
+    favoriteStatus:primary.favoriteStatus||secondary.favoriteStatus||(primary.favorite||secondary.favorite?'favorite':''),
     source:primary.source==='demo'?secondary.source:primary.source
   }
 }
@@ -165,8 +167,8 @@ function App() {
       if(result.conflicts.length)setSyncConflicts(result.conflicts)
       if(result.pulled>0) await Promise.all([refresh(),refreshSetlists()])
       if(showToast||result.pulled>0||result.pushed>0) await refreshCloudStats(userId)
-      markSynced()
-      if(showToast)toast('Synchronisation cloud terminée.')
+      if(!result.conflicts.length)markSynced()
+      if(showToast)toast(result.conflicts.length?`${result.conflicts.length} conflit(s) à résoudre.`:'Synchronisation cloud terminée.')
     }catch(e){if(showToast)toast(e instanceof Error?e.message:'Synchronisation impossible.')}
     finally{syncLockRef.current=false;setSyncing(false)}
   }
@@ -686,7 +688,7 @@ function SongForm({initial,songs,presetArtist='',presetAuthor='',onCancel,onSave
     next.splice(target,0,item)
     applyStructure(next)
   }
-  const normalizedDraft=():SongDraft=>({...d,title:d.title.trim(),originalKey:normalizeKey(d.originalKey),personalKey:normalizeKey(d.personalKey),durationSeconds:parseDuration(duration)})
+  const normalizedDraft=():SongDraft=>({...d,title:d.title.trim(),originalKey:normalizeKey(d.originalKey),personalKey:normalizeKey(d.personalKey),tags:[...new Set(d.tags.map(x=>x.trim()).filter(Boolean))],durationSeconds:parseDuration(duration)})
   const submit=async(e:FormEvent)=>{e.preventDefault();if(!d.title.trim())return;setSaving(true);try{await onSave(normalizedDraft())}finally{setSaving(false)}}
   const mergeDuplicate=async()=>{if(!duplicateCandidate||saving)return;setSaving(true);try{await onMergeDuplicate(normalizedDraft(),duplicateCandidate);setMergeConfirm(false)}finally{setSaving(false)}}
 
@@ -722,6 +724,7 @@ function findMatchingSong(songs:Song[],title:string,artist:string):Song|undefine
 function songCompletion(existing:Song,incoming:SongDraft):SongCompletion{
   const patch:Partial<SongDraft>={}
   const labels:string[]=[]
+  const combineText=(a:string|undefined,b:string|undefined)=>{const aa=String(a??'').trim(),bb=String(b??'').trim();if(!aa)return bb;if(!bb||normalizeIdentity(aa)===normalizeIdentity(bb))return aa;return aa+'\n\n'+bb}
   const addString=(key:keyof SongDraft,label:string)=>{
     const current=String(existing[key as keyof Song]??'').trim()
     const next=String(incoming[key]??'').trim()
@@ -736,6 +739,9 @@ function songCompletion(existing:Song,incoming:SongDraft):SongCompletion{
   addString('structure','Structure')
   if(!hasMeaningfulChordContent(existing.chords??'')&&hasMeaningfulChordContent(incoming.chords??'')){patch.chords=incoming.chords;labels.push('Accords / repères')}
   addString('instrumentNotes','Notes instrumentales')
+  const musicianRoles=[...new Set([...Object.keys(existing.musicianNotes??{}),...Object.keys(incoming.musicianNotes??{})])]
+  const mergedMusicianNotes=Object.fromEntries(musicianRoles.map(role=>[role,combineText(existing.musicianNotes?.[role],incoming.musicianNotes?.[role])]).filter(([,v])=>v))
+  if(Object.keys(mergedMusicianNotes).length>Object.keys(existing.musicianNotes??{}).length){patch.musicianNotes=mergedMusicianNotes;labels.push('Notes musiciens')}
   addString('lyrics','Paroles')
   addString('notes','Notes')
   addString('referenceUrl','Lien source')
@@ -977,7 +983,7 @@ function ToolsPage({songs,onMerge}:{songs:Song[];onMerge:(primary:Song,secondary
 }
 
 function ShortcutsPage({value,onChange}:{value:Record<string,string>;onChange:(v:Record<string,string>)=>void}) {
-  const rows=[['search','Recherche'],['newSong','Nouveau morceau'],['setlists','Setlists'],['favorites','Favoris'],['live','Live Mode']]
+  const rows=[['search','Recherche'],['newSong','Nouveau morceau'],['setlists','Setlists'],['favorites','Favoris']]
   return <section className="panel interaction-settings"><div className="interaction-intro"><Keyboard/><div><h2>Raccourcis clavier</h2><p>Personnalisez les touches utilisées sur PC. Une seule touche est recommandée.</p></div></div>{rows.map(([key,label])=><label key={key}><span><b>{label}</b><small>{key==='search'?'Place le curseur dans la recherche Bibliothèque':''}</small></span><input maxLength={1} value={value[key]??''} onChange={e=>onChange({...value,[key]:e.target.value.toLowerCase()})}/></label>)}<button className="secondary" onClick={()=>onChange(DEFAULT_SHORTCUTS)}><RotateCcw/>Valeurs par défaut</button></section>
 }
 
