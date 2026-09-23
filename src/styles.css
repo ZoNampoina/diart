@@ -6993,3 +6993,151 @@ body,
   }
   .stage-next-song small{font-size:8px}
 }
+
+
+/* DI'ART 2.5.1 — manual merge, unified recueils and stage feedback */
+.manual-merge-table .merge-compare-head,
+.manual-merge-table .merge-compare-row{
+  min-width:920px;
+  grid-template-columns:150px minmax(150px,1fr) minmax(150px,1fr) 170px minmax(150px,1fr);
+}
+.merge-field-choice{
+  display:flex;
+  gap:3px;
+  align-items:center;
+}
+.merge-field-choice button{
+  min-height:28px;
+  padding:0 7px;
+  border:1px solid var(--line);
+  border-radius:7px;
+  background:transparent;
+  color:var(--muted);
+  font-size:9px;
+  font-weight:800;
+}
+.merge-field-choice button.active{
+  color:var(--accent2);
+  border-color:color-mix(in srgb,var(--accent2) 48%,var(--line));
+  background:color-mix(in srgb,var(--accent) 12%,transparent);
+}
+.manual-merge-table .merge-compare-row em,
+.manual-merge-table .merge-compare-row strong{
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+/* One visual language for search results from all recueils. */
+.recueil-result-row{
+  min-height:62px!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  align-items:center!important;
+  gap:12px!important;
+  padding:10px 12px!important;
+  border:1px solid var(--line)!important;
+  border-radius:11px!important;
+  background:var(--surface2)!important;
+}
+.recueil-result-row.exists{
+  border-color:color-mix(in srgb,var(--accent2) 28%,var(--line))!important;
+}
+.recueil-result-main{
+  min-width:0;
+}
+.recueil-result-main b,
+.recueil-result-main span,
+.recueil-result-main small{
+  display:block;
+}
+.recueil-result-main b{
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.recueil-result-main span{
+  margin-top:3px;
+  color:var(--muted);
+  font-size:11px;
+}
+.recueil-result-main small{
+  margin-top:3px;
+  color:var(--accent2);
+  font-size:9px;
+}
+.recueil-result-actions{
+  display:flex!important;
+  align-items:center!important;
+  gap:5px!important;
+}
+.tononkira-search-results,
+.external-recueil-results{
+  display:grid!important;
+  gap:7px!important;
+}
+
+/* Explicit stage feedback when toggling wake lock, C/N/M or auto-scroll. */
+.stage-feedback{
+  position:fixed;
+  z-index:40;
+  left:50%;
+  top:92px;
+  transform:translateX(-50%);
+  padding:8px 14px;
+  border:1px solid rgba(112,183,194,.24);
+  border-radius:999px;
+  background:rgba(3,18,22,.86);
+  color:#dff4f6;
+  box-shadow:0 12px 32px rgba(0,0,0,.24);
+  backdrop-filter:blur(10px);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.03em;
+  pointer-events:none;
+  animation:diartStageFeedback .82s cubic-bezier(.2,.75,.2,1) both;
+}
+.stage-theme-light .stage-feedback{
+  background:rgba(255,255,255,.94);
+  border-color:#c9dde0;
+  color:#0b6575;
+}
+.stage-control-group.stage-role-control button.active,
+.stage-control-group button.active{
+  animation:diartControlPulse .3s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes diartStageFeedback{
+  0%{opacity:0;transform:translate(-50%,-8px) scale(.96)}
+  18%{opacity:1;transform:translate(-50%,0) scale(1.02)}
+  72%{opacity:1;transform:translate(-50%,0) scale(1)}
+  100%{opacity:0;transform:translate(-50%,-3px) scale(.99)}
+}
+@keyframes diartControlPulse{
+  0%{transform:scale(.88)}
+  55%{transform:scale(1.12)}
+  100%{transform:scale(1)}
+}
+
+@media(max-width:820px){
+  .recueil-result-row{
+    min-height:58px!important;
+    padding:9px 10px!important;
+    gap:7px!important;
+  }
+  .recueil-result-actions button{
+    min-height:34px!important;
+    height:34px!important;
+    padding:0 8px!important;
+    font-size:10px!important;
+  }
+  .stage-feedback{
+    top:76px;
+    max-width:80vw;
+    text-align:center;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .stage-feedback,
+  .stage-control-group.stage-role-control button.active,
+  .stage-control-group button.active{animation:none!important}
+}
