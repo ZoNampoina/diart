@@ -282,9 +282,9 @@ function App() {
         {page==='recent'&&<SimpleSongs title="Récents" songs={recentSongs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={s=>openSong(s,{page:'recent',label:'Récents'})} onFav={fav}/>} 
         {page==='setlists'&&<SetlistsPage songs={songs} setlists={setlists} refresh={refreshSetlists} toast={toast} onOpenDetail={openSetlist} onOpenSong={s=>openSong(s,{page:'setlists',label:'Setlists'})}/>} 
         {page==='setlist'&&currentSetlist&&<SetlistDetailPage list={currentSetlist} songs={songs} refresh={refreshSetlists} toast={toast} onBack={()=>go('setlists')} onOpenSong={s=>openSong(s,{page:'setlist',label:currentSetlist.name})}/>} 
-        {page==='song'&&selected&&<SongDetail song={songs.find(s=>s.id===selected.id)||selected} backLabel={songBack.label} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go(songBack.page)} onEdit={()=>go('edit')} onArtist={name=>{setSelectedArtist(name);setPage('artist')}} onFav={()=>void fav(songs.find(s=>s.id===selected.id)||selected)} onLyricsSave={async lyrics=>{const id=selected.id;const updatedAt=new Date().toISOString();patchLocal(id,{lyrics,updatedAt});setSelected(prev=>prev&&prev.id===id?{...prev,lyrics,updatedAt}:prev);await updateSong(id,{lyrics});toast('Paroles enregistrées.')}} onDelete={async()=>{const id=selected.id;const title=selected.title;await softDeleteSong(id);removeLocal(id);await recordActivity('delete','Morceau supprimé',title,{songId:id,songTitle:title});toast('Morceau placé dans la corbeille',{label:'Annuler',run:async()=>{await db.songs.update(id,{deletedAt:null});await recordActivity('restore','Suppression annulée',title,{songId:id,songTitle:title});await refresh()}});go('library')}}/>}
+        {page==='song'&&selected&&<SongDetail song={songs.find(s=>s.id===selected.id)||selected} backLabel={songBack.label} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go(songBack.page)} onEdit={()=>go('edit')} onArtist={name=>{setSelectedArtist(name);setPage('artist')}} onFav={()=>void fav(songs.find(s=>s.id===selected.id)||selected)} onLyricsSave={async lyrics=>{const id=selected.id;const updatedAt=new Date().toISOString();patchLocal(id,{lyrics,updatedAt});setSelected(prev=>prev&&prev.id===id?{...prev,lyrics,updatedAt}:prev);await updateSong(id,{lyrics});await recordActivity('update','Paroles modifiées','Paroles mises à jour depuis la fiche morceau',{songId:id,songTitle:selected.title});toast('Paroles enregistrées.')}} onDelete={async()=>{const id=selected.id;const title=selected.title;await softDeleteSong(id);removeLocal(id);await recordActivity('delete','Morceau supprimé',title,{songId:id,songTitle:title});toast('Morceau placé dans la corbeille',{label:'Annuler',run:async()=>{await db.songs.update(id,{deletedAt:null});await recordActivity('restore','Suppression annulée',title,{songId:id,songTitle:title});await refresh()}});go('library')}}/>}
         {(page==='new'||(page==='edit'&&selected))&&<SongForm initial={page==='edit'?selected:null} presetArtist={page==='new'?presetArtist:''} presetAuthor={page==='new'?presetAuthor:''} onCancel={()=>go(selected?'song':selectedArtist?'artist':selectedAuthor?'author':'library')} onSave={async draft=>{if(page==='edit'&&selected){await updateSong(selected.id,draft);const updatedAt=new Date().toISOString();const next={...selected,...draft,updatedAt};patchLocal(selected.id,{...draft,updatedAt});setSelected(next);await recordActivity('update','Morceau modifié',draft.title,{songId:selected.id,songTitle:draft.title});toast('Morceau mis à jour');go('song')}else{const s=await createSong(draft);addLocal(s);setSelected(s);await recordActivity('create','Morceau créé',s.title,{songId:s.id,songTitle:s.title});toast('Morceau ajouté');go('song')}}}/>}
-        {page==='recueils'&&<RecueilsPage songs={songs} entryMode={recueilEntry} toast={toast} onImport={async draft=>{const s=await createSong(draft);addLocal(s);await recordActivity('import','Import depuis recueil',draft.title,{songId:s.id,songTitle:s.title,source:draft.referenceUrl||'Recueil'})}} onComplete={async(id,patch)=>{const old=songs.find(s=>s.id===id);await updateSong(id,patch);patchLocal(id,{...patch,updatedAt:new Date().toISOString()});await recordActivity('complete','Complétion depuis recueil',Object.keys(patch).join(', '),{songId:id,songTitle:old?.title,source:'Recueil'})}} onRecord={recordActivity}/>} 
+        {page==='recueils'&&<RecueilsPage songs={songs} entryMode={recueilEntry} toast={toast} onImport={async draft=>{const s=await createSong(draft);addLocal(s);await recordActivity('import','Import depuis recueil',draft.title,{songId:s.id,songTitle:s.title,source:draft.referenceUrl||'Recueil'})}} onComplete={async(id,patch)=>{const old=songs.find(s=>s.id===id);await updateSong(id,patch);patchLocal(id,{...patch,updatedAt:new Date().toISOString()});await recordActivity('complete','Complétion depuis recueil',Object.keys(patch).join(', '),{songId:id,songTitle:old?.title,source:'Recueil'})}}/>} 
         {page==='import'&&<ImportWizard songs={songs} refresh={refresh} toast={toast}/>}
         {page==='backup'&&<BackupPage songs={songs} refresh={refresh} toast={toast} onRecord={recordActivity}/>}
         {page==='history'&&<HistoryPage songs={songs}/>}
@@ -449,7 +449,6 @@ function SongDetail({song,backLabel,setlists,refreshSetlists,toast,onBack,onEdit
   const workingChords=transposeChordText(song.chords??'',transpose)
   const hasWorkingChords=hasMeaningfulChordContent(workingChords)
   const normalizedStructure=parseStructureSequence(song.structure??'').join(' · ')
-  const hasHeroMetrics=Boolean(baseKey||song.bpm!==null||song.timeSignature)
   const hasInfo=Boolean(song.originalKey||song.personalKey||song.capo!==null&&song.capo!==undefined||song.durationSeconds!==null||song.tags.length)
   const saveLyrics=()=>{if(savingLyrics)return;const next=lyricsDraft;setEditingLyrics(false);setSavingLyrics(true);void onLyricsSave(next).finally(()=>setSavingLyrics(false))}
   return <><div className="detail-nav"><button className="ghost contextual-back" onClick={onBack}><ChevronLeft/>{backLabel}</button><div className="detail-icon-actions"><QuickSetlistAdd song={song} setlists={setlists} refresh={refreshSetlists} toast={toast}/><button className="bare-action" aria-label="Favori" title="Favori" onClick={onFav}><Heart fill={song.favorite?'currentColor':'none'}/></button>{baseKey&&<button className={`bare-action ${showTranspose?'active':''}`} aria-label="Transposition" title="Transposition" onClick={()=>setShowTranspose(v=>!v)}><ArrowUpDown/></button>}<button className="bare-action" aria-label="Modifier" title="Modifier" onClick={onEdit}><Pencil/></button><button className="bare-action danger-icon" aria-label="Supprimer" title="Supprimer" onClick={()=>setConfirm(true)}><Trash2/></button></div></div>
@@ -486,9 +485,6 @@ function parseStructureSequence(value:string):string[]{
 }
 function numberedStructureLabels(parts:string[]):string[]{
   return parts.map(normalizeStructurePart)
-}
-function generatedChordTemplate(parts:string[]):string{
-  return numberedStructureLabels(parts).map(label=>'['+label+']').join('\n\n')
 }
 function uniqueStructureChoices(parts:string[]):string[]{
   const seen=new Set<string>()
@@ -668,7 +664,7 @@ function reviewDraftFromExternal(full:{title?:string;artist?:string;sourceUrl?:s
   return draft
 }
 
-function RecueilsPage({songs,entryMode,onImport,onComplete,onRecord,toast}:{songs:Song[];entryMode:'tononkira'|null;onImport:(draft:SongDraft)=>Promise<void>;onComplete:(id:string,patch:Partial<SongDraft>)=>Promise<void>;onRecord:(kind:ActivityKind,label:string,details:string,meta?:{songId?:string|null;songTitle?:string;source?:string})=>Promise<void>;toast:(s:string)=>void}) {
+function RecueilsPage({songs,entryMode,onImport,onComplete,toast}:{songs:Song[];entryMode:'tononkira'|null;onImport:(draft:SongDraft)=>Promise<void>;onComplete:(id:string,patch:Partial<SongDraft>)=>Promise<void>;toast:(s:string)=>void}) {
   const [preview,setPreview]=useState<SongDraft|null>(null)
   const [fileName,setFileName]=useState('')
   const [tononkiraTitle,setTononkiraTitle]=useState('')
@@ -752,7 +748,6 @@ function ExternalRecueilSearch({source,badge,name,description,songs,onImport,onC
   const [review,setReview]=useState<{existing:Song;incoming:SongDraft}|null>(null)
   const [pendingImport,setPendingImport]=useState<SongDraft|null>(null)
   const songKey=(t:string,a:string)=>t.trim().toLowerCase()+'::'+a.trim().toLowerCase()
-  const existing=useMemo(()=>new Set(songs.map(s=>songKey(s.title,s.artist))),[songs])
 
   const run=async()=>{
     if(title.trim().length<2){toast('Saisissez au moins deux caractères dans le titre.');return}
@@ -1052,7 +1047,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     </header>
 
     <main ref={contentRef} className="stage-content" onScroll={handleStageScroll} style={{minHeight:0,height:'100%',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',touchAction:'pan-y'}}>
-      <div ref={songHeadRef} className="stage-song-head"><p>{song.artist||'Artiste inconnu'}</p><h1>{song.title}</h1><div className="stage-metrics">{displayKey&&<strong>{displayKey}</strong>}{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div></div>
+      <div ref={songHeadRef} className={'stage-song-head '+(showHeaderIdentity?'handoff':'')}><p>{song.artist||'Artiste inconnu'}</p><h1>{song.title}</h1><div className="stage-metrics">{displayKey&&<strong>{displayKey}</strong>}{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div></div>
 
       <div className={'stage-session-tools '+(toolsCollapsed?'collapsed':'')}>
         <button type="button" className="stage-tools-toggle" title={toolsCollapsed?'Afficher les réglages':'Minimiser les réglages'} onClick={()=>setToolsCollapsed(v=>!v)}>{toolsCollapsed?<ChevronDown/>:<ChevronUp/>}<span>{toolsCollapsed?'Réglages':'Masquer'}</span></button>
