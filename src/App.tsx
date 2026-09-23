@@ -865,11 +865,13 @@ function normalizeImportedLyrics(value:string):string{
   return out.join('\n').replace(/\n{3,}/g,'\n\n').trim()
 }
 
-function reviewDraftFromExternal(full:{title?:string;artist?:string;sourceUrl?:string;source?:string;structure?:string;chords?:string;lyrics?:string},fallback:{title:string;artist:string;url:string}):SongDraft{
+function reviewDraftFromExternal(full:{title?:string;artist?:string;sourceUrl?:string;source?:string;structure?:string;chords?:string;lyrics?:string;originalKey?:string;bpm?:number|null},fallback:{title:string;artist:string;url:string}):SongDraft{
   const draft=emptySongDraft()
   draft.title=full.title||fallback.title
   draft.artist=full.artist||fallback.artist
   draft.structure=full.structure||''
+  draft.originalKey=normalizeKey(full.originalKey||'')
+  draft.bpm=full.bpm??null
   draft.chords=full.chords||''
   draft.lyrics=normalizeImportedLyrics(full.lyrics||'')
   draft.referenceUrl=full.sourceUrl||fallback.url
