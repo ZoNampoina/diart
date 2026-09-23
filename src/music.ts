@@ -113,7 +113,7 @@ export function emptySongDraft(): SongDraft {
   return {
     title: '', artist: '', authorComposer: '', originalKey: '', personalKey: '', bpm: null,
     timeSignature: '', style: '', durationSeconds: null, tags: [], notes: '', referenceUrl: '',
-    capo: null, structure: '', chords: '', instrumentNotes: '', lyrics: '', favorite: false, source: 'manual'
+    capo: null, structure: '', chords: '', instrumentNotes: '', musicianNotes: {}, lyrics: '', favorite: false, favoriteStatus: '', source: 'manual'
   }
 }
 
