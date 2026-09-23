@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject, type FormEvent, type CSSProperties } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject, type FormEvent, type CSSProperties, type PointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
   BookOpen, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Heart, Home, Import,
@@ -6,7 +6,7 @@ import {
   Trash2, Upload, UserRound, UsersRound, Wifi, WifiOff, X, Pencil, Save, RotateCcw,
   Filter, ArrowUpDown, Check, AlertTriangle, Minus, ListMusic, Cloud, LogIn, LogOut,
   Play, Square, Gauge, Maximize2, ChevronUp, ChevronDown, ListPlus, BookMarked, ExternalLink, FileUp, Globe2,
-  History, GitMerge, Info
+  History, GitMerge, Info, GripVertical
 } from 'lucide-react'
 import { db, createSong, ensureDemoSeed, getSetting, markViewed, setSetting, softDeleteSong, updateSong, createSetlist, updateSetlist, logActivity, listActivity } from './db'
 import type { ActivityEntry, ActivityKind, ImportField, ImportMapping, ImportRowPreview, Song, SongDraft, Setlist } from './types'
@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.4.1'
+const APP_VERSION='2.4.2'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -967,8 +967,18 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
   const [addMode,setAddMode]=useState<'song'|'artist'>('song')
   const [addQuery,setAddQuery]=useState('')
   const [artistPick,setArtistPick]=useState('')
-  const listSongs=useMemo(()=>list.songIds.map(id=>songs.find(s=>s.id===id)).filter(Boolean) as Song[],[list.songIds,songs])
-  const available=useMemo(()=>songs.filter(s=>!list.songIds.includes(s.id)),[songs,list.songIds])
+  const [orderIds,setOrderIds]=useState<string[]>(()=>[...list.songIds])
+  const [draggingId,setDraggingId]=useState<string|null>(null)
+  const holdTimer=useRef<number|null>(null)
+  const dragIndex=useRef<number|null>(null)
+  const dragPointer=useRef<number|null>(null)
+  const orderRef=useRef<string[]>(orderIds)
+
+  useEffect(()=>{orderRef.current=orderIds},[orderIds])
+  useEffect(()=>{if(!draggingId)setOrderIds([...list.songIds])},[list.songIds,draggingId])
+
+  const listSongs=useMemo(()=>orderIds.map(id=>songs.find(s=>s.id===id)).filter(Boolean) as Song[],[orderIds,songs])
+  const available=useMemo(()=>songs.filter(s=>!orderIds.includes(s.id)),[songs,orderIds])
   const artistNames=useMemo(()=>[...new Set(available.map(s=>s.artist.trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b)),[available])
   const songMatches=useMemo(()=>available.filter(s=>searchSong(s,addQuery)).slice(0,80),[available,addQuery])
   const artistMatches=useMemo(()=>artistNames.filter(a=>!addQuery.trim()||a.toLowerCase().includes(addQuery.toLowerCase())),[artistNames,addQuery])
@@ -977,15 +987,55 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
   const bpmSongs=listSongs.filter(s=>s.bpm!==null)
   const avgBpm=bpmSongs.length?Math.round(bpmSongs.reduce((n,s)=>n+(s.bpm??0),0)/bpmSongs.length):null
   const lyricsCount=listSongs.filter(s=>Boolean(s.lyrics)).length
-  const add=async(songId:string)=>{if(!songId||list.songIds.includes(songId))return;await updateSetlist(list.id,{songIds:[...list.songIds,songId]});void refresh();toast('Morceau ajouté à la setlist.')}
+
+  const persistOrder=async(ids:string[])=>{setOrderIds(ids);orderRef.current=ids;await updateSetlist(list.id,{songIds:ids});void refresh()}
+  const add=async(songId:string)=>{if(!songId||orderRef.current.includes(songId))return;await persistOrder([...orderRef.current,songId]);toast('Morceau ajouté à la setlist.')}
   const addAndStay=async(songId:string)=>{await add(songId);setArtistPick('')}
-  const remove=async(songId:string)=>{await updateSetlist(list.id,{songIds:list.songIds.filter(id=>id!==songId)});void refresh();toast('Morceau retiré de la setlist.')}
-  const move=async(index:number,dir:number)=>{const target=index+dir;if(target<0||target>=list.songIds.length)return;const ids=[...list.songIds];[ids[index],ids[target]]=[ids[target],ids[index]];await updateSetlist(list.id,{songIds:ids});void refresh()}
+  const remove=async(songId:string)=>{await persistOrder(orderRef.current.filter(id=>id!==songId));toast('Morceau retiré de la setlist.')}
+  const move=async(index:number,dir:number)=>{const target=index+dir;if(target<0||target>=orderRef.current.length)return;const ids=[...orderRef.current];[ids[index],ids[target]]=[ids[target],ids[index]];await persistOrder(ids)}
+  const cancelHold=()=>{if(holdTimer.current!==null){window.clearTimeout(holdTimer.current);holdTimer.current=null}}
+  const startHold=(e:PointerEvent<HTMLDivElement>,index:number)=>{
+    if(e.pointerType==='mouse')return
+    cancelHold()
+    const pointer=e.pointerId
+    holdTimer.current=window.setTimeout(()=>{
+      holdTimer.current=null
+      dragPointer.current=pointer
+      dragIndex.current=index
+      setDraggingId(orderRef.current[index]??null)
+      try{e.currentTarget.setPointerCapture(pointer);navigator.vibrate?.(18)}catch{}
+    },320)
+  }
+  const dragMove=(e:PointerEvent<HTMLDivElement>)=>{
+    if(dragIndex.current===null||dragPointer.current!==e.pointerId)return
+    e.preventDefault()
+    const target=document.elementFromPoint(e.clientX,e.clientY)?.closest<HTMLElement>('[data-setlist-index]')
+    const to=target?Number(target.dataset.setlistIndex):-1
+    const from=dragIndex.current
+    if(!Number.isInteger(to)||to<0||to>=orderRef.current.length||to===from)return
+    const ids=[...orderRef.current]
+    const [moved]=ids.splice(from,1)
+    ids.splice(to,0,moved)
+    dragIndex.current=to
+    orderRef.current=ids
+    setOrderIds(ids)
+  }
+  const finishDrag=async(e:PointerEvent<HTMLDivElement>)=>{
+    cancelHold()
+    if(dragIndex.current===null)return
+    try{e.currentTarget.releasePointerCapture?.(e.pointerId)}catch{}
+    dragIndex.current=null
+    dragPointer.current=null
+    setDraggingId(null)
+    await updateSetlist(list.id,{songIds:orderRef.current})
+    void refresh()
+  }
   const closeAdd=()=>{setAddOpen(false);setAddQuery('');setArtistPick('');setAddMode('song')}
+
   return <><div className="detail-nav setlist-detail-nav"><button className="ghost" onClick={onBack}><ChevronLeft/>Setlists</button><div className="setlist-mode-actions"><button type="button" className="secondary" disabled={!listSongs.length} onClick={()=>setStage('rehearsal')}><Play/>Répétition</button><button type="button" className="primary" disabled={!listSongs.length} onClick={()=>setStage('live')}><Maximize2/>Live Mode</button></div></div>
   <section className="setlist-detail-hero" style={{minHeight:0}}><div className="setlist-detail-title"><span className="setlist-hero-icon"><ListMusic/></span><p className="eyebrow">Setlist</p><h1>{list.name}</h1><p>{listSongs.length} morceau{listSongs.length>1?'x':''} · {lyricsCount} avec paroles</p></div>{(totalSeconds>0||avgBpm!==null||lyricsCount>0)&&<div className="setlist-detail-metrics" role="list">{totalSeconds>0&&<div role="listitem"><span>Durée</span><b>{formatDuration(totalSeconds)}</b></div>}{avgBpm!==null&&<div role="listitem"><span>BPM moyen</span><b>{avgBpm}</b></div>}{lyricsCount>0&&<div role="listitem"><span>Paroles</span><b>{lyricsCount}/{listSongs.length}</b></div>}</div>}</section>
-  <section className="panel setlist-manager"><div className="panel-title-row"><h2>Ordre des morceaux</h2><button className="primary setlist-add-button" onClick={()=>setAddOpen(true)}><ListPlus/>Ajouter des morceaux</button></div><div className="setlist-detail-songs">{listSongs.length?listSongs.map((s,i)=><div className="setlist-detail-song" key={s.id}><span className="setlist-number">{i+1}</span><button className="setlist-song-main" onClick={()=>onOpenSong(s)}><b>{s.title}</b><small>{s.artist||'Artiste inconnu'} · {s.personalKey||s.originalKey||'—'}{s.bpm!==null?` · ${s.bpm} BPM`:''}</small></button><div className="setlist-song-flags">{s.lyrics&&<span>Paroles</span>}{list.rehearsalNotes?.[s.id]&&<span>Notes</span>}</div><button className="bare-action" disabled={i===0} aria-label="Monter" onClick={()=>void move(i,-1)}><ChevronUp/></button><button className="bare-action" disabled={i===listSongs.length-1} aria-label="Descendre" onClick={()=>void move(i,1)}><ChevronDown/></button><button className="bare-action danger-icon" aria-label="Retirer" onClick={()=>void remove(s.id)}><X/></button></div>):<Empty text="Cette setlist est vide."/>}</div></section>
-  {addOpen&&<Modal className="setlist-add-modal" title="Ajouter des morceaux" onClose={closeAdd}><div className="setlist-add-mode"><button className={addMode==='song'?'active':''} onClick={()=>{setAddMode('song');setArtistPick('');setAddQuery('')}}><Search/>Rechercher un morceau</button><button className={addMode==='artist'?'active':''} onClick={()=>{setAddMode('artist');setArtistPick('');setAddQuery('')}}><UsersRound/>Rechercher un artiste</button></div><div className="setlist-add-search"><Search/><input value={addQuery} onChange={e=>setAddQuery(e.target.value)} placeholder={addMode==='song'?'Titre, artiste, tonalité, BPM…':'Nom de l’artiste…'}/>{addQuery&&<button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={()=>setAddQuery('')}><X/></button>}</div>{addMode==='song'?<div className="setlist-add-results">{songMatches.length?songMatches.map(s=><button key={s.id} onClick={()=>void addAndStay(s.id)}><span><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}</small></span><span>{s.personalKey||s.originalKey||'—'}{s.bpm!==null?` · ${s.bpm} BPM`:''}</span><Plus/></button>):<p className="muted-copy">Aucun morceau disponible.</p>}</div>:artistPick?<><button className="ghost setlist-artist-back" onClick={()=>setArtistPick('')}><ChevronLeft/>Artistes</button><div className="setlist-add-results">{artistSongs.map(s=><button key={s.id} onClick={()=>void addAndStay(s.id)}><span><b>{s.title}</b><small>{s.artist}</small></span><span>{s.personalKey||s.originalKey||'—'}{s.bpm!==null?` · ${s.bpm} BPM`:''}</span><Plus/></button>)}</div></>:<div className="setlist-artist-results">{artistMatches.map(a=><button key={a} onClick={()=>setArtistPick(a)}><span className="avatar">{a[0]}</span><span><b>{a}</b><small>{available.filter(s=>s.artist.trim()===a).length} morceau(x) disponible(s)</small></span><ChevronRight/></button>)}</div>}</Modal>}
+  <section className="panel setlist-manager"><div className="panel-title-row"><div><h2>Ordre des morceaux</h2><small className="setlist-order-hint">Sur tablette et Android : maintenir un morceau puis le déplacer.</small></div><button className="primary setlist-add-button" onClick={()=>setAddOpen(true)}><ListPlus/>Ajouter des morceaux</button></div><div className="setlist-detail-songs">{listSongs.length?listSongs.map((s,i)=><div className={'setlist-detail-song '+(draggingId===s.id?'dragging':'')} data-setlist-index={i} key={s.id} onPointerDown={e=>startHold(e,i)} onPointerMove={dragMove} onPointerUp={e=>void finishDrag(e)} onPointerCancel={e=>void finishDrag(e)}><span className="setlist-number">{i+1}</span><span className="setlist-drag-grip" aria-hidden="true"><GripVertical/></span><button className="setlist-song-main" onClick={()=>{if(!draggingId)onOpenSong(s)}}><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}{s.bpm!==null?' · '+s.bpm+' BPM':''}</small></button><strong className="setlist-song-key">{s.personalKey||s.originalKey||'—'}</strong><div className="setlist-song-flags">{s.lyrics&&<span>Paroles</span>}{list.rehearsalNotes?.[s.id]&&<span>Notes</span>}</div><button className="bare-action setlist-move-btn" disabled={i===0} aria-label="Monter" onClick={()=>void move(i,-1)}><ChevronUp/></button><button className="bare-action setlist-move-btn" disabled={i===listSongs.length-1} aria-label="Descendre" onClick={()=>void move(i,1)}><ChevronDown/></button><button className="bare-action danger-icon setlist-remove-btn" aria-label="Retirer" onClick={()=>void remove(s.id)}><X/></button></div>):<Empty text="Cette setlist est vide."/></div></section>
+  {addOpen&&<Modal className="setlist-add-modal" title="Ajouter des morceaux" onClose={closeAdd}><div className="setlist-add-mode"><button className={addMode==='song'?'active':''} onClick={()=>{setAddMode('song');setArtistPick('');setAddQuery('')}}><Search/>Rechercher un morceau</button><button className={addMode==='artist'?'active':''} onClick={()=>{setAddMode('artist');setArtistPick('');setAddQuery('')}}><UsersRound/>Rechercher un artiste</button></div><div className="setlist-add-search"><Search/><input value={addQuery} onChange={e=>setAddQuery(e.target.value)} placeholder={addMode==='song'?'Titre, artiste, tonalité, BPM…':'Nom de l’artiste…'}/>{addQuery&&<button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={()=>setAddQuery('')}><X/></button>}</div>{addMode==='song'?<div className="setlist-add-results">{songMatches.length?songMatches.map(s=><button key={s.id} onClick={()=>void addAndStay(s.id)}><span><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}</small></span><span>{s.personalKey||s.originalKey||'—'}{s.bpm!==null?' · '+s.bpm+' BPM':''}</span><Plus/></button>):<p className="muted-copy">Aucun morceau disponible.</p>}</div>:artistPick?<><button className="ghost setlist-artist-back" onClick={()=>setArtistPick('')}><ChevronLeft/>Artistes</button><div className="setlist-add-results">{artistSongs.map(s=><button key={s.id} onClick={()=>void addAndStay(s.id)}><span><b>{s.title}</b><small>{s.artist}</small></span><span>{s.personalKey||s.originalKey||'—'}{s.bpm!==null?' · '+s.bpm+' BPM':''}</span><Plus/></button>)}</div></>:<div className="setlist-artist-results">{artistMatches.map(a=><button key={a} onClick={()=>setArtistPick(a)}><span className="avatar">{a[0]}</span><span><b>{a}</b><small>{available.filter(s=>s.artist.trim()===a).length} morceau(x) disponible(s)</small></span><ChevronRight/></button>)}</div>}</Modal>}
   {stage&&<SetlistStage mode={stage} list={list} songs={listSongs} refresh={refresh} toast={toast} onClose={()=>setStage(null)} onOpenSong={onOpenSong}/>}
   </>
 }
@@ -1000,6 +1050,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const orderedSongs=useMemo(()=>songs.filter(Boolean),[songs])
   const [index,setIndex]=useState(0)
   const [view,setView]=useState<'guide'|'lyrics'>('guide')
+  const [stageTheme,setStageTheme]=useState<'dark'|'light'>('dark')
   const [localNotes,setLocalNotes]=useState<Record<string,string>>(list.rehearsalNotes??{})
   const [lyricsFontSize,setLyricsFontSize]=useState(()=>prefNumber('diart-stage-font',22,14,48))
   const [transpose,setTranspose]=useState(0)
@@ -1096,16 +1147,16 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const displayKey=baseKey?transposeKey(baseKey,transpose):''
   const displayChords=transposeChordText(song.chords??'',transpose)
   const chordSections=chordGuideSections(displayChords)
-  const stageStyle:CSSProperties={position:'fixed',inset:0,zIndex:10000,display:'grid',gridTemplateRows:standalone?'auto minmax(0,1fr)':'auto minmax(0,1fr) auto',overflow:'hidden',background:mode==='rehearsal'?'radial-gradient(circle at 70% 0,#0d3039,#030b0e 52%)':'#02090c',color:'#f2fbfc'}
+  const stageStyle:CSSProperties={position:'fixed',inset:0,zIndex:10000,display:'grid',gridTemplateRows:standalone?'auto minmax(0,1fr)':'auto minmax(0,1fr) auto',overflow:'hidden'}
 
-  return createPortal(<div className={'stage-mode '+mode} style={stageStyle}>
+  return createPortal(<div className={'stage-mode '+mode+' stage-theme-'+stageTheme} data-stage-theme={stageTheme} style={stageStyle}>
     <header className="stage-topbar" style={{zIndex:4,background:'rgba(2,9,12,.96)',borderBottom:'1px solid #17323a',display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center'}}>
       <div className="stage-list-context" style={{gridColumn:1,justifySelf:'start'}}><span>{standalone?'Plein écran':mode==='rehearsal'?'Répétition':'Live Mode'}</span>{!standalone&&<b>{list.name}</b>}</div>
       <div className={'stage-current-song '+(showHeaderIdentity?'identity-visible':'identity-hidden')} style={{gridColumn:2,justifySelf:'center',textAlign:'center'}}>
         <div className="stage-header-identity" aria-hidden={!showHeaderIdentity}><b>{song.title}</b><small>{song.artist||'Artiste inconnu'}</small></div>
         {(hasGuide||song.lyrics)&&<div className="stage-view-tabs">{hasGuide&&<button type="button" className={view==='guide'?'active':''} onClick={()=>{setView('guide');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Repères</button>}{song.lyrics&&<button type="button" className={view==='lyrics'?'active':''} onClick={()=>{setView('lyrics');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Paroles</button>}</div>}
       </div>
-      <button type="button" className="live-close" style={{gridColumn:3,justifySelf:'end'}} onClick={onClose}><X/></button>
+      <div className="stage-top-actions" style={{gridColumn:3,justifySelf:'end'}}><button type="button" className="stage-theme-toggle" aria-label={stageTheme==='dark'?'Passer en mode jour':'Passer en mode nuit'} title={stageTheme==='dark'?'Mode jour':'Mode nuit'} onClick={()=>setStageTheme(t=>t==='dark'?'light':'dark')}>{stageTheme==='dark'?<Sun/>:<Moon/>}</button><button type="button" className="live-close" onClick={onClose} aria-label="Fermer"><X/></button></div>
     </header>
 
     <main ref={contentRef} className="stage-content" onScroll={handleStageScroll} style={{minHeight:0,height:'100%',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',touchAction:'pan-y'}}>
@@ -1132,9 +1183,9 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     </main>
 
     {!standalone&&<footer className="stage-nav compact-stage-nav" style={{zIndex:5,background:'rgba(2,9,12,.97)',borderTop:'1px solid #17323a'}}><div className="stage-nav-inner">
-      <button type="button" className="stage-nav-btn secondary" disabled={index===0} onClick={()=>go(-1)}><ChevronLeft/><span>Précédent</span></button>
+      <button type="button" className="stage-nav-btn secondary" aria-label="Morceau précédent" title="Précédent" disabled={index===0} onClick={()=>go(-1)}><ChevronLeft/></button>
       <div className="stage-nav-count">{index+1} / {orderedSongs.length}</div>
-      <button type="button" className="stage-nav-btn primary" disabled={index===orderedSongs.length-1} onClick={()=>go(1)}><span>Suivant</span><ChevronRight/></button>
+      <button type="button" className="stage-nav-btn primary" aria-label="Morceau suivant" title="Suivant" disabled={index===orderedSongs.length-1} onClick={()=>go(1)}><ChevronRight/></button>
     </div></footer>}
   </div>,document.body)
 }
