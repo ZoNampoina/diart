@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.5.9'
+const APP_VERSION='2.6.0'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -892,14 +892,32 @@ function patchSummary(patch:Partial<SongDraft>):{label:string;value:string}[]{
 
 
 function normalizeImportedLyrics(value:string):string{
-  const lines=String(value??'').replace(/\r/g,'').replace(/\u00a0/g,' ').split('\n').map(line=>line.replace(/[ \t]+$/,'').trimStart())
+  const lines=String(value??'')
+    .replace(/\r/g,'')
+    .replace(/\u00a0/g,' ')
+    .split('\n')
+    .map(line=>line.replace(/[ \t]+$/,'').trimStart())
   const out:string[]=[]
-  for(const line of lines){
-    if(!line.trim()){if(out.length&&out[out.length-1]!=='')out.push('');continue}
+  for(const raw of lines){
+    const line=raw.trimEnd()
+    const section=/^\[(?:Couplet|Refrain|Pré-refrain|Bridge|Prélude|Interlude|Postlude)[^\]]*\]$/i.test(line.trim())
+    if(!line.trim()){
+      if(out.length&&out[out.length-1]!=='')out.push('')
+      continue
+    }
+    if(section){
+      if(out.length&&out[out.length-1]!=='')out.push('')
+      out.push(line.trim())
+      continue
+    }
     out.push(line.trim())
   }
-  while(out[0]==='')out.shift();while(out.length&&out[out.length-1]==='')out.pop()
-  return out.join('\n').replace(/\n{3,}/g,'\n\n').trim()
+  while(out[0]==='')out.shift()
+  while(out.length&&out[out.length-1]==='')out.pop()
+  return out.join('\n')
+    .replace(/\n{3,}/g,'\n\n')
+    .replace(/(\[(?:Couplet|Refrain|Pré-refrain|Bridge|Prélude|Interlude|Postlude)[^\]]*\])\n\n+/g,'$1\n')
+    .trim()
 }
 
 function reviewDraftFromExternal(full:{title?:string;artist?:string;sourceUrl?:string;source?:string;structure?:string;chords?:string;lyrics?:string;originalKey?:string;bpm?:number|null},fallback:{title:string;artist:string;url:string}):SongDraft{
