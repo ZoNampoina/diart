@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.5.7'
+const APP_VERSION='2.5.8'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1364,6 +1364,9 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const [navDirection,setNavDirection]=useState<1|-1>(1)
   const [localNotes,setLocalNotes]=useState<Record<string,string>>(list.rehearsalNotes??{})
   const [localOverrides,setLocalOverrides]=useState(list.songOverrides??{})
+  const localOverridesRef=useRef(list.songOverrides??{})
+  const transposeSaveTimerRef=useRef<number|null>(null)
+  useEffect(()=>{localOverridesRef.current=localOverrides},[localOverrides])
   const [lyricsFontSize,setLyricsFontSize]=useState(()=>prefNumber('diart-stage-font',22,14,48))
   const [transpose,setTranspose]=useState(()=>{const first=songs.filter(Boolean)[0];return first?setlistSongSavedTranspose(list,first):0})
   const [autoScroll,setAutoScroll]=useState(false)
@@ -1391,6 +1394,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const showStageFeedback=(text:string)=>{const id=Date.now()+Math.random();setStageFeedback({id,text});window.setTimeout(()=>setStageFeedback(prev=>prev?.id===id?null:prev),850)}
   const go=(delta:number)=>{setAutoScroll(false);setNavDirection(delta<0?-1:1);setIndex(current=>Math.max(0,Math.min(orderedSongs.length-1,current+delta)))}
 
+  useEffect(()=>()=>{if(transposeSaveTimerRef.current!==null)window.clearTimeout(transposeSaveTimerRef.current);if(!standalone)void updateSetlist(list.id,{songOverrides:localOverridesRef.current})},[])
   useEffect(()=>{try{localStorage.setItem('diart-stage-font',String(lyricsFontSize))}catch{}},[lyricsFontSize])
   useEffect(()=>{try{localStorage.setItem('diart-stage-scroll-speed',String(scrollSpeed))}catch{}},[scrollSpeed])
   useEffect(()=>{try{localStorage.setItem('diart-stage-tools-collapsed',toolsCollapsed?'1':'0')}catch{}},[toolsCollapsed])
@@ -1448,7 +1452,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     const onKey=(e:KeyboardEvent)=>{
       const target=e.target as HTMLElement|null
       const editing=Boolean(target&&['INPUT','TEXTAREA','SELECT'].includes(target.tagName))
-      if(e.key==='Escape'&&!locked){e.preventDefault();onClose();return}
+      if(e.key==='Escape'&&!locked){e.preventDefault();void closeToSetlist();return}
       if(editing)return
       if(e.key==='ArrowRight'){e.preventDefault();go(1);return}
       if(e.key==='ArrowLeft'){e.preventDefault();go(-1);return}
@@ -1560,10 +1564,23 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     if(standalone||!song)return
     const reference=song.originalKey
     const selectedKey=reference?transposeKey(reference,next):''
-    const nextOverrides={...localOverrides,[song.id]:{...(localOverrides[song.id]??{}),transpose:next,key:selectedKey}}
+    const current=localOverridesRef.current
+    const nextOverrides={...current,[song.id]:{...(current[song.id]??{}),transpose:next,key:selectedKey}}
+    localOverridesRef.current=nextOverrides
     setLocalOverrides(nextOverrides)
-    void updateSetlist(list.id,{songOverrides:nextOverrides}).then(()=>refresh())
+    if(transposeSaveTimerRef.current!==null)window.clearTimeout(transposeSaveTimerRef.current)
+    transposeSaveTimerRef.current=window.setTimeout(()=>{
+      transposeSaveTimerRef.current=null
+      void updateSetlist(list.id,{songOverrides:localOverridesRef.current}).then(()=>refresh())
+    },180)
   }
+  const saveSetlistChoices=async()=>{
+    if(standalone)return
+    if(transposeSaveTimerRef.current!==null){window.clearTimeout(transposeSaveTimerRef.current);transposeSaveTimerRef.current=null}
+    await updateSetlist(list.id,{songOverrides:localOverridesRef.current})
+    await refresh()
+  }
+  const closeToSetlist=async()=>{await saveSetlistChoices();onClose()}
   const baseKey=song.originalKey
   const habitualOffset=baseKey&&song.personalKey&&normalizeKey(song.personalKey)!==normalizeKey(baseKey)?keyOffsetFromOriginal(baseKey,song.personalKey):null
   const displayKey=baseKey?transposeKey(baseKey,transpose):''
@@ -1589,7 +1606,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
         <div className="stage-header-identity" aria-hidden={!showHeaderIdentity}><b>{song.title}</b><small>{song.artist||'Artiste inconnu'}</small></div>
         {(hasGuide||song.lyrics)&&<div className="stage-view-tabs">{hasGuide&&<button type="button" className={view==='guide'?'active':''} onClick={()=>{setView('guide');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Repères</button>}{song.lyrics&&<button type="button" className={view==='lyrics'?'active':''} onClick={()=>{setView('lyrics');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Paroles</button>}</div>}
       </div>
-      <div className="stage-top-actions" style={{gridColumn:3,justifySelf:'end'}}><button type="button" className={'stage-lock-toggle '+(locked?'active':'')} aria-label={locked?'Déverrouiller Live':'Verrouiller Live'} title={locked?'Déverrouiller':'Verrouiller'} onClick={()=>setLocked(v=>!v)}>{locked?<Lock/>:<Unlock/>}</button><button type="button" className="stage-theme-toggle" aria-label={stageTheme==='dark'?'Passer en mode jour':'Passer en mode nuit'} title={stageTheme==='dark'?'Mode jour':'Mode nuit'} onClick={()=>setStageTheme(t=>t==='dark'?'light':'dark')}>{stageTheme==='dark'?<Sun/>:<Moon/>}</button><button type="button" className="live-close" disabled={locked} onClick={onClose} aria-label="Fermer"><X/></button></div>
+      <div className="stage-top-actions" style={{gridColumn:3,justifySelf:'end'}}><button type="button" className={'stage-lock-toggle '+(locked?'active':'')} aria-label={locked?'Déverrouiller Live':'Verrouiller Live'} title={locked?'Déverrouiller':'Verrouiller'} onClick={()=>setLocked(v=>!v)}>{locked?<Lock/>:<Unlock/>}</button><button type="button" className="stage-theme-toggle" aria-label={stageTheme==='dark'?'Passer en mode jour':'Passer en mode nuit'} title={stageTheme==='dark'?'Mode jour':'Mode nuit'} onClick={()=>setStageTheme(t=>t==='dark'?'light':'dark')}>{stageTheme==='dark'?<Sun/>:<Moon/>}</button><button type="button" className="live-close" disabled={locked} onClick={()=>void closeToSetlist()} aria-label="Fermer"><X/></button></div>
     </header>
 
     <main key={song.id} ref={contentRef} className={'stage-content stage-song-motion '+(navDirection>0?'motion-next':'motion-prev')} onScroll={handleStageScroll} onClick={handleTap} onTouchStart={e=>{beginSwipe(e);beginLongPress()}} onTouchMove={e=>{moveSwipe(e);cancelLongPress()}} onTouchEnd={e=>{endSwipe(e);cancelLongPress()}} onTouchCancel={cancelLongPress} style={{minHeight:0,height:'100%',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',touchAction:'pan-y'}}>
