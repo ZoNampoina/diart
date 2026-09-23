@@ -1173,6 +1173,14 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     const t=e.touches[0]
     swipeStart.current={x:t.clientX,y:t.clientY}
   }
+  const moveSwipe=(e:TouchEvent<HTMLElement>)=>{
+    const start=swipeStart.current
+    if(!start||e.touches.length!==1)return
+    const t=e.touches[0]
+    const dx=t.clientX-start.x
+    const dy=t.clientY-start.y
+    if(Math.abs(dy)>14&&Math.abs(dy)>Math.abs(dx)*1.05)swipeStart.current=null
+  }
   const endSwipe=(e:TouchEvent<HTMLElement>)=>{
     const start=swipeStart.current
     swipeStart.current=null
@@ -1201,10 +1209,18 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const displayChords=transposeChordText(song.chords??'',transpose)
   const chordSections=chordGuideSections(displayChords)
   const stageStyle:CSSProperties={position:'fixed',inset:0,zIndex:10000,display:'grid',gridTemplateRows:standalone?'auto minmax(0,1fr)':'auto minmax(0,1fr) auto',overflow:'hidden'}
+  const stageTools=<div className={'stage-session-tools '+(toolsCollapsed?'collapsed':'')}>
+    <button type="button" className="stage-tools-toggle" title={toolsCollapsed?'Afficher les réglages':'Minimiser les réglages'} onClick={()=>setToolsCollapsed(v=>!v)}>{toolsCollapsed?<ChevronDown/>:<ChevronUp/>}<span>{toolsCollapsed?'Réglages':'Masquer'}</span></button>
+    <div className={'stage-tools-body collapsible-body '+(toolsCollapsed?'is-collapsed':'is-expanded')}>
+      <div className="stage-control-group"><span>Paroles</span><button type="button" title="Réduire la police" onClick={()=>setLyricsFontSize(v=>Math.max(14,v-2))}><Minus/></button><b>{lyricsFontSize}</b><button type="button" title="Agrandir la police" onClick={()=>setLyricsFontSize(v=>Math.min(48,v+2))}><Plus/></button></div>
+      <div className="stage-control-group"><span>Transposer</span><button type="button" title="-1 demi-ton" onClick={()=>setTranspose(v=>Math.max(-12,v-1))}><Minus/></button><b>{formatSemitoneOffset(transpose)}</b><button type="button" title="+1 demi-ton" onClick={()=>setTranspose(v=>Math.min(12,v+1))}><Plus/></button><button type="button" title="Réinitialiser" className="stage-reset-btn" disabled={transpose===0} onClick={()=>setTranspose(0)}><RotateCcw/></button></div>
+      <div className={'stage-control-group auto-scroll-control '+(autoScroll?'active':'')}><span>Défilement</span><button type="button" className="stage-autoscroll-toggle" title={autoScroll?'Arrêter':'Démarrer'} onClick={()=>setAutoScroll(v=>!v)}>{autoScroll?<Square/>:<Play/>}</button><input aria-label="Vitesse de défilement" type="range" min="0.05" max="20" step="0.05" value={scrollSpeed} onChange={e=>setScrollSpeed(Number(e.target.value))}/><b>{scrollSpeed<1?scrollSpeed.toFixed(2):scrollSpeed<10?scrollSpeed.toFixed(1):Math.round(scrollSpeed)}</b><button type="button" title="Retour en haut" onClick={()=>{setAutoScroll(false);contentRef.current?.scrollTo({top:0,behavior:'smooth'})}}><ChevronUp/></button></div>
+    </div>
+  </div>
 
   return createPortal(<div className={'stage-mode '+mode+' stage-theme-'+stageTheme} data-stage-theme={stageTheme} style={stageStyle}>
     <header className="stage-topbar" style={{zIndex:4,background:'rgba(2,9,12,.96)',borderBottom:'1px solid #17323a',display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center'}}>
-      {!standalone?<div className="stage-list-context" style={{gridColumn:1,justifySelf:'start'}}><span>{mode==='rehearsal'?'Répétition':'Live Mode'}</span><b>{list.name}</b></div>:<span/>}
+      <div className="stage-left-stack" style={{gridColumn:1,justifySelf:'start'}}>{!standalone&&<div className="stage-list-context"><span>{mode==='rehearsal'?'Répétition':'Live Mode'}</span><b>{list.name}</b></div>}{stageTools}</div>
       <div className={'stage-current-song '+(showHeaderIdentity?'identity-visible':'identity-hidden')} style={{gridColumn:2,justifySelf:'center',textAlign:'center'}}>
         <div className="stage-header-identity" aria-hidden={!showHeaderIdentity}><b>{song.title}</b><small>{song.artist||'Artiste inconnu'}</small></div>
         {(hasGuide||song.lyrics)&&<div className="stage-view-tabs">{hasGuide&&<button type="button" className={view==='guide'?'active':''} onClick={()=>{setView('guide');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Repères</button>}{song.lyrics&&<button type="button" className={view==='lyrics'?'active':''} onClick={()=>{setView('lyrics');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Paroles</button>}</div>}
@@ -1212,17 +1228,8 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
       <div className="stage-top-actions" style={{gridColumn:3,justifySelf:'end'}}><button type="button" className="stage-theme-toggle" aria-label={stageTheme==='dark'?'Passer en mode jour':'Passer en mode nuit'} title={stageTheme==='dark'?'Mode jour':'Mode nuit'} onClick={()=>setStageTheme(t=>t==='dark'?'light':'dark')}>{stageTheme==='dark'?<Sun/>:<Moon/>}</button><button type="button" className="live-close" onClick={onClose} aria-label="Fermer"><X/></button></div>
     </header>
 
-    <main key={song.id} ref={contentRef} className={'stage-content stage-song-motion '+(navDirection>0?'motion-next':'motion-prev')} onScroll={handleStageScroll} onTouchStart={beginSwipe} onTouchEnd={endSwipe} style={{minHeight:0,height:'100%',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',touchAction:'pan-y'}}>
+    <main key={song.id} ref={contentRef} className={'stage-content stage-song-motion '+(navDirection>0?'motion-next':'motion-prev')} onScroll={handleStageScroll} onTouchStart={beginSwipe} onTouchMove={moveSwipe} onTouchEnd={endSwipe} style={{minHeight:0,height:'100%',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',touchAction:'pan-y'}}>
       <div ref={songHeadRef} className={'stage-song-head '+(showHeaderIdentity?'handoff':'')}><p>{song.artist||'Artiste inconnu'}</p><h1>{song.title}</h1><div className="stage-metrics">{displayKey&&<strong>{displayKey}</strong>}{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div></div>
-
-      <div className={'stage-session-tools '+(toolsCollapsed?'collapsed':'')}>
-        <button type="button" className="stage-tools-toggle" title={toolsCollapsed?'Afficher les réglages':'Minimiser les réglages'} onClick={()=>setToolsCollapsed(v=>!v)}>{toolsCollapsed?<ChevronDown/>:<ChevronUp/>}<span>{toolsCollapsed?'Réglages':'Masquer'}</span></button>
-        <div className={'stage-tools-body collapsible-body '+(toolsCollapsed?'is-collapsed':'is-expanded')}>
-          <div className="stage-control-group"><span>Paroles</span><button type="button" title="Réduire la police" onClick={()=>setLyricsFontSize(v=>Math.max(14,v-2))}><Minus/></button><b>{lyricsFontSize}</b><button type="button" title="Agrandir la police" onClick={()=>setLyricsFontSize(v=>Math.min(48,v+2))}><Plus/></button></div>
-          <div className="stage-control-group"><span>Transposer</span><button type="button" title="-1 demi-ton" onClick={()=>setTranspose(v=>Math.max(-12,v-1))}><Minus/></button><b>{formatSemitoneOffset(transpose)}</b><button type="button" title="+1 demi-ton" onClick={()=>setTranspose(v=>Math.min(12,v+1))}><Plus/></button><button type="button" title="Réinitialiser" className="stage-reset-btn" disabled={transpose===0} onClick={()=>setTranspose(0)}><RotateCcw/></button></div>
-          <div className={'stage-control-group auto-scroll-control '+(autoScroll?'active':'')}><span>Défilement</span><button type="button" className="stage-autoscroll-toggle" title={autoScroll?'Arrêter':'Démarrer'} onClick={()=>setAutoScroll(v=>!v)}>{autoScroll?<Square/>:<Play/>}</button><input aria-label="Vitesse de défilement" type="range" min="0.05" max="20" step="0.05" value={scrollSpeed} onChange={e=>setScrollSpeed(Number(e.target.value))}/><b>{scrollSpeed<1?scrollSpeed.toFixed(2):scrollSpeed<10?scrollSpeed.toFixed(1):Math.round(scrollSpeed)}</b><button type="button" title="Retour en haut" onClick={()=>{setAutoScroll(false);contentRef.current?.scrollTo({top:0,behavior:'smooth'})}}><ChevronUp/></button></div>
-        </div>
-      </div>
 
       {view==='lyrics'&&song.lyrics
         ?<pre className="stage-lyrics" style={{fontSize:lyricsFontSize}}>{song.lyrics}</pre>
