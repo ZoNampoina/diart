@@ -321,8 +321,12 @@ function Dashboard({songs,artists,authors,setlists,refreshSetlists,toast,onOpen,
   </>
 }
 
-function LibraryPage({songs,setlists,refreshSetlists,toast,searchRef,onOpen,onFav}:{songs:Song[];setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;searchRef:RefObject<HTMLInputElement>;onOpen:(s:Song)=>void;onFav:(s:Song)=>void}) {
+function LibraryPage({songs,setlists,refreshSetlists,toast,searchRef,onOpen,onFav,onDeleteMany,onMerge}:{songs:Song[];setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;searchRef:RefObject<HTMLInputElement>;onOpen:(s:Song)=>void;onFav:(s:Song)=>void;onDeleteMany:(songs:Song[])=>Promise<void>;onMerge:(primary:Song,secondary:Song)=>Promise<void>}) {
   const [q,setQ]=useState(''),[key,setKey]=useState(''),[sig,setSig]=useState(''),[style,setStyle]=useState(''),[favOnly,setFavOnly]=useState(false),[min,setMin]=useState(''),[max,setMax]=useState(''),[sort,setSort]=useState('title'),[filters,setFilters]=useState(false)
+  const [manage,setManage]=useState(false)
+  const [selectedIds,setSelectedIds]=useState<string[]>([])
+  const [confirmDelete,setConfirmDelete]=useState(false)
+  const [mergeOpen,setMergeOpen]=useState(false)
   const deferredQ=useDeferredValue(q)
   const keys=[...new Set(songs.map(s=>s.personalKey||s.originalKey).filter(Boolean))].sort()
   const sigs=[...new Set(songs.map(s=>s.timeSignature).filter(Boolean))].sort()
@@ -333,12 +337,28 @@ function LibraryPage({songs,setlists,refreshSetlists,toast,searchRef,onOpen,onFa
     .filter(s=>!min||(s.bpm!==null&&s.bpm>=Number(min))).filter(s=>!max||(s.bpm!==null&&s.bpm<=Number(max)))
     .sort((a,b)=>sort==='artist'?a.artist.localeCompare(b.artist):sort==='bpm'?(a.bpm??999)-(b.bpm??999):sort==='updated'?b.updatedAt.localeCompare(a.updatedAt):a.title.localeCompare(b.title)),
   [songs,deferredQ,key,sig,style,favOnly,min,max,sort])
+  const selectedSongs=selectedIds.map(id=>songs.find(s=>s.id===id)).filter(Boolean) as Song[]
+  const toggle=(id:string)=>setSelectedIds(ids=>ids.includes(id)?ids.filter(x=>x!==id):[...ids,id])
+  const exitManage=()=>{setManage(false);setSelectedIds([])}
   return <>
-    <div className="page-head compact"><div><p className="eyebrow">Bibliothèque</p><h1>{songs.length} morceaux</h1></div></div>
+    <div className="page-head compact"><div><p className="eyebrow">Bibliothèque</p><h1>{songs.length} morceaux</h1></div><button className={manage?'primary':'secondary'} onClick={()=>manage?exitManage():setManage(true)}>{manage?<X/>:<MoreHorizontal/>}{manage?'Terminer':'Gérer'}</button></div>
     <div className="toolbar"><div className="searchbox"><Search/><input ref={searchRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Titre, artiste, auteur, tonalité, BPM, tags…"/>{q&&<button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={()=>setQ('')}><X/></button>}</div><button className="secondary" onClick={()=>setFilters(v=>!v)}><Filter/>Filtres</button><label className="select-wrap"><ArrowUpDown/><select value={sort} onChange={e=>setSort(e.target.value)}><option value="title">Titre A–Z</option><option value="artist">Artiste A–Z</option><option value="bpm">BPM</option><option value="updated">Modifiés récemment</option></select></label></div>
     {filters&&<div className="filters"><select value={key} onChange={e=>setKey(e.target.value)}><option value="">Toutes tonalités</option>{keys.map(x=><option key={x}>{x}</option>)}</select><input value={min} onChange={e=>setMin(e.target.value)} placeholder="BPM min"/><input value={max} onChange={e=>setMax(e.target.value)} placeholder="BPM max"/><select value={sig} onChange={e=>setSig(e.target.value)}><option value="">Toutes signatures</option>{sigs.map(x=><option key={x}>{x}</option>)}</select><select value={style} onChange={e=>setStyle(e.target.value)}><option value="">Tous styles</option>{styles.map(x=><option key={x}>{x}</option>)}</select><label><input type="checkbox" checked={favOnly} onChange={e=>setFavOnly(e.target.checked)}/> Favoris</label></div>}
-    <p className="result-count">{result.length} résultat{result.length>1?'s':''}</p><div className="songs-list">{result.length?result.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)} action={<QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/>}/>):<Empty text="Aucun résultat."/>}</div>
+    {manage&&<div className="library-manage-bar"><div><b>{selectedIds.length} sélectionné{selectedIds.length>1?'s':''}</b><small>Sélectionnez 1+ morceau pour supprimer, exactement 2 pour fusionner.</small></div><div><button className="secondary" disabled={selectedIds.length!==2} onClick={()=>setMergeOpen(true)}><GitMerge/>Fusionner</button><button className="danger" disabled={!selectedIds.length} onClick={()=>setConfirmDelete(true)}><Trash2/>Supprimer</button></div></div>}
+    <p className="result-count">{result.length} résultat{result.length>1?'s':''}</p><div className="songs-list">{result.length?result.map(s=><div className={'managed-song '+(selectedIds.includes(s.id)?'selected':'')} key={s.id}>{manage&&<button className="manage-select" aria-label={selectedIds.includes(s.id)?'Désélectionner':'Sélectionner'} onClick={()=>toggle(s.id)}>{selectedIds.includes(s.id)?<Check/>:<span/>}</button>}<SongRow song={s} onOpen={()=>manage?toggle(s.id):onOpen(s)} onFav={()=>onFav(s)} action={manage?undefined:<QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/>}</div>):<Empty text="Aucun résultat."/>}</div>
+    {confirmDelete&&<Modal title={selectedIds.length>1?'Supprimer les morceaux sélectionnés ?':'Supprimer ce morceau ?'} onClose={()=>setConfirmDelete(false)}><p>{selectedIds.length} morceau{selectedIds.length>1?'x':''} sera{selectedIds.length>1?'ont':''} placé{selectedIds.length>1?'s':''} dans la corbeille.</p><div className="modal-actions"><button className="secondary" onClick={()=>setConfirmDelete(false)}>Annuler</button><button className="danger" onClick={()=>void onDeleteMany(selectedSongs).then(()=>{setConfirmDelete(false);exitManage()})}><Trash2/>Supprimer</button></div></Modal>}
+    {mergeOpen&&selectedSongs.length===2&&<MergeSongsModal a={selectedSongs[0]} b={selectedSongs[1]} onClose={()=>setMergeOpen(false)} onMerge={async(primary,secondary)=>{await onMerge(primary,secondary);setMergeOpen(false);exitManage()}}/>}
   </>
+}
+
+function MergeSongsModal({a,b,onClose,onMerge}:{a:Song;b:Song;onClose:()=>void;onMerge:(primary:Song,secondary:Song)=>Promise<void>}) {
+  const [primaryId,setPrimaryId]=useState(a.id)
+  const [busy,setBusy]=useState(false)
+  const primary=primaryId===a.id?a:b
+  const secondary=primaryId===a.id?b:a
+  const merged=mergeSongDraft(primary,secondary)
+  const gains=songCompletion(primary,merged).labels
+  return <Modal className="merge-modal" title="Fusionner deux morceaux" onClose={onClose}><p className="muted-copy">Choisissez la fiche principale. Ses informations existantes seront conservées ; les champs manquants seront complétés par l’autre fiche. Le doublon sera placé dans la corbeille.</p><div className="merge-choice-grid">{[a,b].map(song=><button type="button" key={song.id} className={primaryId===song.id?'selected':''} onClick={()=>setPrimaryId(song.id)}><span>{primaryId===song.id?<Check/>:<span/>}</span><div><b>{song.title}</b><small>{song.artist||'Artiste inconnu'}</small></div></button>)}</div><div className="import-review-suggestion"><b>La fiche principale gagnera :</b><div>{gains.length?gains.map(x=><span key={x}><Plus/>{x}</span>):<span><Check/>Aucun champ vide supplémentaire</span>}</div></div><div className="modal-actions"><button className="secondary" onClick={onClose}>Annuler</button><button className="primary" disabled={busy} onClick={()=>{setBusy(true);void onMerge(primary,secondary).finally(()=>setBusy(false))}}><GitMerge/>{busy?'Fusion…':'Fusionner'}</button></div></Modal>
 }
 
 
