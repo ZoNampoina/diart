@@ -87,6 +87,7 @@ export function parseChordPro(text:string):SongDraft{
     const chords=[...line.matchAll(/\[([^\]]+)\]/g)].map(m=>m[1].trim()).filter(Boolean)
     const lyric=line.replace(/\[[^\]]+\]/g,'').trim()
     if(chords.length) chordRows.push(chords.join('  '))
+    else if(!line.trim()&&chordRows.length&&chordRows[chordRows.length-1]!=='') chordRows.push('')
     else if(lyric) chordRows.push('')
     if(lyric) lyrics.push(lyric)
     else if(!line.trim()&&lyrics.length&&lyrics[lyrics.length-1]!=='') lyrics.push('')
