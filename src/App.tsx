@@ -2,7 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode,
 import { createPortal } from 'react-dom'
 import {
   BookOpen, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Heart, Home, Import,
-  Library, Menu, Moon, MoreHorizontal, Music2, Plus, Search, Settings, Star, Sun,
+  Library, Moon, MoreHorizontal, Music2, Plus, Search, Settings, Star, Sun,
   Trash2, Upload, UserRound, UsersRound, Wifi, WifiOff, X, Pencil, Save, RotateCcw,
   Filter, ArrowUpDown, Check, AlertTriangle, Minus, ListMusic, Cloud, LogIn, LogOut,
   Play, Square, Gauge, Maximize2, ChevronUp, ChevronDown, ListPlus, BookMarked, ExternalLink, FileUp, Globe2,
