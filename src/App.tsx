@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.5.6'
+const APP_VERSION='2.5.7'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -122,26 +122,25 @@ function keyOffsetFromOriginal(original:string,target:string):number{
   return best
 }
 function setlistSongSavedTranspose(list:Setlist,song:Song):number{
-  const reference=song.originalKey||song.personalKey
+  const reference=song.originalKey
   if(!reference)return 0
   const override=list.songOverrides?.[song.id]
   if(!override)return 0
   if(override.key)return keyOffsetFromOriginal(reference,override.key)
   if(Object.prototype.hasOwnProperty.call(override,'transpose')){
+    // Legacy overrides were calculated from the habitual key when present.
     const legacyBase=song.personalKey||song.originalKey
-    if(!legacyBase)return 0
     const legacyKey=transposeKey(legacyBase,override.transpose??0)
     return keyOffsetFromOriginal(reference,legacyKey)
   }
   return 0
 }
 function setlistSongDisplayKey(list:Setlist,song:Song):string{
-  const reference=song.originalKey||song.personalKey
-  if(!reference)return ''
+  if(!song.originalKey)return ''
   const override=list.songOverrides?.[song.id]
   if(override?.key)return normalizeKey(override.key)
   const shift=setlistSongSavedTranspose(list,song)
-  return shift?transposeKey(reference,shift):reference
+  return shift?transposeKey(song.originalKey,shift):song.originalKey
 }
 
 function conflictValueSummary(value:unknown,field:string):string{
@@ -473,14 +472,14 @@ function LibraryPage({songs,setlists,refreshSetlists,toast,searchRef,onOpen,onFa
   const [confirmDelete,setConfirmDelete]=useState(false)
   const [mergeOpen,setMergeOpen]=useState(false)
   const deferredQ=useDeferredValue(q)
-  const keys=[...new Set(songs.map(s=>s.personalKey||s.originalKey).filter(Boolean))].sort()
+  const keys=[...new Set(songs.map(s=>s.originalKey).filter(Boolean))].sort()
   const sigs=[...new Set(songs.map(s=>s.timeSignature).filter(Boolean))].sort()
   const styles=[...new Set(songs.map(s=>s.style).filter(Boolean))].sort()
   const artists=[...new Set(songs.map(s=>s.artist).filter(Boolean))].sort()
   const authors=[...new Set(songs.map(s=>s.authorComposer).filter(Boolean))].sort()
   const tags=[...new Set(songs.flatMap(s=>s.tags??[]).filter(Boolean))].sort()
   const result=useMemo(()=>songs.filter(s=>searchSong(s,deferredQ))
-    .filter(s=>!key||(s.personalKey||s.originalKey)===key).filter(s=>!sig||s.timeSignature===sig)
+    .filter(s=>!key||s.originalKey===key).filter(s=>!sig||s.timeSignature===sig)
     .filter(s=>!style||s.style===style).filter(s=>!favOnly||s.favorite)
     .filter(s=>!artistFilter||s.artist===artistFilter).filter(s=>!authorFilter||s.authorComposer===authorFilter)
     .filter(s=>!tagFilter||(s.tags??[]).includes(tagFilter)).filter(s=>!favoriteStatusFilter||(s.favoriteStatus??(s.favorite?'favorite':''))===favoriteStatusFilter)
@@ -1141,7 +1140,7 @@ function HistoryPage({songs}:{songs:Song[]}) {
     return [...map.entries()]
   },[plays])
   const avgBpm=useMemo(()=>{const vals=songs.map(s=>s.bpm).filter((x):x is number=>x!==null);return vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):0},[songs])
-  const topKey=useMemo(()=>{const m=new Map<string,number>();songs.forEach(s=>{const k=s.personalKey||s.originalKey;if(k)m.set(k,(m.get(k)||0)+1)});return [...m.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'—'},[songs])
+  const topKey=useMemo(()=>{const m=new Map<string,number>();songs.forEach(s=>{const k=s.originalKey;if(k)m.set(k,(m.get(k)||0)+1)});return [...m.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'—'},[songs])
   const topArtist=useMemo(()=>{const m=new Map<string,number>();songs.forEach(s=>{if(s.artist)m.set(s.artist,(m.get(s.artist)||0)+1)});return [...m.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'—'},[songs])
   const mostPlayed=useMemo(()=>{const m=new Map<string,number>();plays.forEach(p=>{if(p.songTitle)m.set(p.songTitle,(m.get(p.songTitle)||0)+1)});return [...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8)},[plays])
   return <><div className="history-tabs"><button className={tab==='activity'?'active':''} onClick={()=>setTab('activity')}><History/>Activité</button><button className={tab==='play'?'active':''} onClick={()=>setTab('play')}><Play/>Historique de jeu</button><button className={tab==='stats'?'active':''} onClick={()=>setTab('stats')}><BarChart3/>Statistiques</button></div>
@@ -1559,13 +1558,13 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const persistTranspose=(next:number)=>{
     setTranspose(next)
     if(standalone||!song)return
-    const reference=song.originalKey||song.personalKey
+    const reference=song.originalKey
     const selectedKey=reference?transposeKey(reference,next):''
     const nextOverrides={...localOverrides,[song.id]:{...(localOverrides[song.id]??{}),transpose:next,key:selectedKey}}
     setLocalOverrides(nextOverrides)
     void updateSetlist(list.id,{songOverrides:nextOverrides}).then(()=>refresh())
   }
-  const baseKey=song.originalKey||song.personalKey
+  const baseKey=song.originalKey
   const habitualOffset=baseKey&&song.personalKey&&normalizeKey(song.personalKey)!==normalizeKey(baseKey)?keyOffsetFromOriginal(baseKey,song.personalKey):null
   const displayKey=baseKey?transposeKey(baseKey,transpose):''
   const displayChords=transposeChordText(song.chords??'',transpose)
