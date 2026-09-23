@@ -93,8 +93,8 @@ export async function updateSetlist(id:string, patch:Partial<Omit<Setlist,'id'|'
 }
 
 
-export async function logActivity(kind:ActivityKind,label:string,details:string,meta:{songId?:string|null;songTitle?:string;source?:string}={}):Promise<ActivityEntry>{
-  const entry:ActivityEntry={id:crypto.randomUUID(),kind,label,details,createdAt:now(),songId:meta.songId??null,songTitle:meta.songTitle??'',source:meta.source??''}
+export async function logActivity(kind:ActivityKind,label:string,details:string,meta:{songId?:string|null;songTitle?:string;source?:string;sessionId?:string;setlistId?:string;setlistName?:string}={}):Promise<ActivityEntry>{
+  const entry:ActivityEntry={id:crypto.randomUUID(),kind,label,details,createdAt:now(),songId:meta.songId??null,songTitle:meta.songTitle??'',source:meta.source??'',sessionId:meta.sessionId??'',setlistId:meta.setlistId??'',setlistName:meta.setlistName??''}
   await db.activity.add(entry)
   return entry
 }
