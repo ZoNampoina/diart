@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.5.2'
+const APP_VERSION='2.5.3'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -112,6 +112,37 @@ function mergeSongDraft(primary:Song,secondary:Song):SongDraft{
   }
 }
 
+function conflictValueSummary(value:unknown,field:string):string{
+  if(value===null||value===undefined||value==='')return '—'
+  if(Array.isArray(value)){
+    if(field==='songIds')return value.length?value.length+' morceau'+(value.length>1?'x':'')+' · '+value.slice(0,5).join(', ')+(value.length>5?'…':''):'—'
+    return value.length?value.join(', '):'—'
+  }
+  if(typeof value==='object'){
+    const entries=Object.entries(value as Record<string,unknown>)
+    if(!entries.length)return '—'
+    return entries.map(([k,v])=>k+': '+conflictValueSummary(v,k)).join(' · ')
+  }
+  const text=String(value)
+  if(['lyrics','chords','notes','instrumentNotes'].includes(field)){
+    const lines=text.split('\n').filter(Boolean).length
+    const preview=text.replace(/\s+/g,' ').trim().slice(0,110)
+    return (lines?lines+' ligne'+(lines>1?'s':'')+' · ':'')+preview+(text.length>110?'…':'')
+  }
+  return text.length>140?text.slice(0,140)+'…':text
+}
+function conflictDiff(conflict:SyncConflict):{field:string;label:string;local:string;remote:string}[]{
+  const songLabels:Record<string,string>={title:'Titre',artist:'Artiste',authorComposer:'Auteur / Compositeur',originalKey:'Tonalité originale',personalKey:'Tonalité habituelle',bpm:'BPM',timeSignature:'Signature',style:'Style',durationSeconds:'Durée',tags:'Tags',notes:'Notes générales',referenceUrl:'Lien source',capo:'Capo',structure:'Structure',chords:'Accords',instrumentNotes:'Notes instrumentales',musicianNotes:'Notes par musicien',lyrics:'Paroles',favorite:'Favori',favoriteStatus:'Statut personnel'}
+  const setlistLabels:Record<string,string>={name:'Nom',songIds:'Ordre / morceaux',notes:'Notes',rehearsalNotes:'Notes de répétition',songOverrides:'Réglages propres à la setlist'}
+  const labels=conflict.kind==='song'?songLabels:setlistLabels
+  const local=conflict.local as any,remote=conflict.remote as any
+  return Object.entries(labels).flatMap(([field,label])=>{
+    const a=local?.[field],b=remote?.[field]
+    if(JSON.stringify(a)===JSON.stringify(b))return []
+    return [{field,label,local:conflictValueSummary(a,field),remote:conflictValueSummary(b,field)}]
+  })
+}
+
 function App() {
   const {songs,refresh,patchLocal,addLocal,removeLocal}=useSongs()
   const [page,setPage]=useState<Page>('dashboard')
@@ -129,7 +160,7 @@ function App() {
   const [recueilPrefill,setRecueilPrefill]=useState<{title?:string;artist?:string}|null>(null)
   const [createName,setCreateName]=useState('')
   const [sidebar,setSidebar]=useState(false)
-  const [theme,setTheme]=useState<'dark'|'light'|'system'>('dark')
+  const [theme,setTheme]=useState<'dark'|'light'|'system'>('system')
   const [online,setOnline]=useState(navigator.onLine)
   const [toasts,setToasts]=useState<Toast[]>([])
   const [setlists,setSetlists]=useState<Setlist[]>([])
@@ -143,7 +174,7 @@ function App() {
   const [syncPrefsReady,setSyncPrefsReady]=useState(false)
   const [syncConflicts,setSyncConflicts]=useState<SyncConflict[]>([])
   const [shortcuts,setShortcuts]=useState<Record<string,string>>(()=>{try{return {...DEFAULT_SHORTCUTS,...JSON.parse(localStorage.getItem('diart-shortcuts')||'{}')}}catch{return DEFAULT_SHORTCUTS}})
-  const [gestures,setGestures]=useState(()=>{try{const saved=JSON.parse(localStorage.getItem('diart-gestures')||'{}');return {...DEFAULT_GESTURES,...saved,doubleTapPlay:saved.doubleTapPlay??saved.doubleTapPlay??true}}catch{return DEFAULT_GESTURES}})
+  const [gestures,setGestures]=useState(()=>{try{const saved=JSON.parse(localStorage.getItem('diart-gestures')||'{}');return {...DEFAULT_GESTURES,...saved,doubleTapPlay:saved.doubleTapPlay??saved.doubleTapTools??true}}catch{return DEFAULT_GESTURES}})
   const syncLockRef=useRef(false)
   const syncTimerRef=useRef<number|null>(null)
   const searchRef=useRef<HTMLInputElement>(null)
@@ -190,7 +221,7 @@ function App() {
   }
 
   useEffect(()=>{
-    void getSetting('theme','dark').then(v=>setTheme((v as typeof theme)||'dark'))
+    void getSetting('theme','system').then(async v=>{let next=(v as typeof theme)||'system';try{if(!localStorage.getItem('diart-theme-system-default-v1')){next='system';localStorage.setItem('diart-theme-system-default-v1','1');await setSetting('theme','system')}}catch{};setTheme(next)})
     void getSetting('lastSyncAt','').then(setLastSyncAt)
     void Promise.all([getSetting('syncMode','auto'),getSetting('syncIntervalMinutes','15')]).then(([mode,interval])=>{
       setSyncMode(mode==='manual'?'manual':'auto')
@@ -217,9 +248,12 @@ function App() {
     return()=>window.clearInterval(timer)
   },[userId,online,syncMode,syncIntervalMinutes,syncPrefsReady])
   useEffect(()=>{
-    const resolved=theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):theme
-    document.documentElement.dataset.theme=resolved
+    const media=matchMedia('(prefers-color-scheme: dark)')
+    const apply=()=>{document.documentElement.dataset.theme=theme==='system'?(media.matches?'dark':'light'):theme}
+    apply()
+    if(theme==='system')media.addEventListener?.('change',apply)
     void setSetting('theme',theme)
+    return()=>media.removeEventListener?.('change',apply)
   },[theme])
   useEffect(()=>{try{localStorage.setItem('diart-shortcuts',JSON.stringify(shortcuts))}catch{}},[shortcuts])
   useEffect(()=>{try{localStorage.setItem('diart-gestures',JSON.stringify(gestures))}catch{}},[gestures])
@@ -334,7 +368,7 @@ function App() {
 
   return <div className="app-shell">
     <aside className={`sidebar ${sidebar?'open':''}`}>
-      <div className="sidebar-head"><button className="brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><span className="brand-mark"><img className="brand-logo logo-night" src="./logo-night-v2.png" alt=""/><img className="brand-logo logo-day" src="./logo-day-v2.png" alt=""/></span><div><b>DI'ART</b><small>by ARIZONA</small></div></button><button className="icon-btn sidebar-theme-toggle" title="Changer le thème" aria-label="Changer le thème" onClick={()=>setTheme(theme==='dark'?'light':'dark')}>{theme==='dark'?<Sun/>:<Moon/>}</button></div>
+      <div className="sidebar-head"><button className="brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><span className="brand-mark"><img className="brand-logo logo-night" src="./logo-night-v2.png" alt=""/><img className="brand-logo logo-day" src="./logo-day-v2.png" alt=""/></span><div><b>DI'ART</b><small>by ARIZONA</small></div></button><button className="icon-btn sidebar-theme-toggle" title={theme==='system'?'Thème système actif':'Revenir au thème système'} aria-label={theme==='system'?'Thème système actif':'Revenir au thème système'} onClick={()=>setTheme(theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark'):'system')}>{theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?<Sun/>:<Moon/>):theme==='dark'?<Sun/>:<Moon/>}</button></div>
       <nav className="grouped-nav">{navGroupDefs.map(group=><div className="nav-group" key={group.label}><span className="nav-group-label">{group.label}</span>{group.ids.map(id=>{const item=navItems.find(x=>x[0]===id)!;const [,label,Icon]=item;return <button key={id} className={page===id?'active':''} onClick={()=>go(id)}><Icon size={19}/>{label}</button>})}</div>)}</nav>
       <div className="sidebar-bottom">{online?<Wifi size={16}/>:<WifiOff size={16}/>} {online?'En ligne':'Hors connexion'}<small>Données locales IndexedDB</small></div>
     </aside>
@@ -378,7 +412,7 @@ function App() {
     {createMode==='menu'&&<Modal title="Créer" onClose={()=>setCreateMode(null)}><div className="create-choice-grid"><button onClick={()=>startNewSong(page==='artist'?selectedArtist:'',page==='author'?selectedAuthor:'')}><Music2/><span><b>Nouveau morceau</b><small>Créer une nouvelle fiche musicale</small></span></button><button onClick={()=>{setCreateMode('artist');setCreateName('')}}><UsersRound/><span><b>Nouvel artiste</b><small>Créer son premier morceau</small></span></button><button onClick={()=>{setCreateMode('setlist');setCreateName('')}}><ListMusic/><span><b>Nouvelle setlist</b><small>Créer une liste vide</small></span></button><button onClick={()=>{setCreateMode(null);go('import')}}><Import/><span><b>Nouvel import</b><small>Importer Excel ou CSV</small></span></button><button onClick={()=>{setCreateMode(null);setRecueilEntry(null);setRecueilPrefill(null);setPage('recueils')}}><BookMarked/><span><b>Importer depuis recueil</b><small>Choisir Tononkira, Ultimate Guitar, Chordify ou ChordPro</small></span></button></div></Modal>}
     {createMode==='artist'&&<Modal title="Nouvel artiste" onClose={()=>setCreateMode(null)}><div className="create-name-form"><label>Nom de l’artiste<input autoFocus value={createName} onChange={e=>setCreateName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')createNamedArtist()}}/></label><div className="modal-actions"><button className="secondary" onClick={()=>setCreateMode('menu')}>Retour</button><button className="primary" disabled={!createName.trim()} onClick={createNamedArtist}><Plus/>Continuer</button></div></div></Modal>}
     {createMode==='setlist'&&<Modal title="Nouvelle setlist" onClose={()=>setCreateMode(null)}><div className="create-name-form"><label>Nom de la setlist<input className="new-setlist-name-input" autoFocus value={createName} onChange={e=>setCreateName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createNamedSetlist()}}/></label><div className="modal-actions"><button className="secondary" onClick={()=>setCreateMode('menu')}>Retour</button><button className="primary" disabled={!createName.trim()} onClick={()=>void createNamedSetlist()}><Plus/>Créer</button></div></div></Modal>}
-    {syncConflicts.length>0&&<Modal className="sync-conflict-modal" title="Conflits de synchronisation" onClose={()=>setSyncConflicts([])}><p className="muted-copy">Ces éléments ont été modifiés sur plusieurs appareils depuis la dernière synchronisation. Choisissez la version à conserver.</p><div className="sync-conflict-list">{syncConflicts.map(conflict=><article key={conflict.kind+conflict.id}><div><b>{conflict.kind==='song'?(conflict.local as Song).title:(conflict.local as Setlist).name}</b><small>Local : {new Date(conflict.localUpdatedAt).toLocaleString()} · Cloud : {new Date(conflict.remoteUpdatedAt).toLocaleString()}</small></div><div><button className="secondary" onClick={()=>void resolveSyncConflict(userId,conflict,'remote').then(async()=>{setSyncConflicts(x=>x.filter(c=>c!==conflict));await Promise.all([refresh(),refreshSetlists()]);toast('Version cloud conservée.')})}>Garder Cloud</button><button className="primary" onClick={()=>void resolveSyncConflict(userId,conflict,'local').then(()=>{setSyncConflicts(x=>x.filter(c=>c!==conflict));toast('Version locale conservée.')})}>Garder Local</button></div></article>)}</div></Modal>}
+    {syncConflicts.length>0&&<Modal className="sync-conflict-modal sync-conflict-detail-modal" title="Conflits de synchronisation" onClose={()=>setSyncConflicts([])}><p className="muted-copy">Comparez les modifications avant de choisir. Seuls les champs réellement différents sont affichés.</p><div className="sync-conflict-list">{syncConflicts.map(conflict=>{const changes=conflictDiff(conflict);return <article className="sync-conflict-card" key={conflict.kind+conflict.id}><div className="sync-conflict-head"><div><b>{conflict.kind==='song'?(conflict.local as Song).title:(conflict.local as Setlist).name}</b><small>{changes.length} modification{changes.length>1?'s':''} · Local {new Date(conflict.localUpdatedAt).toLocaleString()} · Cloud {new Date(conflict.remoteUpdatedAt).toLocaleString()}</small></div><span>{conflict.kind==='song'?'Morceau':'Setlist'}</span></div><div className="sync-conflict-diff"><div className="sync-conflict-diff-head"><span>Champ</span><b>Local</b><b>Cloud</b></div>{changes.length?changes.map(change=><div className="sync-conflict-diff-row" key={change.field}><span>{change.label}</span><div>{change.local}</div><div>{change.remote}</div></div>):<p className="muted-copy">Aucune différence de contenu détectée.</p>}</div><div className="sync-conflict-actions"><button className="secondary" onClick={()=>void resolveSyncConflict(userId,conflict,'remote').then(async()=>{setSyncConflicts(x=>x.filter(c=>c!==conflict));await Promise.all([refresh(),refreshSetlists()]);toast('Version cloud conservée.')})}>Garder Cloud</button><button className="primary" onClick={()=>void resolveSyncConflict(userId,conflict,'local').then(()=>{setSyncConflicts(x=>x.filter(c=>c!==conflict));toast('Version locale conservée.')})}>Garder Local</button></div></article>})}</div></Modal>}
     <Toasts items={toasts}/>
   </div>
 }
