@@ -6457,3 +6457,71 @@ body,
     --mobile-page-start-gap:12px;
   }
 }
+
+
+/* DI'ART V2.4.11 — stage tabs, song tools and tablet stage-entry sizing */
+
+/* Song detail utility line: no visible parent container on any platform.
+   Individual icons keep only their interaction/hover feedback. */
+.song-detail-actions{
+  background:transparent!important;
+  border:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+.song-detail-actions .detail-icon-actions{
+  background:transparent!important;
+  border:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+
+/* Desktop stage: Paroles / Repères is lower vertically but wider horizontally. */
+@media(min-width:1025px){
+  .stage-view-tabs{
+    min-height:0!important;
+    padding:2px!important;
+    gap:3px!important;
+    border-radius:10px!important;
+  }
+  .stage-view-tabs button{
+    min-width:112px!important;
+    min-height:30px!important;
+    height:30px!important;
+    padding:0 22px!important;
+    line-height:30px!important;
+    border-radius:8px!important;
+  }
+}
+
+/* Tablet: make the Répétition / Live block appreciably wider and easier to hit. */
+@media(min-width:600px) and (max-width:1024px){
+  .setlist-detail-nav.stage-entry-actions{
+    width:100%!important;
+  }
+  .stage-entry-actions .setlist-mode-actions{
+    width:min(620px,92vw)!important;
+    max-width:100%!important;
+    margin-left:auto!important;
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:9px!important;
+  }
+  .stage-entry-actions .setlist-mode-actions button{
+    width:100%!important;
+    min-width:0!important;
+    min-height:46px!important;
+    height:46px!important;
+    padding:0 20px!important;
+    font-size:13px!important;
+    gap:7px!important;
+  }
+  .stage-entry-actions .setlist-mode-actions button svg{
+    width:18px!important;
+    height:18px!important;
+  }
+}
