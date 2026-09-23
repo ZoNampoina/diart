@@ -3918,3 +3918,459 @@ textarea{resize:vertical}
     height:40px!important;
   }
 }
+
+
+/* DI'ART V2.4.2 — responsive controls, stage themes & touch ordering */
+
+/* Top-bar actions: icon-only, no persistent circle/background */
+.theme-toggle,
+.global-create-btn{
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  border-radius:10px!important;
+}
+.theme-toggle{
+  color:var(--accent2)!important;
+}
+.global-create-btn{
+  color:var(--accent2)!important;
+  transform:none!important;
+}
+.theme-toggle:hover,
+.global-create-btn:hover{
+  background:transparent!important;
+  box-shadow:none!important;
+  transform:none!important;
+}
+
+/* Setlist ordering: key becomes a first-class visual datum */
+.setlist-order-hint{
+  display:none;
+  margin-top:3px;
+  color:var(--muted);
+  font-size:10px;
+}
+.setlist-detail-song{
+  grid-template-columns:34px minmax(0,1fr) 74px auto 40px 40px 40px!important;
+}
+.setlist-song-key{
+  min-width:58px;
+  text-align:center;
+  font-size:clamp(26px,2.4vw,34px);
+  line-height:1;
+  letter-spacing:-.04em;
+  color:var(--accent2);
+}
+.setlist-drag-grip{
+  display:none;
+}
+.setlist-detail-song.dragging{
+  position:relative;
+  z-index:5;
+  border-color:var(--accent2)!important;
+  background:color-mix(in srgb,var(--accent) 16%,var(--surface2))!important;
+  box-shadow:0 12px 28px color-mix(in srgb,var(--accent) 18%,transparent);
+  transform:scale(1.01);
+}
+
+/* Stage toolbar: close and theme controls stay visually light */
+.stage-top-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:4px;
+}
+.stage-theme-toggle,
+.stage-topbar .live-close{
+  width:42px!important;
+  height:42px!important;
+  min-height:42px!important;
+  padding:0!important;
+  display:grid!important;
+  place-items:center!important;
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  border-radius:10px!important;
+  color:#d9eef1!important;
+}
+.stage-theme-toggle svg,
+.stage-topbar .live-close svg{
+  width:21px;
+  height:21px;
+}
+.stage-theme-toggle:hover,
+.stage-topbar .live-close:hover{
+  background:rgba(255,255,255,.06)!important;
+}
+
+/* Independent stage theme. Every stage session still starts dark. */
+.stage-mode.stage-theme-dark{
+  background:#02090c!important;
+  color:#f2fbfc!important;
+}
+.stage-mode.rehearsal.stage-theme-dark{
+  background:radial-gradient(circle at 70% 0,#0d3039,#030b0e 52%)!important;
+}
+.stage-mode.stage-theme-light{
+  --stage-bg:#f3f8f8;
+  --stage-surface:#ffffff;
+  --stage-surface2:#e7f1f2;
+  --stage-line:#c8dde0;
+  --stage-text:#10272d;
+  --stage-muted:#607a80;
+  --stage-accent:#0b6575;
+  --stage-accent2:#148a9d;
+  --stage-gold:#9b7627;
+  background:var(--stage-bg)!important;
+  color:var(--stage-text)!important;
+}
+.stage-mode.rehearsal.stage-theme-light{
+  background:radial-gradient(circle at 70% 0,#d7ecef,#f4f8f8 54%)!important;
+}
+.stage-theme-light .stage-topbar{
+  background:rgba(247,251,251,.96)!important;
+  border-bottom-color:var(--stage-line)!important;
+}
+.stage-theme-light .stage-list-context span,
+.stage-theme-light .stage-header-identity>small,
+.stage-theme-light .stage-song-head>p,
+.stage-theme-light .stage-nav-count,
+.stage-theme-light .stage-control-group>span,
+.stage-theme-light .rehearsal-edit-panel small{
+  color:var(--stage-muted)!important;
+}
+.stage-theme-light .stage-list-context b,
+.stage-theme-light .stage-header-identity>b,
+.stage-theme-light .stage-song-head h1,
+.stage-theme-light .stage-control-group>b{
+  color:var(--stage-text)!important;
+}
+.stage-theme-light .stage-view-tabs{
+  background:var(--stage-surface2)!important;
+}
+.stage-theme-light .stage-view-tabs button{
+  color:var(--stage-muted)!important;
+}
+.stage-theme-light .stage-view-tabs button.active{
+  background:#d2e8eb!important;
+  color:var(--stage-accent)!important;
+}
+.stage-theme-light .stage-metrics strong,
+.stage-theme-light .stage-guide-modern h3{
+  color:var(--stage-accent2)!important;
+}
+.stage-theme-light .stage-metrics span{
+  color:var(--stage-text)!important;
+}
+.stage-theme-light .stage-guide-modern>section,
+.stage-theme-light .rehearsal-edit-panel,
+.stage-theme-light .stage-session-tools,
+.stage-theme-light .stage-control-group{
+  background:var(--stage-surface)!important;
+  border-color:var(--stage-line)!important;
+  color:var(--stage-text)!important;
+}
+.stage-theme-light .stage-structure-flow span{
+  background:var(--stage-surface2)!important;
+  border-color:var(--stage-line)!important;
+  color:var(--stage-text)!important;
+}
+.stage-theme-light .stage-chord-sections pre{
+  color:var(--stage-gold)!important;
+}
+.stage-theme-light .stage-lyrics{
+  color:var(--stage-text)!important;
+}
+.stage-theme-light .rehearsal-edit-panel textarea{
+  background:var(--stage-surface2)!important;
+  color:var(--stage-text)!important;
+  border-color:var(--stage-line)!important;
+}
+.stage-theme-light .stage-tools-toggle,
+.stage-theme-light .stage-control-group button{
+  background:var(--stage-surface2)!important;
+  color:var(--stage-accent)!important;
+  border-color:var(--stage-line)!important;
+}
+.stage-theme-light .stage-theme-toggle,
+.stage-theme-light .stage-topbar .live-close{
+  color:var(--stage-accent)!important;
+}
+.stage-theme-light .stage-theme-toggle:hover,
+.stage-theme-light .stage-topbar .live-close:hover{
+  background:rgba(11,101,117,.07)!important;
+}
+
+/* PC/tablet stage navigation: arrows float at vertical center, not at the bottom. */
+@media(min-width:761px){
+  .stage-nav.compact-stage-nav{
+    position:fixed!important;
+    inset:50% 0 auto 0!important;
+    transform:translateY(-50%)!important;
+    display:block!important;
+    min-height:0!important;
+    padding:0!important;
+    background:transparent!important;
+    border:0!important;
+    backdrop-filter:none!important;
+    pointer-events:none!important;
+    z-index:6!important;
+  }
+  .stage-nav-inner{
+    width:100%!important;
+    max-width:none!important;
+    min-height:0!important;
+    display:grid!important;
+    grid-template-columns:58px 1fr 58px!important;
+    align-items:center!important;
+    gap:0!important;
+    padding:0 clamp(14px,2.8vw,42px)!important;
+    pointer-events:none!important;
+  }
+  .stage-nav-inner .stage-nav-count{
+    display:none!important;
+  }
+  .stage-nav-inner .stage-nav-btn{
+    width:52px!important;
+    min-width:52px!important;
+    height:52px!important;
+    min-height:52px!important;
+    padding:0!important;
+    border-radius:50%!important;
+    border:1px solid rgba(112,183,194,.18)!important;
+    background:rgba(5,22,27,.68)!important;
+    color:#dff5f7!important;
+    box-shadow:0 8px 24px rgba(0,0,0,.22)!important;
+    backdrop-filter:blur(10px);
+    pointer-events:auto!important;
+    justify-content:center!important;
+  }
+  .stage-nav-inner .stage-nav-btn:first-child{
+    justify-self:start!important;
+  }
+  .stage-nav-inner .stage-nav-btn:last-child{
+    justify-self:end!important;
+  }
+  .stage-nav-inner .stage-nav-btn svg{
+    width:27px!important;
+    height:27px!important;
+  }
+  .stage-theme-light .stage-nav-inner .stage-nav-btn{
+    background:rgba(255,255,255,.84)!important;
+    border-color:rgba(11,101,117,.16)!important;
+    color:var(--stage-accent)!important;
+    box-shadow:0 8px 24px rgba(25,75,84,.13)!important;
+  }
+}
+
+/* Tablet and Android: long-press the grip to reorder; arrows are desktop-only. */
+@media(max-width:1024px){
+  .setlist-order-hint{
+    display:block;
+  }
+  .setlist-detail-song{
+    grid-template-columns:30px 28px minmax(0,1fr) 64px 40px!important;
+    grid-template-rows:auto auto;
+    gap:5px 6px!important;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+  .setlist-drag-grip{
+    display:grid;
+    place-items:center;
+    width:28px;
+    height:40px;
+    color:var(--muted);
+    cursor:grab;
+    touch-action:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .setlist-drag-grip:active{
+    cursor:grabbing;
+    color:var(--accent2);
+  }
+  .setlist-drag-grip svg{
+    width:20px;
+    height:20px;
+  }
+  .setlist-song-key{
+    grid-column:4;
+    grid-row:1;
+    min-width:0;
+    font-size:29px;
+  }
+  .setlist-song-flags{
+    grid-column:3/5!important;
+    grid-row:2!important;
+  }
+  .setlist-move-btn{
+    display:none!important;
+  }
+  .setlist-remove-btn{
+    grid-column:5!important;
+    grid-row:1!important;
+    justify-self:end;
+  }
+}
+
+/* Android-specific compact controls */
+@media(max-width:760px){
+  .setlist-mode-actions{
+    display:flex!important;
+    width:auto!important;
+    align-self:flex-end!important;
+    gap:6px!important;
+  }
+  .setlist-mode-actions button{
+    min-height:38px!important;
+    height:38px!important;
+    padding:0 10px!important;
+    border-radius:9px!important;
+    font-size:11px!important;
+    gap:5px!important;
+  }
+  .setlist-mode-actions button svg{
+    width:16px!important;
+    height:16px!important;
+  }
+
+  .metronome-card{
+    grid-template-columns:minmax(0,1fr) auto!important;
+    gap:6px 8px!important;
+    padding:10px!important;
+  }
+  .metronome-card>div:first-child .eyebrow,
+  .metronome-card .metro-hint{
+    display:none!important;
+  }
+  .metronome-card h2{
+    margin:0!important;
+    font-size:13px!important;
+  }
+  .metro-display{
+    justify-content:flex-end!important;
+    gap:5px!important;
+  }
+  .metro-display svg{
+    width:16px!important;
+    height:16px!important;
+  }
+  .metro-display strong{
+    font-size:26px!important;
+  }
+  .metro-display span{
+    font-size:9px!important;
+  }
+  .metro-controls{
+    grid-column:1/-1!important;
+    display:grid!important;
+    grid-template-columns:34px minmax(56px,1fr) 34px 48px 62px!important;
+    gap:4px!important;
+  }
+  .metro-controls button{
+    min-height:36px!important;
+    height:36px!important;
+    padding:0 5px!important;
+    font-size:10px!important;
+    border-radius:8px!important;
+  }
+  .metro-controls button svg{
+    width:16px!important;
+    height:16px!important;
+  }
+  .metro-controls .tap-btn,
+  .metro-controls>button:last-child{
+    grid-column:auto!important;
+  }
+
+  .setlist-detail-song{
+    grid-template-columns:28px 26px minmax(0,1fr) 56px 36px!important;
+    min-height:64px!important;
+    padding:8px!important;
+  }
+  .setlist-drag-grip{
+    width:26px;
+    height:38px;
+  }
+  .setlist-song-key{
+    font-size:27px;
+  }
+  .setlist-song-main b{
+    font-size:14px!important;
+  }
+  .setlist-song-main small{
+    font-size:10px!important;
+  }
+
+  /* Android keeps navigation at the bottom, but icon-only and compact. */
+  .stage-nav.compact-stage-nav{
+    position:relative!important;
+    inset:auto!important;
+    transform:none!important;
+    display:block!important;
+    min-height:52px!important;
+    padding:4px max(10px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))!important;
+    border-top:1px solid #17323a!important;
+    background:rgba(2,9,12,.94)!important;
+    pointer-events:auto!important;
+  }
+  .stage-nav-inner{
+    width:100%!important;
+    display:grid!important;
+    grid-template-columns:52px 58px 52px!important;
+    justify-content:space-between!important;
+    align-items:center!important;
+    gap:8px!important;
+    padding:0!important;
+    pointer-events:auto!important;
+  }
+  .stage-nav-inner .stage-nav-count{
+    display:block!important;
+    width:58px!important;
+    min-width:58px!important;
+    font-size:10px!important;
+  }
+  .stage-nav-inner .stage-nav-btn{
+    width:48px!important;
+    min-width:48px!important;
+    height:44px!important;
+    min-height:44px!important;
+    padding:0!important;
+    border-radius:11px!important;
+    justify-self:center!important;
+  }
+  .stage-nav-inner .stage-nav-btn svg{
+    width:25px!important;
+    height:25px!important;
+  }
+  .stage-theme-light .stage-nav.compact-stage-nav{
+    background:rgba(247,251,251,.96)!important;
+    border-top-color:var(--stage-line)!important;
+  }
+}
+
+@media(max-width:430px){
+  .setlist-mode-actions{
+    width:100%!important;
+  }
+  .setlist-mode-actions button{
+    flex:1 1 0!important;
+  }
+  .metro-controls{
+    grid-template-columns:32px minmax(48px,1fr) 32px 46px 58px!important;
+  }
+  .metro-controls button{
+    font-size:9px!important;
+  }
+  .stage-top-actions{
+    gap:0;
+  }
+  .stage-theme-toggle,
+  .stage-topbar .live-close{
+    width:38px!important;
+    height:38px!important;
+    min-height:38px!important;
+  }
+}
