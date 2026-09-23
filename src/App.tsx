@@ -887,14 +887,91 @@ function AboutPage({songs,setlists,cloudStats}:{songs:Song[];setlists:Setlist[];
   </>
 }
 
-function HistoryPage() {
+
+function levenshtein(a:string,b:string):number{
+  const x=normalizeIdentity(a),y=normalizeIdentity(b)
+  if(!x)return y.length;if(!y)return x.length
+  const row=Array.from({length:y.length+1},(_,i)=>i)
+  for(let i=1;i<=x.length;i++){
+    let prev=row[0];row[0]=i
+    for(let j=1;j<=y.length;j++){
+      const old=row[j]
+      row[j]=Math.min(row[j]+1,row[j-1]+1,prev+(x[i-1]===y[j-1]?0:1))
+      prev=old
+    }
+  }
+  return row[y.length]
+}
+function duplicateScore(a:Song,b:Song):number{
+  const at=normalizeIdentity(a.title),bt=normalizeIdentity(b.title),aa=normalizeIdentity(a.artist),ba=normalizeIdentity(b.artist)
+  if(!at||!bt)return 0
+  let score=0
+  if(at===bt)score+=70
+  else if(at.includes(bt)||bt.includes(at))score+=48
+  else{
+    const d=levenshtein(at,bt),max=Math.max(at.length,bt.length)
+    if(max&&d/max<=.18)score+=42
+    else if(max&&d/max<=.3)score+=26
+  }
+  if(aa&&ba){
+    if(aa===ba)score+=30
+    else if(aa.includes(ba)||ba.includes(aa))score+=18
+    else if(levenshtein(aa,ba)<=2)score+=12
+  }else score+=6
+  return Math.min(100,score)
+}
+
+function ToolsPage({songs,onMerge}:{songs:Song[];onMerge:(primary:Song,secondary:Song)=>Promise<void>}) {
+  const [pair,setPair]=useState<[Song,Song]|null>(null)
+  const [threshold,setThreshold]=useState(66)
+  const candidates=useMemo(()=>{
+    const out:{a:Song;b:Song;score:number}[]=[]
+    for(let i=0;i<songs.length;i++)for(let j=i+1;j<songs.length;j++){
+      const score=duplicateScore(songs[i],songs[j])
+      if(score>=threshold)out.push({a:songs[i],b:songs[j],score})
+    }
+    return out.sort((x,y)=>y.score-x.score).slice(0,80)
+  },[songs,threshold])
+  return <>
+    <section className="panel tools-intro"><div><GitMerge/><div><h2>Détection améliorée des doublons</h2><p>DI’ART compare les titres, variantes d’écriture et artistes, pas seulement les correspondances exactes.</p></div></div><label>Seuil <input type="range" min="50" max="90" value={threshold} onChange={e=>setThreshold(Number(e.target.value))}/><b>{threshold}%</b></label></section>
+    <div className="duplicate-scan-list">{candidates.length?candidates.map(({a,b,score})=><article className="duplicate-scan-card" key={a.id+'-'+b.id}><span className="duplicate-score">{score}%</span><div><b>{a.title}</b><small>{a.artist||'Artiste inconnu'}</small></div><GitMerge/><div><b>{b.title}</b><small>{b.artist||'Artiste inconnu'}</small></div><button className="secondary" onClick={()=>setPair([a,b])}>Comparer</button></article>):<Empty text="Aucun doublon probable avec ce seuil."/>}</div>
+    {pair&&<MergeSongsModal a={pair[0]} b={pair[1]} onClose={()=>setPair(null)} onMerge={async(a,b)=>{await onMerge(a,b);setPair(null)}}/>}
+  </>
+}
+
+function ShortcutsPage({value,onChange}:{value:Record<string,string>;onChange:(v:Record<string,string>)=>void}) {
+  const rows=[['search','Recherche'],['newSong','Nouveau morceau'],['setlists','Setlists'],['favorites','Favoris'],['live','Live Mode']]
+  return <section className="panel interaction-settings"><div className="interaction-intro"><Keyboard/><div><h2>Raccourcis clavier</h2><p>Personnalisez les touches utilisées sur PC. Une seule touche est recommandée.</p></div></div>{rows.map(([key,label])=><label key={key}><span><b>{label}</b><small>{key==='search'?'Place le curseur dans la recherche Bibliothèque':''}</small></span><input maxLength={1} value={value[key]??''} onChange={e=>onChange({...value,[key]:e.target.value.toLowerCase()})}/></label>)}<button className="secondary" onClick={()=>onChange(DEFAULT_SHORTCUTS)}><RotateCcw/>Valeurs par défaut</button></section>
+}
+
+function GesturesPage({value,onChange}:{value:typeof DEFAULT_GESTURES;onChange:(v:typeof DEFAULT_GESTURES)=>void}) {
+  const toggle=(key:keyof typeof DEFAULT_GESTURES)=><button className={value[key]?'gesture-toggle active':'gesture-toggle'} onClick={()=>onChange({...value,[key]:!value[key]})}>{value[key]?<Check/>:<X/>}</button>
+  return <section className="panel interaction-settings"><div className="interaction-intro"><Hand/><div><h2>Commandes tactiles</h2><p>Ces gestes s’appliquent principalement aux modes Live, Répétition et Plein écran.</p></div></div><div className="gesture-row"><span><b>Balayage horizontal</b><small>Gauche/droite pour morceau suivant/précédent</small></span>{toggle('swipeSongs')}</div><div className="gesture-row"><span><b>Double toucher</b><small>Afficher ou réduire les réglages de scène</small></span>{toggle('doubleTapTools')}</div><div className="gesture-row"><span><b>Appui long</b><small>Verrouiller ou déverrouiller le mode Live</small></span>{toggle('longPressLock')}</div><button className="secondary" onClick={()=>onChange(DEFAULT_GESTURES)}><RotateCcw/>Valeurs par défaut</button></section>
+}
+
+function HistoryPage({songs}:{songs:Song[]}) {
   const [items,setItems]=useState<ActivityEntry[]>([])
   const [q,setQ]=useState('')
   const [kind,setKind]=useState('')
-  useEffect(()=>{void listActivity(500).then(setItems)},[])
-  const filtered=useMemo(()=>items.filter(item=>!kind||item.kind===kind).filter(item=>!q.trim()||normalizeIdentity([item.label,item.details,item.songTitle,item.source].join(' ')).includes(normalizeIdentity(q))),[items,q,kind])
-  const labels:Record<ActivityKind,string>={create:'Création',update:'Modification',import:'Import',complete:'Complétion',delete:'Suppression',restore:'Restauration',merge:'Fusion',export:'Export',backup_restore:'Restauration sauvegarde'}
-  return <><div className="toolbar history-toolbar"><div className="searchbox"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Rechercher dans l’historique…"/>{q&&<button type="button" className="search-clear" onClick={()=>setQ('')}><X/></button>}</div><label className="select-wrap"><History/><select value={kind} onChange={e=>setKind(e.target.value)}><option value="">Toutes les actions</option>{Object.entries(labels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label></div><section className="panel history-panel">{filtered.length?<div className="history-list">{filtered.map(item=><article className="history-row" key={item.id}><span className={'history-kind '+item.kind}>{labels[item.kind]}</span><div><b>{item.label}</b>{item.songTitle&&<small>{item.songTitle}</small>}<p>{item.details}</p></div><time>{new Date(item.createdAt).toLocaleString()}</time></article>)}</div>:<Empty text="Aucun événement dans l’historique."/>}</section></>
+  const [tab,setTab]=useState<'activity'|'play'|'stats'>('activity')
+  useEffect(()=>{void listActivity(1200).then(setItems)},[])
+  const labels:Record<ActivityKind,string>={create:'Création',update:'Modification',import:'Import',complete:'Complétion',delete:'Suppression',restore:'Restauration',merge:'Fusion',export:'Export',backup_restore:'Restauration sauvegarde',play:'Jeu'}
+  const filtered=useMemo(()=>items.filter(item=>!kind||item.kind===kind).filter(item=>!q.trim()||normalizeIdentity([item.label,item.details,item.songTitle,item.source,item.setlistName].join(' ')).includes(normalizeIdentity(q))),[items,q,kind])
+  const plays=useMemo(()=>items.filter(x=>x.kind==='play'),[items])
+  const playDays=useMemo(()=>{
+    const map=new Map<string,ActivityEntry[]>()
+    plays.forEach(p=>{const d=new Date(p.createdAt).toLocaleDateString('fr-FR',{year:'numeric',month:'long',day:'numeric'});map.set(d,[...(map.get(d)||[]),p])})
+    return [...map.entries()]
+  },[plays])
+  const avgBpm=useMemo(()=>{const vals=songs.map(s=>s.bpm).filter((x):x is number=>x!==null);return vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):0},[songs])
+  const topKey=useMemo(()=>{const m=new Map<string,number>();songs.forEach(s=>{const k=s.personalKey||s.originalKey;if(k)m.set(k,(m.get(k)||0)+1)});return [...m.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'—'},[songs])
+  const topArtist=useMemo(()=>{const m=new Map<string,number>();songs.forEach(s=>{if(s.artist)m.set(s.artist,(m.get(s.artist)||0)+1)});return [...m.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'—'},[songs])
+  const mostPlayed=useMemo(()=>{const m=new Map<string,number>();plays.forEach(p=>{if(p.songTitle)m.set(p.songTitle,(m.get(p.songTitle)||0)+1)});return [...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8)},[plays])
+  return <><div className="history-tabs"><button className={tab==='activity'?'active':''} onClick={()=>setTab('activity')}><History/>Activité</button><button className={tab==='play'?'active':''} onClick={()=>setTab('play')}><Play/>Historique de jeu</button><button className={tab==='stats'?'active':''} onClick={()=>setTab('stats')}><BarChart3/>Statistiques</button></div>
+  {tab==='activity'&&<><div className="toolbar history-toolbar"><div className="searchbox"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Rechercher dans l’historique…"/>{q&&<button type="button" className="search-clear" onClick={()=>setQ('')}><X/></button>}</div><label className="select-wrap"><History/><select value={kind} onChange={e=>setKind(e.target.value)}><option value="">Toutes les actions</option>{Object.entries(labels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label></div><section className="panel history-panel">{filtered.length?<div className="history-list">{filtered.map(item=><article className="history-row" key={item.id}><span className={'history-kind '+item.kind}>{labels[item.kind]}</span><div><b>{item.label}</b>{item.songTitle&&<small>{item.songTitle}</small>}<p>{item.details}</p></div><time>{new Date(item.createdAt).toLocaleString()}</time></article>)}</div>:<Empty text="Aucun événement dans l’historique."/>}</section></>}
+  {tab==='play'&&<section className="play-history">{playDays.length?playDays.map(([day,dayItems])=><article className="panel play-day" key={day}><div className="play-day-head"><h3>{day}</h3><span>{dayItems.length} morceau{dayItems.length>1?'x':''}</span></div>{dayItems.map(x=><div className="play-row" key={x.id}><Play/><span><b>{x.songTitle||x.label}</b><small>{x.setlistName||x.details}</small></span><time>{new Date(x.createdAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</time></div>)}</article>):<Empty text="Aucune session de jeu enregistrée."/>}</section>}
+  {tab==='stats'&&<div className="personal-stats"><div className="stats-grid"><Metric label="Morceaux" value={songs.length}/><Metric label="BPM moyen" value={avgBpm||'—'}/><Metric label="Tonalité dominante" value={topKey}/><Metric label="Artiste principal" value={topArtist}/><Metric label="Sessions jouées" value={plays.length}/><Metric label="Favoris" value={songs.filter(s=>s.favorite).length}/></div><section className="panel"><h2>Morceaux les plus joués</h2>{mostPlayed.length?<div className="ranking-list">{mostPlayed.map(([title,count],i)=><div key={title}><span>{i+1}</span><b>{title}</b><strong>{count}×</strong></div>)}</div>:<p className="muted-copy">Les statistiques de jeu apparaîtront après vos premières sessions Live/Répétition.</p>}</section></div>}
+  </>
 }
 
 function BackupPage({songs,refresh,toast,onRecord}:{songs:Song[];refresh:()=>Promise<void>;toast:(s:string)=>void;onRecord:(kind:ActivityKind,label:string,details:string,meta?:{songId?:string|null;songTitle?:string;source?:string})=>Promise<void>}) {
