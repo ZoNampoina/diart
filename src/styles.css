@@ -7304,3 +7304,66 @@ body,
     width:100%!important;
   }
 }
+
+
+/* DI'ART 2.5.4 — interactive tonalities and setlist key cleanup */
+.song-key-card{
+  min-width:150px;
+}
+.song-key-card>small{
+  display:block;
+  margin-top:4px;
+  color:var(--accent2);
+  font-size:9px;
+  font-weight:800;
+}
+.song-key-choices{
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px;
+  justify-content:center;
+  margin-top:8px;
+}
+.song-key-choices button{
+  min-height:26px;
+  padding:0 7px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:transparent;
+  color:var(--muted);
+  font-size:8px;
+  font-weight:800;
+}
+.song-key-choices button.active{
+  color:var(--accent2);
+  border-color:color-mix(in srgb,var(--accent2) 48%,var(--line));
+  background:color-mix(in srgb,var(--accent) 11%,transparent);
+}
+.info-list .info-key-row{
+  width:100%;
+  display:grid;
+  grid-template-columns:1fr auto;
+  align-items:center;
+  padding:10px 0;
+  border:0;
+  border-bottom:1px solid var(--line);
+  border-radius:0;
+  background:transparent;
+  color:inherit;
+  text-align:left;
+}
+.info-list .info-key-row span{color:var(--muted)}
+.info-list .info-key-row b{color:var(--text)}
+.info-list .info-key-row.active b{color:var(--accent2)}
+.info-list .info-key-row:hover{
+  background:color-mix(in srgb,var(--accent) 5%,transparent);
+}
+.setlist-detail-song:not(:has(.setlist-song-key)){
+  grid-template-columns:var(--setlist-detail-grid-no-key,42px 34px minmax(0,1fr) auto 34px 34px 34px);
+}
+@media(max-width:820px){
+  .song-key-choices{
+    display:grid;
+    grid-template-columns:1fr;
+  }
+}
