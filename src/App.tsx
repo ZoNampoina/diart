@@ -900,43 +900,26 @@ function normalizeImportedLyrics(value:string):string{
 
   const isSection=(line:string)=>/^\[(?:Couplet|Refrain|Pré-refrain|Pré refrain|Bridge|Pont|Prélude|Prelude|Interlude|Postlude|Intro|Outro)[^\]]*\]$/i.test(line.trim())
   const out:string[]=[]
-  let pendingBlankCount=0
 
-  const flushBlank=(nextLine:string)=>{
-    if(!out.length){pendingBlankCount=0;return}
-    const previous=out[out.length-1]
-    const previousIsSection=isSection(previous)
-    const nextIsSection=isSection(nextLine)
-
-    // Tononkira génère souvent un faux blanc entre chaque vers.
-    // Un seul blanc entre deux lignes normales est donc supprimé.
-    // Deux blancs ou plus sont considérés comme une vraie séparation de strophe.
-    if(!previousIsSection&&!nextIsSection&&pendingBlankCount>=2&&previous!==''){
-      out.push('')
-    }
-    // Une nouvelle section doit être séparée visuellement de la précédente.
-    if(nextIsSection&&previous!==''&&!previousIsSection){
-      out.push('')
-    }
-    pendingBlankCount=0
+  const pushBlank=()=>{
+    if(out.length&&out[out.length-1]!=='')out.push('')
   }
 
   for(const raw of lines){
     const line=raw.trim()
     if(!line){
-      pendingBlankCount+=1
+      pushBlank()
       continue
     }
 
-    flushBlank(line)
-
     if(isSection(line)){
-      // Jamais de ligne vide entre le titre de section et son premier vers.
-      if(out[out.length-1]===''&&out.length>=2&&isSection(out[out.length-2]))out.pop()
+      pushBlank()
       out.push(line)
       continue
     }
 
+    // Pas de blanc entre un titre de section et son premier vers.
+    if(out.length>=2&&out[out.length-1]===''&&isSection(out[out.length-2]))out.pop()
     out.push(line)
   }
 
