@@ -412,7 +412,7 @@ function QuickSetlistAdd({song,setlists,refresh,toast}:{song:Song;setlists:Setli
   const [pendingId,setPendingId]=useState('')
   const [busy,setBusy]=useState(false)
   const pending=setlists.find(s=>s.id===pendingId)
-  const close=()=>{if(busy)return;setOpen(false);setPendingId('');setName('')}
+  const close=()=>{if(busy)return;setOpen(false);setPendingId('')}
   const confirmAdd=()=>{
     if(!pending||busy)return
     if(pending.songIds.includes(song.id)){toast(`${song.title} est déjà dans ${pending.name}.`);close();return}
@@ -422,14 +422,7 @@ function QuickSetlistAdd({song,setlists,refresh,toast}:{song:Song;setlists:Setli
     setPendingId('')
     void updateSetlist(pending.id,{songIds:ids}).then(()=>{void refresh();toast(`${song.title} ajouté à ${pending.name}.`)}).catch(()=>toast('Ajout à la setlist impossible.')).finally(()=>setBusy(false))
   }
-  const createAndAdd=()=>{
-    const clean=name.trim()
-    if(!clean||busy)return
-    setBusy(true)
-    setOpen(false)
-    void createSetlist(clean).then(async list=>{await updateSetlist(list.id,{songIds:[song.id]});void refresh();toast(`Setlist « ${clean} » créée avec ${song.title}.`)}).catch(()=>toast('Création de la setlist impossible.')).finally(()=>{setBusy(false);setName('')})
-  }
-  return <div className="quick-setlist-add" onClick={e=>e.stopPropagation()}><button className="setlist-plus-btn" aria-label="Ajouter à une setlist" title="Ajouter à une setlist" onClick={()=>{setPendingId('');setOpen(true)}}><ListPlus/></button>{open&&<Modal title="Ajouter à une setlist" onClose={close}><div className="setlist-choice-list">{setlists.length?setlists.map(list=>{const added=list.songIds.includes(song.id);const chosen=pendingId===list.id;return <button key={list.id} className={`setlist-choice ${added?'already-added':''} ${chosen?'selected':''}`} disabled={added} onClick={()=>setPendingId(list.id)}><ListMusic/><span><b>{list.name}</b><small>{added?'Déjà ajouté':chosen?'Sélectionnée — confirmer ci-dessous':`${list.songIds.length} morceau${list.songIds.length>1?'x':''}`}</small></span>{added?<Check/>:chosen?<ChevronRight/>:null}</button>}):<p className="muted-copy">Aucune setlist existante.</p>}</div>{pending&&<div className="setlist-confirm-add"><span>Ajouter <b>{song.title}</b> à <b>{pending.name}</b> ?</span><button className="primary" disabled={busy} onClick={confirmAdd}><Check/>Confirmer l’ajout</button></div>}<div className="setlist-modal-create"><label>Ou créer une nouvelle setlist<input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')createAndAdd()}} placeholder="Nom de la setlist"/></label><button className="secondary" disabled={!name.trim()||busy} onClick={createAndAdd}><Plus/>Créer et ajouter</button></div></Modal>}</div>
+  return <div className="quick-setlist-add" onClick={e=>e.stopPropagation()}><button className="setlist-plus-btn" aria-label="Ajouter à une setlist" title="Ajouter à une setlist" onClick={()=>{setPendingId('');setOpen(true)}}><ListPlus/></button>{open&&<Modal title="Ajouter à une setlist" onClose={close}><div className="setlist-choice-list">{setlists.length?setlists.map(list=>{const added=list.songIds.includes(song.id);const chosen=pendingId===list.id;return <button key={list.id} className={`setlist-choice ${added?'already-added':''} ${chosen?'selected':''}`} disabled={added} onClick={()=>setPendingId(list.id)}><ListMusic/><span><b>{list.name}</b><small>{added?'Déjà ajouté':chosen?'Sélectionnée — confirmer ci-dessous':`${list.songIds.length} morceau${list.songIds.length>1?'x':''}`}</small></span>{added?<Check/>:chosen?<ChevronRight/>:null}</button>}):<p className="muted-copy">Aucune setlist existante. Utilisez le bouton + pour en créer une.</p>}</div>{pending&&<div className="setlist-confirm-add"><span>Ajouter <b>{song.title}</b> à <b>{pending.name}</b> ?</span><button className="primary" disabled={busy} onClick={confirmAdd}><Check/>Confirmer l’ajout</button></div>}</Modal>}</div>
 }
 
 function groupPeople(songs:Song[],field:'artist'|'authorComposer') {
