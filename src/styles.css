@@ -5337,3 +5337,245 @@ body,
     animation:none!important;
   }
 }
+
+
+/* DI'ART V2.4.6 — clean Android rows, header stage tools, tablet scroll */
+
+/* Utility rows have no second visual container. Their inner controls keep their own surfaces. */
+.song-detail-actions,
+.library-toolbar,
+.stage-entry-actions{
+  background:transparent!important;
+  border:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+}
+
+/* Stage settings live under the setlist identity, vertically, with no outer card. */
+.stage-left-stack{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:7px;
+}
+.stage-left-stack .stage-list-context{
+  margin:0!important;
+}
+.stage-left-stack .stage-session-tools{
+  width:min(300px,30vw)!important;
+  max-width:300px!important;
+  margin:0!important;
+  padding:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:stretch!important;
+  gap:5px!important;
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+}
+.stage-left-stack .stage-session-tools.collapsed{
+  width:max-content!important;
+  max-width:100%!important;
+  margin:0!important;
+  padding:0!important;
+}
+.stage-left-stack .stage-tools-toggle{
+  align-self:flex-start!important;
+  min-height:27px!important;
+  height:27px!important;
+  padding:0 4px!important;
+  border:0!important;
+  border-radius:7px!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#82b8c1!important;
+}
+.stage-left-stack .stage-tools-toggle:hover{
+  background:rgba(93,184,197,.08)!important;
+}
+.stage-left-stack .stage-tools-body{
+  width:100%!important;
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:stretch!important;
+  justify-content:flex-start!important;
+  gap:5px!important;
+}
+.stage-left-stack .stage-control-group{
+  width:100%!important;
+  min-width:0!important;
+  justify-content:flex-start!important;
+  padding:5px 7px!important;
+}
+.stage-left-stack .stage-control-group>span{
+  min-width:68px;
+  text-align:left;
+}
+.stage-left-stack .auto-scroll-control input[type="range"]{
+  min-width:0!important;
+  width:76px!important;
+  flex:1 1 76px!important;
+}
+
+/* Light stage: guide and chord areas become genuinely white, including each chord subsection. */
+.stage-theme-light .stage-guide-modern>section,
+.stage-theme-light .stage-chords-card,
+.stage-theme-light .stage-chord-sections article{
+  background:#fff!important;
+  border-color:#d3e2e4!important;
+  box-shadow:0 10px 24px rgba(37,79,86,.07)!important;
+}
+.stage-theme-light .stage-chord-sections article b{
+  color:var(--stage-accent)!important;
+}
+.stage-theme-light .stage-chord-sections pre{
+  background:#fff!important;
+  color:var(--stage-gold)!important;
+}
+
+/* Previous / next are anchored to the actual viewport edges, independently of content width. */
+.stage-nav.compact-stage-nav,
+.stage-nav.compact-stage-nav .stage-nav-inner{
+  pointer-events:none!important;
+}
+.stage-nav.compact-stage-nav .stage-nav-btn{
+  position:fixed!important;
+  top:50%!important;
+  z-index:12!important;
+  pointer-events:auto!important;
+  transform:translateY(-50%)!important;
+  margin:0!important;
+}
+.stage-nav.compact-stage-nav .stage-nav-btn:first-child{
+  left:0!important;
+  right:auto!important;
+}
+.stage-nav.compact-stage-nav .stage-nav-btn:last-child{
+  right:0!important;
+  left:auto!important;
+}
+.stage-nav.compact-stage-nav .stage-nav-btn:not(:disabled):hover{
+  transform:translateY(-50%) scale(1.07)!important;
+}
+.stage-nav.compact-stage-nav .stage-nav-btn:not(:disabled):active{
+  transform:translateY(-50%) scale(.94)!important;
+}
+
+/* Tablet scrolling: vertical gesture always belongs to the content; horizontal swipe is only interpreted after release. */
+@media(min-width:600px) and (max-width:1180px){
+  .stage-mode{
+    overscroll-behavior-y:auto!important;
+  }
+  .stage-content{
+    overflow-y:auto!important;
+    overscroll-behavior-y:auto!important;
+    touch-action:pan-y pinch-zoom!important;
+    -webkit-overflow-scrolling:touch!important;
+    scrollbar-gutter:auto!important;
+  }
+  .stage-content>*{
+    touch-action:auto;
+  }
+  .stage-content button,
+  .stage-content input,
+  .stage-content textarea{
+    touch-action:manipulation;
+  }
+}
+
+/* Additional stage motion */
+.stage-left-stack{
+  animation:diartStageToolsIn .24s cubic-bezier(.2,.72,.2,1) both;
+}
+.stage-tools-body.is-expanded .stage-control-group{
+  animation:diartToolRowIn .22s cubic-bezier(.2,.72,.2,1) both;
+}
+.stage-tools-body.is-expanded .stage-control-group:nth-child(2){animation-delay:.025s}
+.stage-tools-body.is-expanded .stage-control-group:nth-child(3){animation-delay:.05s}
+.stage-chord-sections article{
+  transition:transform .18s ease,background-color .24s ease,border-color .24s ease,box-shadow .24s ease!important;
+  animation:diartChordCardIn .24s cubic-bezier(.2,.72,.2,1) both;
+}
+.stage-chord-sections article:nth-child(2){animation-delay:.035s}
+.stage-chord-sections article:nth-child(3){animation-delay:.07s}
+.stage-chord-sections article:nth-child(4){animation-delay:.105s}
+@keyframes diartStageToolsIn{
+  from{opacity:0;transform:translateX(-8px)}
+  to{opacity:1;transform:translateX(0)}
+}
+@keyframes diartToolRowIn{
+  from{opacity:0;transform:translateY(-5px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@keyframes diartChordCardIn{
+  from{opacity:0;transform:translateY(7px) scale(.99)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+
+/* Android: remove only the outer rows; preserve the inner search field and button surfaces. */
+@media(max-width:820px){
+  .song-detail-actions,
+  .library-toolbar,
+  .stage-entry-actions{
+    background:transparent!important;
+    border:0!important;
+    box-shadow:none!important;
+    border-radius:0!important;
+    padding-left:0!important;
+    padding-right:0!important;
+  }
+  .library-toolbar .searchbox{
+    background:color-mix(in srgb,var(--surface2) 78%,transparent)!important;
+    border:1px solid color-mix(in srgb,var(--line) 82%,transparent)!important;
+    border-radius:12px!important;
+  }
+  .library-toolbar .searchbox:focus-within{
+    border-color:color-mix(in srgb,var(--accent2) 58%,var(--line))!important;
+    box-shadow:0 0 0 2px color-mix(in srgb,var(--accent2) 10%,transparent)!important;
+  }
+  .stage-entry-actions .setlist-mode-actions{
+    background:transparent!important;
+    border:0!important;
+    box-shadow:none!important;
+    padding:0!important;
+  }
+
+  .stage-left-stack{
+    gap:4px;
+  }
+  .stage-left-stack .stage-session-tools{
+    width:min(230px,58vw)!important;
+    max-width:min(230px,58vw)!important;
+  }
+  .stage-left-stack .stage-control-group{
+    padding:4px 5px!important;
+    gap:4px!important;
+  }
+  .stage-left-stack .stage-control-group>span{
+    min-width:56px;
+    font-size:8px!important;
+  }
+  .stage-left-stack .stage-control-group button{
+    width:28px!important;
+    min-width:28px!important;
+    height:28px!important;
+    min-height:28px!important;
+    padding:0!important;
+  }
+  .stage-left-stack .auto-scroll-control input[type="range"]{
+    width:56px!important;
+    flex-basis:56px!important;
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .stage-left-stack,
+  .stage-tools-body.is-expanded .stage-control-group,
+  .stage-chord-sections article{
+    animation:none!important;
+  }
+}
