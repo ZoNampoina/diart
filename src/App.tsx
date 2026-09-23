@@ -1042,7 +1042,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
 
   return createPortal(<div className={'stage-mode '+mode} style={stageStyle}>
     <header className="stage-topbar" style={{zIndex:4,background:'rgba(2,9,12,.96)',borderBottom:'1px solid #17323a',display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center'}}>
-      <div className="stage-list-context" style={{gridColumn:1,justifySelf:'start'}}><span>{mode==='rehearsal'?'Répétition':'Live Mode'}</span><b>{list.name}</b></div>
+      <div className="stage-list-context" style={{gridColumn:1,justifySelf:'start'}}><span>{standalone?'Plein écran':mode==='rehearsal'?'Répétition':'Live Mode'}</span>{!standalone&&<b>{list.name}</b>}</div>
       <div className={'stage-current-song '+(showHeaderIdentity?'identity-visible':'identity-hidden')} style={{gridColumn:2,justifySelf:'center',textAlign:'center'}}>
         {showHeaderIdentity&&<div className="stage-header-identity"><b>{song.title}</b><small>{song.artist||'Artiste inconnu'}</small></div>}
         {(hasGuide||song.lyrics)&&<div className="stage-view-tabs">{hasGuide&&<button type="button" className={view==='guide'?'active':''} onClick={()=>{setView('guide');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Repères</button>}{song.lyrics&&<button type="button" className={view==='lyrics'?'active':''} onClick={()=>{setView('lyrics');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Paroles</button>}</div>}
