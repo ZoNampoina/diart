@@ -5,11 +5,12 @@ import {
   Library, Menu, Moon, MoreHorizontal, Music2, Plus, Search, Settings, Star, Sun,
   Trash2, Upload, UserRound, UsersRound, Wifi, WifiOff, X, Pencil, Save, RotateCcw,
   Filter, ArrowUpDown, Check, AlertTriangle, Minus, ListMusic, Cloud, LogIn, LogOut,
-  Play, Square, Gauge, Maximize2, ChevronUp, ChevronDown, ListPlus, BookMarked, ExternalLink, FileUp, Globe2
+  Play, Square, Gauge, Maximize2, ChevronUp, ChevronDown, ListPlus, BookMarked, ExternalLink, FileUp, Globe2,
+  History, GitMerge
 } from 'lucide-react'
-import { db, createSong, ensureDemoSeed, getSetting, markViewed, setSetting, softDeleteSong, updateSong, createSetlist, updateSetlist } from './db'
-import type { ImportField, ImportMapping, ImportRowPreview, Song, SongDraft, Setlist } from './types'
-import { emptySongDraft, formatDuration, normalizeKey, parseBpm, parseDuration, searchSong, transposeKey, transposeChordText, formatSemitoneOffset } from './music'
+import { db, createSong, ensureDemoSeed, getSetting, markViewed, setSetting, softDeleteSong, updateSong, createSetlist, updateSetlist, logActivity, listActivity } from './db'
+import type { ActivityEntry, ActivityKind, ImportField, ImportMapping, ImportRowPreview, Song, SongDraft, Setlist } from './types'
+import { duplicateKey, emptySongDraft, formatDuration, normalizeIdentity, normalizeKey, parseBpm, parseDuration, searchSong, transposeKey, transposeChordText, formatSemitoneOffset } from './music'
 import { parseWorkbook, rowsToPreview, suggestMapping, type ParsedWorkbook } from './importer'
 import { exportCsv, exportJson, exportXlsx, restoreJson } from './exporter'
 import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToLocal } from './cloud'
@@ -19,10 +20,16 @@ import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, import
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
   ['authors','Auteurs',UserRound], ['favorites','Favoris',Heart], ['recent','Récents',BookOpen],
-  ['setlists','Setlists',ListMusic], ['recueils','Recueils',BookMarked], ['import','Importer',Import], ['backup','Sauvegarde',Download], ['settings','Paramètres',Settings]
+  ['setlists','Setlists',ListMusic], ['recueils','Recueils',BookMarked], ['import','Importer',Import], ['backup','Sauvegarde',Download], ['history','Historique',History], ['settings','Paramètres',Settings]
 ] as const
 
 type Page = typeof navItems[number][0] | 'song' | 'edit' | 'new' | 'artist' | 'author' | 'setlist'
+
+const navGroupDefs = [
+  {label:'Bibliothèque',ids:['dashboard','library','artists','authors','favorites','recent']},
+  {label:'Organisation',ids:['setlists','recueils']},
+  {label:'Outils',ids:['import','backup','history','settings']}
+] as const
 type Toast = { id:number; text:string; action?:{label:string;run:()=>void} }
 
 function useSongs() {
@@ -195,7 +202,7 @@ function App() {
   return <div className="app-shell">
     <aside className={`sidebar ${sidebar?'open':''}`}>
       <button className="brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><span className="brand-mark"><img className="brand-logo logo-night" src="./logo-night.svg" alt=""/><img className="brand-logo logo-day" src="./logo-day.svg" alt=""/></span><div><b>DI'ART</b><small>by ARIZONA</small></div></button>
-      <nav>{navItems.map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>go(id)}><Icon size={19}/>{label}</button>)}</nav>
+      <nav className="grouped-nav">{navGroupDefs.map(group=><div className="nav-group" key={group.label}><span className="nav-group-label">{group.label}</span>{group.ids.map(id=>{const item=navItems.find(x=>x[0]===id)!;const [,label,Icon]=item;return <button key={id} className={page===id?'active':''} onClick={()=>go(id)}><Icon size={19}/>{label}</button>})}</div>)}</nav>
       <div className="sidebar-bottom">{online?<Wifi size={16}/>:<WifiOff size={16}/>} {online?'En ligne':'Hors connexion'}<small>Données locales IndexedDB</small></div>
     </aside>
     {sidebar&&<div className="scrim" onClick={()=>setSidebar(false)}/>}
