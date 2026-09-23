@@ -65,6 +65,7 @@ export interface TononkiraSearchResult {
   title:string
   artist:string
   url:string
+  score?:number
 }
 
 export async function searchTononkira(title:string,artist=''):Promise<TononkiraSearchResult[]>{
@@ -91,6 +92,7 @@ export interface ExternalRecueilImport {
   source:string
   structure?:string
   chords?:string
+  lyrics?:string
 }
 
 export async function searchExternalRecueil(source:ExternalRecueilSource,title:string,artist=''):Promise<ExternalRecueilResult[]>{
