@@ -270,7 +270,7 @@ function App() {
 
   return <div className="app-shell">
     <aside className={`sidebar ${sidebar?'open':''}`}>
-      <button className="brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><span className="brand-mark"><img className="brand-logo logo-night" src="./logo-night.png" alt=""/><img className="brand-logo logo-day" src="./logo-day.png" alt=""/></span><div><b>DI'ART</b><small>by ARIZONA</small></div></button>
+      <button className="brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><span className="brand-mark"><img className="brand-logo logo-night" src="./logo-night-v2.png" alt=""/><img className="brand-logo logo-day" src="./logo-day-v2.png" alt=""/></span><div><b>DI'ART</b><small>by ARIZONA</small></div></button>
       <nav className="grouped-nav">{navGroupDefs.map(group=><div className="nav-group" key={group.label}><span className="nav-group-label">{group.label}</span>{group.ids.map(id=>{const item=navItems.find(x=>x[0]===id)!;const [,label,Icon]=item;return <button key={id} className={page===id?'active':''} onClick={()=>go(id)}><Icon size={19}/>{label}</button>})}</div>)}</nav>
       <div className="sidebar-bottom">{online?<Wifi size={16}/>:<WifiOff size={16}/>} {online?'En ligne':'Hors connexion'}<small>Données locales IndexedDB</small></div>
     </aside>
@@ -278,7 +278,7 @@ function App() {
     <main className="main">
       <header className="topbar">
         <button className="icon-btn menu-btn" onClick={()=>setSidebar(v=>!v)}><Menu/></button>
-        <button className="mobile-brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><img className="mobile-logo logo-night" src="./logo-night.png" alt=""/><img className="mobile-logo logo-day" src="./logo-day.png" alt=""/><span>DI'ART</span></button>
+        <button className="mobile-brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><img className="mobile-logo logo-night" src="./logo-night-v2.png" alt=""/><img className="mobile-logo logo-day" src="./logo-day-v2.png" alt=""/><span>DI'ART</span></button>
         <div className="top-actions"><button className="icon-btn theme-toggle" title="Changer le thème" aria-label="Changer le thème" onClick={()=>setTheme(theme==='dark'?'light':'dark')}>{theme==='dark'?<Sun/>:<Moon/>}</button><button className="primary global-create-btn" aria-label="Créer" title="Créer" onClick={()=>{setCreateMode('menu');setCreateName('')}}><Plus size={22}/></button></div>
       </header>
       <div className="content">
