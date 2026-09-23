@@ -6384,3 +6384,76 @@ body,
     padding:0!important;
   }
 }
+
+
+/* DI'ART V2.4.10 — unified mobile/tablet header-to-content rhythm
+   Every top-level page begins at the same visual distance below the persistent header. */
+@media(max-width:820px){
+  :root{
+    --mobile-page-start-gap:10px;
+  }
+
+  /* One source of truth: the page container owns the gap below the header. */
+  .content.page-transition-surface{
+    padding-top:var(--mobile-page-start-gap)!important;
+  }
+
+  /* First elements must not add their own top offset. */
+  .content.page-transition-surface > .home-search:first-child,
+  .content.page-transition-surface > .library-toolbar:first-child,
+  .content.page-transition-surface > .artist-search.searchbox:first-child,
+  .content.page-transition-surface > .history-toolbar:first-child,
+  .content.page-transition-surface > .setlist-sortbar:first-child,
+  .content.page-transition-surface > .songs-list:first-child,
+  .content.page-transition-surface > .panel:first-child,
+  .content.page-transition-surface > .backup-grid:first-child,
+  .content.page-transition-surface > .settings-list:first-child,
+  .content.page-transition-surface > .tononkira-feature-card:first-child,
+  .content.page-transition-surface > .external-recueil-card:first-child{
+    margin-top:0!important;
+  }
+
+  /* Search-led pages: Accueil, Bibliothèque, Artistes/Auteurs and Historique. */
+  .page-dashboard > .home-search:first-child,
+  .page-library > .library-toolbar:first-child,
+  .page-artists > .artist-search.searchbox:first-child,
+  .page-authors > .artist-search.searchbox:first-child,
+  .page-history > .history-toolbar:first-child{
+    margin-top:0!important;
+  }
+
+  /* Setlists: sort/order row uses exactly the same header gap as search fields. */
+  .page-setlists > .setlist-sortbar:first-child{
+    margin-top:0!important;
+  }
+
+  /* Favoris/Récents: the list itself starts on the same baseline. */
+  .page-favorites > .songs-list:first-child,
+  .page-recent > .songs-list:first-child{
+    margin-top:0!important;
+  }
+
+  /* Direct-content pages: Recueils, Importer, Sauvegarde, À propos, Paramètres. */
+  .page-recueils > :first-child,
+  .page-import > :first-child,
+  .page-backup > :first-child,
+  .page-about > :first-child,
+  .page-settings > :first-child{
+    margin-top:0!important;
+  }
+
+  /* Previous search normalization used a 3–4 px top margin; page spacing now owns it. */
+  .library-toolbar,
+  .history-toolbar,
+  .home-search,
+  .artist-search.searchbox{
+    margin-top:0!important;
+  }
+}
+
+/* Slightly more breathing room on tablets while keeping the same system. */
+@media(min-width:600px) and (max-width:820px){
+  :root{
+    --mobile-page-start-gap:12px;
+  }
+}
