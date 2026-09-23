@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.4.2'
+const APP_VERSION='2.4.3'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -120,6 +120,7 @@ function App() {
   const [presetAuthor,setPresetAuthor]=useState('')
   const [createMode,setCreateMode]=useState<'menu'|'artist'|'setlist'|null>(null)
   const [recueilEntry,setRecueilEntry]=useState<'tononkira'|null>(null)
+  const [recueilPrefill,setRecueilPrefill]=useState<{title?:string;artist?:string}|null>(null)
   const [createName,setCreateName]=useState('')
   const [sidebar,setSidebar]=useState(false)
   const [theme,setTheme]=useState<'dark'|'light'|'system'>('dark')
@@ -210,6 +211,12 @@ function App() {
     document.documentElement.dataset.theme=resolved
     void setSetting('theme',theme)
   },[theme])
+
+  useEffect(()=>{
+    const textInputs=document.querySelectorAll<HTMLInputElement>('input:not([type="email"]):not([type="password"]):not([type="file"]):not([type="radio"]):not([type="checkbox"]):not([type="range"])')
+    textInputs.forEach(el=>{el.setAttribute('autocomplete','off');el.setAttribute('data-lpignore','true');el.setAttribute('data-1p-ignore','true')})
+    document.querySelectorAll<HTMLTextAreaElement>('textarea').forEach(el=>{el.setAttribute('autocomplete','off');el.setAttribute('data-lpignore','true');el.setAttribute('data-1p-ignore','true')})
+  })
   useEffect(()=>{
     const on=()=>setOnline(true),off=()=>setOnline(false)
     addEventListener('online',on); addEventListener('offline',off)
@@ -220,7 +227,8 @@ function App() {
     addEventListener('keydown',handler); return()=>removeEventListener('keydown',handler)
   },[])
 
-  const go=(p:Page)=>{if(p==='recueils')setRecueilEntry(null);setPage(p);setSidebar(false)}
+  const go=(p:Page)=>{if(p==='recueils'){setRecueilEntry(null);setRecueilPrefill(null)}setPage(p);setSidebar(false)}
+  const openRecueilSearch=(prefill:{title?:string;artist?:string})=>{setRecueilPrefill(prefill);setRecueilEntry('tononkira');setPage('recueils');setSidebar(false)}
   const startNewSong=(artist='',author='')=>{if(!artist)setSelectedArtist('');if(!author)setSelectedAuthor('');setPresetArtist(artist);setPresetAuthor(author);setSelected(null);setCreateMode(null);setCreateName('');setPage('new')}
   const currentScrollY=()=>window.scrollY||document.documentElement.scrollTop||0
   const openArtist=(name:string)=>{setArtistsScrollY(currentScrollY());setSelectedArtist(name);setPage('artist')}
@@ -270,21 +278,20 @@ function App() {
 
   return <div className="app-shell">
     <aside className={`sidebar ${sidebar?'open':''}`}>
-      <button className="brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><span className="brand-mark"><img className="brand-logo logo-night" src="./logo-night-v2.png" alt=""/><img className="brand-logo logo-day" src="./logo-day-v2.png" alt=""/></span><div><b>DI'ART</b><small>by ARIZONA</small></div></button>
+      <div className="sidebar-head"><button className="brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><span className="brand-mark"><img className="brand-logo logo-night" src="./logo-night-v2.png" alt=""/><img className="brand-logo logo-day" src="./logo-day-v2.png" alt=""/></span><div><b>DI'ART</b><small>by ARIZONA</small></div></button><button className="icon-btn sidebar-theme-toggle" title="Changer le thème" aria-label="Changer le thème" onClick={()=>setTheme(theme==='dark'?'light':'dark')}>{theme==='dark'?<Sun/>:<Moon/>}</button></div>
       <nav className="grouped-nav">{navGroupDefs.map(group=><div className="nav-group" key={group.label}><span className="nav-group-label">{group.label}</span>{group.ids.map(id=>{const item=navItems.find(x=>x[0]===id)!;const [,label,Icon]=item;return <button key={id} className={page===id?'active':''} onClick={()=>go(id)}><Icon size={19}/>{label}</button>})}</div>)}</nav>
       <div className="sidebar-bottom">{online?<Wifi size={16}/>:<WifiOff size={16}/>} {online?'En ligne':'Hors connexion'}<small>Données locales IndexedDB</small></div>
     </aside>
     {sidebar&&<div className="scrim" onClick={()=>setSidebar(false)}/>}
     <main className="main">
       <header className="topbar">
-        <button className="icon-btn menu-btn" onClick={()=>setSidebar(v=>!v)}><Menu/></button>
-        <button className="mobile-brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><img className="mobile-logo logo-night" src="./logo-night-v2.png" alt=""/><img className="mobile-logo logo-day" src="./logo-day-v2.png" alt=""/><span>DI'ART</span></button>
-        <div className="top-actions"><button className="icon-btn theme-toggle" title="Changer le thème" aria-label="Changer le thème" onClick={()=>setTheme(theme==='dark'?'light':'dark')}>{theme==='dark'?<Sun/>:<Moon/>}</button><button className="primary global-create-btn" aria-label="Créer" title="Créer" onClick={()=>{setCreateMode('menu');setCreateName('')}}><Plus size={22}/></button></div>
+        <button className="icon-btn menu-btn logo-menu-btn" onClick={()=>setSidebar(v=>!v)} aria-label="Ouvrir le menu DI'ART" title="Menu"><img className="menu-logo logo-night" src="./logo-night-v2.png" alt=""/><img className="menu-logo logo-day" src="./logo-day-v2.png" alt=""/></button>
+        <div className="top-actions"><button className="primary global-create-btn" aria-label="Créer" title="Créer" onClick={()=>{setCreateMode('menu');setCreateName('')}}><Plus size={22}/></button></div>
       </header>
       <div className="content">
-        {page==='dashboard'&&<Dashboard songs={songs} artists={artists} authors={authors} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={s=>openSong(s,{page:'dashboard',label:'Accueil'})} onGo={go} onFav={fav}/>} 
-        {page==='library'&&<LibraryPage songs={songs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} searchRef={searchRef} onOpen={s=>openSong(s,{page:'library',label:'Bibliothèque'})} onFav={fav} onDeleteMany={deleteSongs} onMerge={mergeSongs}/>} 
-        {page==='artists'&&<ArtistsPage items={artistGroups} restoreY={artistsScrollY} onArtist={openArtist}/>} 
+        {page==='dashboard'&&<Dashboard songs={songs} artists={artists} authors={authors} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={s=>openSong(s,{page:'dashboard',label:'Accueil'})} onGo={go} onFav={fav} onRecueilSearch={query=>openRecueilSearch({title:query})}/>} 
+        {page==='library'&&<LibraryPage songs={songs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} searchRef={searchRef} onOpen={s=>openSong(s,{page:'library',label:'Bibliothèque'})} onFav={fav} onDeleteMany={deleteSongs} onMerge={mergeSongs} onRecueilSearch={query=>openRecueilSearch({title:query})}/>} 
+        {page==='artists'&&<ArtistsPage items={artistGroups} restoreY={artistsScrollY} onArtist={openArtist} onRecueilSearch={query=>openRecueilSearch({artist:query})}/>} 
         {page==='artist'&&selectedArtist&&<ArtistDetailPage artist={selectedArtist} songs={songs.filter(s=>s.artist.trim()===selectedArtist)} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go('artists')} onOpen={s=>openSong(s,{page:'artist',label:selectedArtist})} onFav={fav} onAdd={()=>startNewSong(selectedArtist)}/>}
         {page==='authors'&&<AuthorsPage items={authorGroups} restoreY={authorsScrollY} onAuthor={openAuthor}/>}
         {page==='author'&&selectedAuthor&&<AuthorDetailPage author={selectedAuthor} songs={songs.filter(s=>s.authorComposer.trim()===selectedAuthor)} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go('authors')} onOpen={s=>openSong(s,{page:'author',label:selectedAuthor})} onFav={fav} onAdd={()=>startNewSong('',selectedAuthor)}/>} 
@@ -294,7 +301,7 @@ function App() {
         {page==='setlist'&&currentSetlist&&<SetlistDetailPage list={currentSetlist} songs={songs} refresh={refreshSetlists} toast={toast} onBack={()=>go('setlists')} onOpenSong={s=>openSong(s,{page:'setlist',label:currentSetlist.name})}/>} 
         {page==='song'&&selected&&<SongDetail song={songs.find(s=>s.id===selected.id)||selected} backLabel={songBack.label} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go(songBack.page)} onEdit={()=>go('edit')} onArtist={name=>{setSelectedArtist(name);setPage('artist')}} onFav={()=>void fav(songs.find(s=>s.id===selected.id)||selected)} onLyricsSave={async lyrics=>{const id=selected.id;const updatedAt=new Date().toISOString();patchLocal(id,{lyrics,updatedAt});setSelected(prev=>prev&&prev.id===id?{...prev,lyrics,updatedAt}:prev);await updateSong(id,{lyrics});await recordActivity('update','Paroles modifiées','Paroles mises à jour depuis la fiche morceau',{songId:id,songTitle:selected.title});toast('Paroles enregistrées.')}} onDelete={async()=>{const id=selected.id;const title=selected.title;await softDeleteSong(id);removeLocal(id);await recordActivity('delete','Morceau supprimé',title,{songId:id,songTitle:title});toast('Morceau placé dans la corbeille',{label:'Annuler',run:async()=>{await db.songs.update(id,{deletedAt:null});await recordActivity('restore','Suppression annulée',title,{songId:id,songTitle:title});await refresh()}});go('library')}}/>}
         {(page==='new'||(page==='edit'&&selected))&&<SongForm initial={page==='edit'?selected:null} songs={songs} presetArtist={page==='new'?presetArtist:''} presetAuthor={page==='new'?presetAuthor:''} onCancel={()=>go(selected?'song':selectedArtist?'artist':selectedAuthor?'author':'library')} onSave={async draft=>{if(page==='edit'&&selected){await updateSong(selected.id,draft);const updatedAt=new Date().toISOString();const next={...selected,...draft,updatedAt};patchLocal(selected.id,{...draft,updatedAt});setSelected(next);await recordActivity('update','Morceau modifié',draft.title,{songId:selected.id,songTitle:draft.title});toast('Morceau mis à jour');go('song')}else{const s=await createSong(draft);addLocal(s);setSelected(s);await recordActivity('create','Morceau créé',s.title,{songId:s.id,songTitle:s.title});toast('Morceau ajouté');go('song')}}} onMergeDuplicate={async(draft,duplicate)=>{if(page==='edit'&&selected){const current:Song={...selected,...draft,updatedAt:new Date().toISOString()};await mergeSongs(current,duplicate);go('song')}else{const virtual:Song={...draft,id:'draft',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),lastViewedAt:null,deletedAt:null};const mergedDraft=mergeSongDraft(duplicate,virtual);await updateSong(duplicate.id,mergedDraft);const updatedAt=new Date().toISOString();patchLocal(duplicate.id,{...mergedDraft,updatedAt});setSelected({...duplicate,...mergedDraft,updatedAt});await recordActivity('merge','Doublon fusionné',`Les informations saisies ont été fusionnées dans « ${duplicate.title} »`,{songId:duplicate.id,songTitle:duplicate.title});toast('Fusion effectuée avec le morceau existant.');go('song')}}}/>}
-        {page==='recueils'&&<RecueilsPage songs={songs} entryMode={recueilEntry} toast={toast} onImport={async draft=>{const s=await createSong(draft);addLocal(s);await recordActivity('import','Import depuis recueil',draft.title,{songId:s.id,songTitle:s.title,source:draft.referenceUrl||'Recueil'});return s}} onComplete={async(id,patch)=>{const old=songs.find(s=>s.id===id);await updateSong(id,patch);patchLocal(id,{...patch,updatedAt:new Date().toISOString()});await recordActivity('complete','Complétion depuis recueil',Object.keys(patch).join(', '),{songId:id,songTitle:old?.title,source:'Recueil'})}} onViewImported={s=>openSong(s,{page:'recueils',label:'Recueils'})} onEditImported={s=>{setSongBack({page:'recueils',label:'Recueils'});setSelected(s);setPage('edit')}}/>} 
+        {page==='recueils'&&<RecueilsPage songs={songs} entryMode={recueilEntry} prefill={recueilPrefill} toast={toast} onImport={async draft=>{const s=await createSong(draft);addLocal(s);await recordActivity('import','Import depuis recueil',draft.title,{songId:s.id,songTitle:s.title,source:draft.referenceUrl||'Recueil'});return s}} onComplete={async(id,patch)=>{const old=songs.find(s=>s.id===id);await updateSong(id,patch);patchLocal(id,{...patch,updatedAt:new Date().toISOString()});await recordActivity('complete','Complétion depuis recueil',Object.keys(patch).join(', '),{songId:id,songTitle:old?.title,source:'Recueil'})}} onViewImported={s=>openSong(s,{page:'recueils',label:'Recueils'})} onEditImported={s=>{setSongBack({page:'recueils',label:'Recueils'});setSelected(s);setPage('edit')}}/>} 
         {page==='import'&&<ImportWizard songs={songs} refresh={refresh} toast={toast} onRecord={recordActivity} onLibrary={()=>go('library')}/>} 
         {page==='backup'&&<BackupPage songs={songs} refresh={refresh} toast={toast} onRecord={recordActivity}/>}
         {page==='history'&&<HistoryPage/>}
@@ -309,7 +316,7 @@ function App() {
       <button onClick={()=>go('favorites')}><Heart/><span>Favoris</span></button>
       <button onClick={()=>go('setlists')}><ListMusic/><span>Setlists</span></button>
     </nav>
-    {createMode==='menu'&&<Modal title="Créer" onClose={()=>setCreateMode(null)}><div className="create-choice-grid"><button onClick={()=>startNewSong()}><Music2/><span><b>Nouveau morceau</b><small>Créer une nouvelle fiche musicale</small></span></button><button onClick={()=>{setCreateMode('artist');setCreateName('')}}><UsersRound/><span><b>Nouvel artiste</b><small>Créer son premier morceau</small></span></button><button onClick={()=>{setCreateMode('setlist');setCreateName('')}}><ListMusic/><span><b>Nouvelle setlist</b><small>Créer une liste vide</small></span></button><button onClick={()=>{setCreateMode(null);go('import')}}><Import/><span><b>Nouvel import</b><small>Importer Excel ou CSV</small></span></button><button onClick={()=>{setCreateMode(null);setRecueilEntry(null);setPage('recueils')}}><BookMarked/><span><b>Importer depuis recueil</b><small>Choisir Tononkira, Ultimate Guitar, Chordify ou ChordPro</small></span></button></div></Modal>}
+    {createMode==='menu'&&<Modal title="Créer" onClose={()=>setCreateMode(null)}><div className="create-choice-grid"><button onClick={()=>startNewSong()}><Music2/><span><b>Nouveau morceau</b><small>Créer une nouvelle fiche musicale</small></span></button><button onClick={()=>{setCreateMode('artist');setCreateName('')}}><UsersRound/><span><b>Nouvel artiste</b><small>Créer son premier morceau</small></span></button><button onClick={()=>{setCreateMode('setlist');setCreateName('')}}><ListMusic/><span><b>Nouvelle setlist</b><small>Créer une liste vide</small></span></button><button onClick={()=>{setCreateMode(null);go('import')}}><Import/><span><b>Nouvel import</b><small>Importer Excel ou CSV</small></span></button><button onClick={()=>{setCreateMode(null);setRecueilEntry(null);setRecueilPrefill(null);setPage('recueils')}}><BookMarked/><span><b>Importer depuis recueil</b><small>Choisir Tononkira, Ultimate Guitar, Chordify ou ChordPro</small></span></button></div></Modal>}
     {createMode==='artist'&&<Modal title="Nouvel artiste" onClose={()=>setCreateMode(null)}><div className="create-name-form"><label>Nom de l’artiste<input autoFocus value={createName} onChange={e=>setCreateName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')createNamedArtist()}}/></label><div className="modal-actions"><button className="secondary" onClick={()=>setCreateMode('menu')}>Retour</button><button className="primary" disabled={!createName.trim()} onClick={createNamedArtist}><Plus/>Continuer</button></div></div></Modal>}
     {createMode==='setlist'&&<Modal title="Nouvelle setlist" onClose={()=>setCreateMode(null)}><div className="create-name-form"><label>Nom de la setlist<input autoFocus value={createName} onChange={e=>setCreateName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createNamedSetlist()}}/></label><div className="modal-actions"><button className="secondary" onClick={()=>setCreateMode('menu')}>Retour</button><button className="primary" disabled={!createName.trim()} onClick={()=>void createNamedSetlist()}><Plus/>Créer</button></div></div></Modal>}
     <Toasts items={toasts}/>
