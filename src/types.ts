@@ -1,4 +1,6 @@
 export type SongSource = 'demo' | 'manual' | 'import'
+export type FavoriteStatus = ''|'favorite'|'learn'|'rehearse'|'mastered'|'review'
+export type StageRole = 'normal'|'chef'|'musicien'
 
 export interface Song {
   id: string
@@ -18,8 +20,10 @@ export interface Song {
   structure?: string
   chords?: string
   instrumentNotes?: string
+  musicianNotes?: Record<string,string>
   lyrics?: string
   favorite: boolean
+  favoriteStatus?: FavoriteStatus
   createdAt: string
   updatedAt: string
   lastViewedAt: string | null
@@ -79,13 +83,14 @@ export interface Setlist {
   songIds: string[]
   notes: string
   rehearsalNotes?: Record<string,string>
+  songOverrides?: Record<string,{key?:string;bpm?:number|null;notes?:string}>
   createdAt: string
   updatedAt: string
   deletedAt: string | null
 }
 
 
-export type ActivityKind = 'create'|'update'|'import'|'complete'|'delete'|'restore'|'merge'|'export'|'backup_restore'
+export type ActivityKind = 'create'|'update'|'import'|'complete'|'delete'|'restore'|'merge'|'export'|'backup_restore'|'play'
 
 export interface ActivityEntry {
   id:string
@@ -95,5 +100,8 @@ export interface ActivityEntry {
   songId?:string|null
   songTitle?:string
   source?:string
+  sessionId?:string
+  setlistId?:string
+  setlistName?:string
   createdAt:string
 }
