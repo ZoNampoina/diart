@@ -6,7 +6,7 @@ import {
   Trash2, Upload, UserRound, UsersRound, Wifi, WifiOff, X, Pencil, Save, RotateCcw,
   Filter, ArrowUpDown, Check, AlertTriangle, Minus, ListMusic, Cloud, LogIn, LogOut,
   Play, Square, Gauge, Maximize2, ChevronUp, ChevronDown, ListPlus, BookMarked, ExternalLink, FileUp, Globe2,
-  History, GitMerge
+  History, GitMerge, Info
 } from 'lucide-react'
 import { db, createSong, ensureDemoSeed, getSetting, markViewed, setSetting, softDeleteSong, updateSong, createSetlist, updateSetlist, logActivity, listActivity } from './db'
 import type { ActivityEntry, ActivityKind, ImportField, ImportMapping, ImportRowPreview, Song, SongDraft, Setlist } from './types'
@@ -17,10 +17,12 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
+const APP_VERSION='2.4.0'
+
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
   ['authors','Auteurs',UserRound], ['favorites','Favoris',Heart], ['recent','Récents',BookOpen],
-  ['setlists','Setlists',ListMusic], ['recueils','Recueils',BookMarked], ['import','Importer',Import], ['backup','Sauvegarde',Download], ['history','Historique',History], ['settings','Paramètres',Settings]
+  ['setlists','Setlists',ListMusic], ['recueils','Recueils',BookMarked], ['import','Importer',Import], ['backup','Sauvegarde',Download], ['history','Historique',History], ['about','À propos',Info], ['settings','Paramètres',Settings]
 ] as const
 
 type Page = typeof navItems[number][0] | 'song' | 'edit' | 'new' | 'artist' | 'author' | 'setlist'
@@ -28,7 +30,7 @@ type Page = typeof navItems[number][0] | 'song' | 'edit' | 'new' | 'artist' | 'a
 const navGroupDefs = [
   {label:'Bibliothèque',ids:['dashboard','library','artists','authors','favorites','recent']},
   {label:'Organisation',ids:['setlists','recueils']},
-  {label:'Outils',ids:['import','backup','history','settings']}
+  {label:'Outils',ids:['import','backup','history','about','settings']}
 ] as const
 type Toast = { id:number; text:string; action?:{label:string;run:()=>void} }
 
@@ -288,6 +290,7 @@ function App() {
         {page==='import'&&<ImportWizard songs={songs} refresh={refresh} toast={toast} onRecord={recordActivity}/>} 
         {page==='backup'&&<BackupPage songs={songs} refresh={refresh} toast={toast} onRecord={recordActivity}/>}
         {page==='history'&&<HistoryPage/>}
+        {page==='about'&&<AboutPage songs={songs} setlists={setlists} cloudStats={cloudStats}/>}
         {page==='settings'&&<SettingsPage theme={theme} setTheme={setTheme} songs={songs} refresh={refresh} toast={toast} userEmail={userEmail} localCount={songs.filter(s=>s.source!=='demo').length} cloudStats={cloudStats} lastSyncAt={lastSyncAt} syncing={syncing} onSync={()=>void doSync()} onPull={()=>void forcePull()} onSignedIn={async()=>{const {data}=await supabase.auth.getUser();const u=data.user;setUserId(u?.id??'');setUserEmail(u?.email??'');if(u){setSyncing(true);try{await pullCloudToLocal(u.id);await syncAll(u.id);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(u.id)]);toast('Cloud DI’ART connecté et récupéré.')}finally{setSyncing(false)}}}}/>}
       </div>
     </main>
@@ -451,8 +454,8 @@ function SongDetail({song,backLabel,setlists,refreshSetlists,toast,onBack,onEdit
   const normalizedStructure=parseStructureSequence(song.structure??'').join(' · ')
   const hasInfo=Boolean(song.originalKey||song.personalKey||song.capo!==null&&song.capo!==undefined||song.durationSeconds!==null||song.tags.length)
   const saveLyrics=()=>{if(savingLyrics)return;const next=lyricsDraft;setEditingLyrics(false);setSavingLyrics(true);void onLyricsSave(next).finally(()=>setSavingLyrics(false))}
-  return <><div className="detail-nav"><button className="ghost contextual-back" onClick={onBack}><ChevronLeft/>{backLabel}</button><div className="detail-icon-actions"><QuickSetlistAdd song={song} setlists={setlists} refresh={refreshSetlists} toast={toast}/><button className="bare-action" aria-label="Favori" title="Favori" onClick={onFav}><Heart fill={song.favorite?'currentColor':'none'}/></button>{baseKey&&<button className={`bare-action ${showTranspose?'active':''}`} aria-label="Transposition" title="Transposition" onClick={()=>setShowTranspose(v=>!v)}><ArrowUpDown/></button>}<button className="bare-action" aria-label="Modifier" title="Modifier" onClick={onEdit}><Pencil/></button><button className="bare-action danger-icon" aria-label="Supprimer" title="Supprimer" onClick={()=>setConfirm(true)}><Trash2/></button></div></div>
-  <section className="song-hero"><div><p className="eyebrow">{song.style||'Morceau'}{song.source==='demo'?' · DEMO':''}</p><h1>{song.title}</h1><p>{song.artist?<button type="button" className="artist-link-inline" onClick={()=>onArtist(song.artist)}>{song.artist}</button>:'Artiste inconnu'}{song.authorComposer?` · ${song.authorComposer}`:''}</p></div><div className="key-bpm">{baseKey&&<div><span>Tonalité</span><strong>{workingKey}</strong>{transpose!==0&&<small>{formatSemitoneOffset(transpose)}</small>}</div>}{song.bpm!==null&&<div className="bpm-fullscreen-metric"><span>BPM</span><strong>{song.bpm}</strong><button type="button" className="metric-fullscreen-btn" title="Plein écran" aria-label="Plein écran" onClick={()=>setFullscreen(true)}><Maximize2/></button></div>}{song.timeSignature&&<div><span>Signature</span><strong>{song.timeSignature}</strong></div>}{song.bpm===null&&<div className="fullscreen-only-metric"><span>Affichage</span><button type="button" className="metric-fullscreen-large" onClick={()=>setFullscreen(true)}><Maximize2/><b>Plein écran</b></button></div>}</div></section>
+  return <><div className="detail-nav"><button className="ghost contextual-back" onClick={onBack}><ChevronLeft/>{backLabel}</button><div className="detail-icon-actions"><QuickSetlistAdd song={song} setlists={setlists} refresh={refreshSetlists} toast={toast}/><button className="bare-action" aria-label="Plein écran" title="Plein écran" onClick={()=>setFullscreen(true)}><Maximize2/></button><button className="bare-action" aria-label="Favori" title="Favori" onClick={onFav}><Heart fill={song.favorite?'currentColor':'none'}/></button>{baseKey&&<button className={`bare-action ${showTranspose?'active':''}`} aria-label="Transposition" title="Transposition" onClick={()=>setShowTranspose(v=>!v)}><ArrowUpDown/></button>}<button className="bare-action" aria-label="Modifier" title="Modifier" onClick={onEdit}><Pencil/></button><button className="bare-action danger-icon" aria-label="Supprimer" title="Supprimer" onClick={()=>setConfirm(true)}><Trash2/></button></div></div>
+  <section className="song-hero"><div><p className="eyebrow">{song.style||'Morceau'}{song.source==='demo'?' · DEMO':''}</p><h1>{song.title}</h1><p>{song.artist?<button type="button" className="artist-link-inline" onClick={()=>onArtist(song.artist)}>{song.artist}</button>:'Artiste inconnu'}{song.authorComposer?` · ${song.authorComposer}`:''}</p></div><div className="key-bpm">{baseKey&&<div><span>Tonalité</span><strong>{workingKey}</strong>{transpose!==0&&<small>{formatSemitoneOffset(transpose)}</small>}</div>}{song.bpm!==null&&<div><span>BPM</span><strong>{song.bpm}</strong></div>}{song.timeSignature&&<div><span>Signature</span><strong>{song.timeSignature}</strong></div>}</div></section>
   {showTranspose&&baseKey&&<section className="transpose-bar optional-tool" aria-label="Transposition"><div><span className="eyebrow">Transposition</span><b>{baseKey} → {workingKey}</b></div><div className="transpose-controls"><button className="secondary transpose-btn" disabled={transpose<=-11} onClick={()=>setTranspose(v=>Math.max(-11,v-1))}><Minus/>½ ton</button><button className="ghost transpose-reset" disabled={transpose===0} onClick={()=>setTranspose(0)}><RotateCcw/>0</button><button className="secondary transpose-btn" disabled={transpose>=11} onClick={()=>setTranspose(v=>Math.min(11,v+1))}><Plus/>½ ton</button></div></section>}
   <div className="musician-grid">
     {hasInfo&&<section className="panel info-list"><h2>Informations musicales</h2>{song.originalKey&&<div><span>Tonalité originale</span><b>{song.originalKey}</b></div>}{song.personalKey&&<div><span>Tonalité habituelle</span><b>{song.personalKey}</b></div>}{song.capo!==null&&song.capo!==undefined&&<div><span>Capo</span><b>{song.capo}</b></div>}{song.durationSeconds!==null&&<div><span>Durée</span><b>{formatDuration(song.durationSeconds)}</b></div>}{song.tags.length>0&&<div><span>Tags</span><b>{song.tags.join(', ')}</b></div>}</section>}
@@ -819,7 +822,7 @@ function SettingsPage({theme,setTheme,songs,refresh,toast,userEmail,localCount,c
   const logout=async()=>{await signOut();toast('Déconnecté du cloud DI’ART.');location.reload()}
   return <><div className="page-head compact"><div><p className="eyebrow">Paramètres</p><h1>Préférences</h1></div></div>
   <section className="panel cloud-panel"><div className="cloud-heading"><Cloud/><div><h2>Cloud DI’ART</h2><p>{userEmail?`Connecté : ${userEmail}`:'Connectez le même compte sur PC, tablette et Android pour retrouver automatiquement votre bibliothèque.'}</p></div></div>{userEmail?<><div className="cloud-stats"><div><span>Sur cet appareil</span><b>{localCount}</b><small>morceaux</small></div><div><span>Dans le cloud</span><b>{cloudStats?.songs??'—'}</b><small>morceaux</small></div><div><span>Setlists cloud</span><b>{cloudStats?.setlists??'—'}</b><small>listes</small></div></div><div className="cloud-help"><b>Synchronisation multi-appareils active.</b><span> Vérifiez que cette adresse e-mail est exactement la même sur le PC, la tablette et Android.</span>{lastSyncAt&&<small>Dernière synchro réussie : {new Date(lastSyncAt).toLocaleString('fr-FR')}</small>}</div><div className="cloud-actions"><button className="primary" disabled={syncing} onClick={onPull}><Download/>{syncing?'Récupération…':'Récupérer depuis le cloud'}</button><button className="secondary" disabled={syncing} onClick={onSync}>{syncing?'Synchronisation…':'Synchroniser maintenant'}</button><button className="secondary" onClick={()=>void logout()}><LogOut/>Déconnexion</button></div></>:<div className="cloud-auth"><input type="email" placeholder="Adresse e-mail" value={email} onChange={e=>setEmail(e.target.value)}/><input type="password" placeholder="Mot de passe" value={password} onChange={e=>setPassword(e.target.value)}/><button className="primary" disabled={authBusy||!email||password.length<6} onClick={()=>void auth('login')}><LogIn/>Connexion</button><button className="secondary" disabled={authBusy||!email||password.length<6} onClick={()=>void auth('signup')}>Créer un compte</button></div>}</section>
-  <section className="panel settings-list"><div><span><b>Thème</b><small>Apparence de l’interface</small></span><select value={theme} onChange={e=>setTheme(e.target.value as 'dark'|'light'|'system')}><option value="dark">Sombre</option><option value="light">Clair</option><option value="system">Système</option></select></div><div><span><b>Données de démonstration</b><small>{demos.length} morceau(x)</small></span><button className="danger" disabled={!demos.length} onClick={()=>void remove()}><Trash2/>Supprimer les démos</button></div><div><span><b>Synchronisation cloud</b><small>Bibliothèque et setlists synchronisées entre appareils connectés au même compte.</small></span><em>{userEmail?'Actif':'Connexion requise'}</em></div><div><span><b>Expérience musicale V1.3</b><small>Transposition, métronome, Tap Tempo, setlists, répétition et Live Mode.</small></span><em>Actif</em></div></section></>
+  <section className="panel settings-list"><div><span><b>Thème</b><small>Apparence de l’interface</small></span><select value={theme} onChange={e=>setTheme(e.target.value as 'dark'|'light'|'system')}><option value="dark">Sombre</option><option value="light">Clair</option><option value="system">Système</option></select></div><div><span><b>Données de démonstration</b><small>{demos.length} morceau(x)</small></span><button className="danger" disabled={!demos.length} onClick={()=>void remove()}><Trash2/>Supprimer les démos</button></div><div><span><b>Synchronisation cloud</b><small>Bibliothèque et setlists synchronisées entre appareils connectés au même compte.</small></span><em>{userEmail?'Actif':'Connexion requise'}</em></div><div><span><b>DI’ART v{APP_VERSION}</b><small>Plein écran, transposition, métronome, setlists, recueils, historique et synchronisation.</small></span><em>Actif</em></div></section></>
 }
 
 
@@ -967,6 +970,8 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   useEffect(()=>{try{localStorage.setItem('diart-stage-tools-collapsed',toolsCollapsed?'1':'0')}catch{}},[toolsCollapsed])
 
   useEffect(()=>{
+    const onKey=(e:KeyboardEvent)=>{if(e.key==='Escape'){e.preventDefault();onClose()}}
+    window.addEventListener('keydown',onKey)
     const previousBody=document.body.style.overflow
     const previousHtml=document.documentElement.style.overflow
     document.body.style.overflow='hidden'
@@ -977,6 +982,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
       cancelAnimationFrame(raf1);cancelAnimationFrame(raf2)
       document.body.style.overflow=previousBody
       document.documentElement.style.overflow=previousHtml
+      window.removeEventListener('keydown',onKey)
     }
   },[])
 
@@ -1031,8 +1037,13 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     const head=songHeadRef.current
     if(!scroller||!head)return
     const threshold=Math.max(36,head.offsetHeight-18)
-    const next=scroller.scrollTop>threshold
-    setShowHeaderIdentity(prev=>prev===next?prev:next)
+    setShowHeaderIdentity(prev=>{
+      const showAt=threshold+18
+      const hideAt=Math.max(0,threshold-18)
+      if(!prev&&scroller.scrollTop>showAt)return true
+      if(prev&&scroller.scrollTop<hideAt)return false
+      return prev
+    })
   }
   const baseKey=song.personalKey||song.originalKey
   const displayKey=baseKey?transposeKey(baseKey,transpose):''
@@ -1044,7 +1055,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     <header className="stage-topbar" style={{zIndex:4,background:'rgba(2,9,12,.96)',borderBottom:'1px solid #17323a',display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center'}}>
       <div className="stage-list-context" style={{gridColumn:1,justifySelf:'start'}}><span>{standalone?'Plein écran':mode==='rehearsal'?'Répétition':'Live Mode'}</span>{!standalone&&<b>{list.name}</b>}</div>
       <div className={'stage-current-song '+(showHeaderIdentity?'identity-visible':'identity-hidden')} style={{gridColumn:2,justifySelf:'center',textAlign:'center'}}>
-        {showHeaderIdentity&&<div className="stage-header-identity"><b>{song.title}</b><small>{song.artist||'Artiste inconnu'}</small></div>}
+        <div className="stage-header-identity" aria-hidden={!showHeaderIdentity}><b>{song.title}</b><small>{song.artist||'Artiste inconnu'}</small></div>
         {(hasGuide||song.lyrics)&&<div className="stage-view-tabs">{hasGuide&&<button type="button" className={view==='guide'?'active':''} onClick={()=>{setView('guide');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Repères</button>}{song.lyrics&&<button type="button" className={view==='lyrics'?'active':''} onClick={()=>{setView('lyrics');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Paroles</button>}</div>}
       </div>
       <button type="button" className="live-close" style={{gridColumn:3,justifySelf:'end'}} onClick={onClose}><X/></button>
