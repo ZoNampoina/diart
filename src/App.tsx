@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.4.0'
+const APP_VERSION='2.4.1'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -33,6 +33,10 @@ const navGroupDefs = [
   {label:'Outils',ids:['import','backup','history','about','settings']}
 ] as const
 type Toast = { id:number; text:string; action?:{label:string;run:()=>void} }
+type SyncMode = 'auto'|'manual'
+type SyncInterval = 5|15|30|60
+const KEY_OPTIONS=['Ab','A','Bb','B','C','C#','D','Eb','E','F','F#','G'] as const
+const SIGNATURE_OPTIONS=['2/4','3/4','4/4','5/4','6/8','7/8','9/8','12/8'] as const
 
 function useSongs() {
   const [songs,setSongs] = useState<Song[]>([])
@@ -127,6 +131,9 @@ function App() {
   const [syncing,setSyncing]=useState(false)
   const [cloudStats,setCloudStats]=useState<{songs:number;setlists:number}|null>(null)
   const [lastSyncAt,setLastSyncAt]=useState('')
+  const [syncMode,setSyncMode]=useState<SyncMode>('auto')
+  const [syncIntervalMinutes,setSyncIntervalMinutes]=useState<SyncInterval>(15)
+  const [syncPrefsReady,setSyncPrefsReady]=useState(false)
   const syncLockRef=useRef(false)
   const syncTimerRef=useRef<number|null>(null)
   const searchRef=useRef<HTMLInputElement>(null)
@@ -155,12 +162,12 @@ function App() {
     finally{syncLockRef.current=false;setSyncing(false)}
   }
   const scheduleSync=(delay=250)=>{
+    if(syncMode!=='auto')return
     if(syncTimerRef.current!==null)window.clearTimeout(syncTimerRef.current)
     syncTimerRef.current=window.setTimeout(()=>{syncTimerRef.current=null;void doSync(false)},delay)
   }
   const recordActivity=async(kind:ActivityKind,label:string,details:string,meta:{songId?:string|null;songTitle?:string;source?:string}={})=>{
     await logActivity(kind,label,details,meta)
-    if(userId&&navigator.onLine)scheduleSync(80)
   }
   const forcePull=async()=>{
     if(!userId||!navigator.onLine||syncLockRef.current)return
@@ -171,34 +178,33 @@ function App() {
     finally{syncLockRef.current=false;setSyncing(false)}
   }
 
-  useEffect(()=>{void getSetting('theme','dark').then(v=>setTheme((v as typeof theme)||'dark'));void getSetting('lastSyncAt','').then(setLastSyncAt);void refreshSetlists()},[])
+  useEffect(()=>{
+    void getSetting('theme','dark').then(v=>setTheme((v as typeof theme)||'dark'))
+    void getSetting('lastSyncAt','').then(setLastSyncAt)
+    void Promise.all([getSetting('syncMode','auto'),getSetting('syncIntervalMinutes','15')]).then(([mode,interval])=>{
+      setSyncMode(mode==='manual'?'manual':'auto')
+      const parsed=Number(interval)
+      setSyncIntervalMinutes(([5,15,30,60] as number[]).includes(parsed)?parsed as SyncInterval:15)
+      setSyncPrefsReady(true)
+    })
+    void refreshSetlists()
+  },[])
   useEffect(()=>{
     void supabase.auth.getSession().then(({data})=>{const u=data.session?.user;setUserId(u?.id??'');setUserEmail(u?.email??'')})
     const {data}=supabase.auth.onAuthStateChange((_event,session)=>{const u=session?.user;setUserId(u?.id??'');setUserEmail(u?.email??'')})
     return()=>data.subscription.unsubscribe()
   },[])
-  useEffect(()=>{if(userId&&online){scheduleSync(80);void refreshCloudStats(userId)}else if(!userId)setCloudStats(null)},[userId,online])
-  const syncSignature=useMemo(()=>{
-    let songLatest='',setlistLatest=''
-    let songCount=0
-    for(const s of songs){if(s.source==='demo')continue;songCount++;if(s.updatedAt>songLatest)songLatest=s.updatedAt}
-    for(const s of setlists){if(s.updatedAt>setlistLatest)setlistLatest=s.updatedAt}
-    return `${songCount}:${songLatest}#${setlists.length}:${setlistLatest}`
-  },[songs,setlists])
-  useEffect(()=>{if(!userId||!online)return;const timer=window.setTimeout(()=>scheduleSync(40),700);return()=>window.clearTimeout(timer)},[syncSignature,userId,online])
   useEffect(()=>{
-    if(!userId)return
-    const channel=supabase.channel(`diart-live-sync-${userId}`)
-      .on('postgres_changes',{event:'*',schema:'public',table:'diart_songs',filter:`user_id=eq.${userId}`},()=>scheduleSync(180))
-      .on('postgres_changes',{event:'*',schema:'public',table:'diart_setlists',filter:`user_id=eq.${userId}`},()=>scheduleSync(180))
-      .on('postgres_changes',{event:'*',schema:'public',table:'diart_activity',filter:`user_id=eq.${userId}`},()=>scheduleSync(180))
-      .subscribe(status=>{if(status==='SUBSCRIBED')scheduleSync(80)})
-    const timer=window.setInterval(()=>{if(navigator.onLine) scheduleSync(100)},180000)
-    const wake=()=>{if(document.visibilityState==='visible'&&navigator.onLine)scheduleSync(60)}
-    document.addEventListener('visibilitychange',wake)
-    window.addEventListener('focus',wake)
-    return()=>{window.clearInterval(timer);document.removeEventListener('visibilitychange',wake);window.removeEventListener('focus',wake);if(syncTimerRef.current!==null)window.clearTimeout(syncTimerRef.current);void supabase.removeChannel(channel)}
-  },[userId])
+    if(userId&&online){
+      if(syncPrefsReady&&syncMode==='auto')scheduleSync(80)
+      void refreshCloudStats(userId)
+    }else if(!userId)setCloudStats(null)
+  },[userId,online,syncMode,syncPrefsReady])
+  useEffect(()=>{
+    if(!userId||!online||!syncPrefsReady||syncMode!=='auto')return
+    const timer=window.setInterval(()=>{void doSync(false)},syncIntervalMinutes*60_000)
+    return()=>window.clearInterval(timer)
+  },[userId,online,syncMode,syncIntervalMinutes,syncPrefsReady])
   useEffect(()=>{
     const resolved=theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):theme
     document.documentElement.dataset.theme=resolved
@@ -220,6 +226,8 @@ function App() {
   const openArtist=(name:string)=>{setArtistsScrollY(currentScrollY());setSelectedArtist(name);setPage('artist')}
   const openAuthor=(name:string)=>{setAuthorsScrollY(currentScrollY());setSelectedAuthor(name);setPage('author')}
   const openSetlist=(id:string)=>{setSelectedSetlistId(id);setPage('setlist')}
+  const changeSyncMode=(mode:SyncMode)=>{setSyncMode(mode);void setSetting('syncMode',mode)}
+  const changeSyncInterval=(minutes:SyncInterval)=>{setSyncIntervalMinutes(minutes);void setSetting('syncIntervalMinutes',String(minutes))}
   const createNamedArtist=()=>{const name=createName.trim();if(!name)return;startNewSong(name)}
   const createNamedSetlist=async()=>{const name=createName.trim();if(!name)return;await createSetlist(name);await refreshSetlists();setCreateMode(null);setCreateName('');setPage('setlists');toast(`Setlist « ${name} » créée.`)}
   const deleteSongs=async(items:Song[])=>{
@@ -291,7 +299,7 @@ function App() {
         {page==='backup'&&<BackupPage songs={songs} refresh={refresh} toast={toast} onRecord={recordActivity}/>}
         {page==='history'&&<HistoryPage/>}
         {page==='about'&&<AboutPage songs={songs} setlists={setlists} cloudStats={cloudStats}/>}
-        {page==='settings'&&<SettingsPage theme={theme} setTheme={setTheme} songs={songs} refresh={refresh} toast={toast} userEmail={userEmail} localCount={songs.filter(s=>s.source!=='demo').length} cloudStats={cloudStats} lastSyncAt={lastSyncAt} syncing={syncing} onSync={()=>void doSync()} onPull={()=>void forcePull()} onSignedIn={async()=>{const {data}=await supabase.auth.getUser();const u=data.user;setUserId(u?.id??'');setUserEmail(u?.email??'');if(u){setSyncing(true);try{await pullCloudToLocal(u.id);await syncAll(u.id);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(u.id)]);toast('Cloud DI’ART connecté et récupéré.')}finally{setSyncing(false)}}}}/>}
+        {page==='settings'&&<SettingsPage theme={theme} setTheme={setTheme} songs={songs} refresh={refresh} toast={toast} userEmail={userEmail} localCount={songs.filter(s=>s.source!=='demo').length} cloudStats={cloudStats} lastSyncAt={lastSyncAt} syncing={syncing} syncMode={syncMode} syncIntervalMinutes={syncIntervalMinutes} onSyncMode={changeSyncMode} onSyncInterval={changeSyncInterval} onSync={()=>void doSync()} onPull={()=>void forcePull()} onSignedIn={async()=>{const {data}=await supabase.auth.getUser();const u=data.user;setUserId(u?.id??'');setUserEmail(u?.email??'');if(u){setSyncing(true);try{await pullCloudToLocal(u.id);await syncAll(u.id);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(u.id)]);toast('Cloud DI’ART connecté et récupéré.')}finally{setSyncing(false)}}}}/>}
       </div>
     </main>
     <nav className="bottom-nav">
