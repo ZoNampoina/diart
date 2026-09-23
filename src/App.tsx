@@ -285,9 +285,9 @@ function App() {
         {page==='song'&&selected&&<SongDetail song={songs.find(s=>s.id===selected.id)||selected} backLabel={songBack.label} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go(songBack.page)} onEdit={()=>go('edit')} onArtist={name=>{setSelectedArtist(name);setPage('artist')}} onFav={()=>void fav(songs.find(s=>s.id===selected.id)||selected)} onLyricsSave={async lyrics=>{const id=selected.id;const updatedAt=new Date().toISOString();patchLocal(id,{lyrics,updatedAt});setSelected(prev=>prev&&prev.id===id?{...prev,lyrics,updatedAt}:prev);await updateSong(id,{lyrics});await recordActivity('update','Paroles modifiées','Paroles mises à jour depuis la fiche morceau',{songId:id,songTitle:selected.title});toast('Paroles enregistrées.')}} onDelete={async()=>{const id=selected.id;const title=selected.title;await softDeleteSong(id);removeLocal(id);await recordActivity('delete','Morceau supprimé',title,{songId:id,songTitle:title});toast('Morceau placé dans la corbeille',{label:'Annuler',run:async()=>{await db.songs.update(id,{deletedAt:null});await recordActivity('restore','Suppression annulée',title,{songId:id,songTitle:title});await refresh()}});go('library')}}/>}
         {(page==='new'||(page==='edit'&&selected))&&<SongForm initial={page==='edit'?selected:null} presetArtist={page==='new'?presetArtist:''} presetAuthor={page==='new'?presetAuthor:''} onCancel={()=>go(selected?'song':selectedArtist?'artist':selectedAuthor?'author':'library')} onSave={async draft=>{if(page==='edit'&&selected){await updateSong(selected.id,draft);const updatedAt=new Date().toISOString();const next={...selected,...draft,updatedAt};patchLocal(selected.id,{...draft,updatedAt});setSelected(next);await recordActivity('update','Morceau modifié',draft.title,{songId:selected.id,songTitle:draft.title});toast('Morceau mis à jour');go('song')}else{const s=await createSong(draft);addLocal(s);setSelected(s);await recordActivity('create','Morceau créé',s.title,{songId:s.id,songTitle:s.title});toast('Morceau ajouté');go('song')}}}/>}
         {page==='recueils'&&<RecueilsPage songs={songs} entryMode={recueilEntry} toast={toast} onImport={async draft=>{const s=await createSong(draft);addLocal(s);await recordActivity('import','Import depuis recueil',draft.title,{songId:s.id,songTitle:s.title,source:draft.referenceUrl||'Recueil'})}} onComplete={async(id,patch)=>{const old=songs.find(s=>s.id===id);await updateSong(id,patch);patchLocal(id,{...patch,updatedAt:new Date().toISOString()});await recordActivity('complete','Complétion depuis recueil',Object.keys(patch).join(', '),{songId:id,songTitle:old?.title,source:'Recueil'})}}/>} 
-        {page==='import'&&<ImportWizard songs={songs} refresh={refresh} toast={toast}/>}
+        {page==='import'&&<ImportWizard songs={songs} refresh={refresh} toast={toast} onRecord={recordActivity}/>} 
         {page==='backup'&&<BackupPage songs={songs} refresh={refresh} toast={toast} onRecord={recordActivity}/>}
-        {page==='history'&&<HistoryPage songs={songs}/>}
+        {page==='history'&&<HistoryPage/>}
         {page==='settings'&&<SettingsPage theme={theme} setTheme={setTheme} songs={songs} refresh={refresh} toast={toast} userEmail={userEmail} localCount={songs.filter(s=>s.source!=='demo').length} cloudStats={cloudStats} lastSyncAt={lastSyncAt} syncing={syncing} onSync={()=>void doSync()} onPull={()=>void forcePull()} onSignedIn={async()=>{const {data}=await supabase.auth.getUser();const u=data.user;setUserId(u?.id??'');setUserEmail(u?.email??'');if(u){setSyncing(true);try{await pullCloudToLocal(u.id);await syncAll(u.id);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(u.id)]);toast('Cloud DI’ART connecté et récupéré.')}finally{setSyncing(false)}}}}/>}
       </div>
     </main>
@@ -795,7 +795,7 @@ function ImportWizard({songs,refresh,toast,onRecord}:{songs:Song[];refresh:()=>P
   </>
 }
 
-function HistoryPage({songs}:{songs:Song[]}) {
+function HistoryPage() {
   const [items,setItems]=useState<ActivityEntry[]>([])
   const [q,setQ]=useState('')
   const [kind,setKind]=useState('')
