@@ -7367,3 +7367,14 @@ body,
     grid-template-columns:1fr;
   }
 }
+
+
+/* DI'ART 2.5.4 — Chordify fallback + transposition polish */
+.chordify-direct-import{margin-top:10px;padding:10px;border:1px dashed color-mix(in srgb,var(--accent2) 28%,var(--line));border-radius:11px;background:color-mix(in srgb,var(--surface2) 82%,transparent)}
+.chordify-direct-import>div:first-child{display:flex;align-items:flex-start;gap:8px}
+.chordify-direct-import>div:first-child>svg{width:17px;height:17px;margin-top:2px;color:var(--accent2)}
+.chordify-direct-import b,.chordify-direct-import small{display:block}
+.chordify-direct-import small{margin-top:2px;color:var(--muted)}
+.chordify-direct-row{margin-top:8px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
+.chordify-direct-row input{min-width:0}
+@media(max-width:820px){.chordify-direct-row{grid-template-columns:1fr}.chordify-direct-row button{width:100%}}
