@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.5.5'
+const APP_VERSION='2.5.6'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -67,7 +67,7 @@ function Metric({label,value}:{label:string;value:string|number}) {
 }
 
 function SongRow({song,onOpen,onFav,action}:{song:Song;onOpen:()=>void;onFav:()=>void;action?:ReactNode}) {
-  const key=song.personalKey||song.originalKey
+  const key=song.originalKey
   const hasMeta=Boolean(key||song.bpm!==null||song.timeSignature)
   return <div className={`song-row ${action?'has-action':''} ${hasMeta?'':'no-meta'}`} onClick={onOpen} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==='Enter')onOpen()}}>
     <button className={`icon-btn fav ${song.favorite?'active':''}`} aria-label={song.favorite?'Retirer des favoris':'Ajouter aux favoris'} onClick={e=>{e.stopPropagation();onFav()}}><Star size={18} fill={song.favorite?'currentColor':'none'}/></button>
@@ -121,11 +121,27 @@ function keyOffsetFromOriginal(original:string,target:string):number{
   }
   return best
 }
+function setlistSongSavedTranspose(list:Setlist,song:Song):number{
+  const reference=song.originalKey||song.personalKey
+  if(!reference)return 0
+  const override=list.songOverrides?.[song.id]
+  if(!override)return 0
+  if(override.key)return keyOffsetFromOriginal(reference,override.key)
+  if(Object.prototype.hasOwnProperty.call(override,'transpose')){
+    const legacyBase=song.personalKey||song.originalKey
+    if(!legacyBase)return 0
+    const legacyKey=transposeKey(legacyBase,override.transpose??0)
+    return keyOffsetFromOriginal(reference,legacyKey)
+  }
+  return 0
+}
 function setlistSongDisplayKey(list:Setlist,song:Song):string{
-  const base=song.personalKey||song.originalKey
-  if(!base)return ''
-  const shift=list.songOverrides?.[song.id]?.transpose??0
-  return shift?transposeKey(base,shift):base
+  const reference=song.originalKey||song.personalKey
+  if(!reference)return ''
+  const override=list.songOverrides?.[song.id]
+  if(override?.key)return normalizeKey(override.key)
+  const shift=setlistSongSavedTranspose(list,song)
+  return shift?transposeKey(reference,shift):reference
 }
 
 function conflictValueSummary(value:unknown,field:string):string{
@@ -1329,7 +1345,7 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
 
   return <><div className="detail-nav setlist-detail-nav stage-entry-actions"><span/><div className="setlist-mode-actions"><button type="button" className="secondary" disabled={!listSongs.length} onClick={()=>setStage('rehearsal')}><Play/>Répétition</button><button type="button" className="primary" disabled={!listSongs.length} onClick={()=>setStage('live')}><Maximize2/>Live Mode</button></div></div>
   <section className="setlist-detail-hero" style={{minHeight:0}}><div className="setlist-detail-title"><span className="setlist-hero-icon"><ListMusic/></span><p className="eyebrow">Setlist</p><h1>{list.name}</h1><p>{listSongs.length} morceau{listSongs.length>1?'x':''} · {lyricsCount} avec paroles</p></div>{(totalSeconds>0||avgBpm!==null||lyricsCount>0)&&<div className="setlist-detail-metrics" role="list">{totalSeconds>0&&<div role="listitem"><span>Durée</span><b>{formatDuration(totalSeconds)}</b></div>}{avgBpm!==null&&<div role="listitem"><span>BPM moyen</span><b>{avgBpm}</b></div>}{lyricsCount>0&&<div role="listitem"><span>Paroles</span><b>{lyricsCount}/{listSongs.length}</b></div>}</div>}</section>
-  <section className="panel setlist-manager"><div className="panel-title-row setlist-order-head"><h2>Ordre des morceaux</h2><button className="bare-action setlist-add-button" aria-label="Ajouter des morceaux" title="Ajouter des morceaux" onClick={()=>setAddOpen(true)}><ListPlus/></button></div><div className={'setlist-detail-songs '+(draggingId?'drag-active':'')}>{listSongs.length?listSongs.map((s,i)=><div className={'setlist-detail-song '+(draggingId===s.id?'dragging ':'')+(dragShiftId===s.id?'drag-shift drag-shift-'+(dragDirection??'down'):'')} data-setlist-index={i} key={s.id}><span className="setlist-number">{i+1}</span><span className="setlist-drag-grip" aria-label="Maintenir puis déplacer" title="Maintenir puis déplacer" onPointerDown={e=>startHold(e,i)} onPointerMove={dragMove} onPointerUp={e=>void finishDrag(e)} onPointerCancel={e=>void finishDrag(e)}><GripVertical/></span><button className="setlist-song-main" onClick={()=>{if(!draggingId)onOpenSong(s)}}><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}{s.bpm!==null?' · '+s.bpm+' BPM':''}</small></button>{setlistSongDisplayKey(list,s)&&<strong className="setlist-song-key" title={list.songOverrides?.[s.id]?.transpose?`Transposition setlist ${formatSemitoneOffset(list.songOverrides[s.id].transpose??0)}`:'Tonalité du morceau'}>{setlistSongDisplayKey(list,s)}{Boolean(list.songOverrides?.[s.id]?.transpose)&&<small>{formatSemitoneOffset(list.songOverrides?.[s.id]?.transpose??0)}</small>}</strong>}<div className="setlist-song-flags">{s.lyrics&&<span>Paroles</span>}{list.rehearsalNotes?.[s.id]&&<span>Notes</span>}</div><button className="bare-action setlist-move-btn" disabled={i===0} aria-label="Monter" onClick={()=>void move(i,-1)}><ChevronUp/></button><button className="bare-action setlist-move-btn" disabled={i===listSongs.length-1} aria-label="Descendre" onClick={()=>void move(i,1)}><ChevronDown/></button><button className="bare-action danger-icon setlist-remove-btn" aria-label="Retirer" onClick={()=>void remove(s.id)}><X/></button></div>):<Empty text="Cette setlist est vide."/>}</div></section>
+  <section className="panel setlist-manager"><div className="panel-title-row setlist-order-head"><h2>Ordre des morceaux</h2><button className="bare-action setlist-add-button" aria-label="Ajouter des morceaux" title="Ajouter des morceaux" onClick={()=>setAddOpen(true)}><ListPlus/></button></div><div className={'setlist-detail-songs '+(draggingId?'drag-active':'')}>{listSongs.length?listSongs.map((s,i)=><div className={'setlist-detail-song '+(draggingId===s.id?'dragging ':'')+(dragShiftId===s.id?'drag-shift drag-shift-'+(dragDirection??'down'):'')} data-setlist-index={i} key={s.id}><span className="setlist-number">{i+1}</span><span className="setlist-drag-grip" aria-label="Maintenir puis déplacer" title="Maintenir puis déplacer" onPointerDown={e=>startHold(e,i)} onPointerMove={dragMove} onPointerUp={e=>void finishDrag(e)} onPointerCancel={e=>void finishDrag(e)}><GripVertical/></span><button className="setlist-song-main" onClick={()=>{if(!draggingId)onOpenSong(s)}}><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}{s.bpm!==null?' · '+s.bpm+' BPM':''}</small></button>{setlistSongDisplayKey(list,s)&&<strong className="setlist-song-key" title={setlistSongSavedTranspose(list,s)?`Transposition setlist ${formatSemitoneOffset(setlistSongSavedTranspose(list,s))}`:'Tonalité du morceau'}>{setlistSongDisplayKey(list,s)}{Boolean(setlistSongSavedTranspose(list,s))&&<small>{formatSemitoneOffset(setlistSongSavedTranspose(list,s))}</small>}</strong>}<div className="setlist-song-flags">{s.lyrics&&<span>Paroles</span>}{list.rehearsalNotes?.[s.id]&&<span>Notes</span>}</div><button className="bare-action setlist-move-btn" disabled={i===0} aria-label="Monter" onClick={()=>void move(i,-1)}><ChevronUp/></button><button className="bare-action setlist-move-btn" disabled={i===listSongs.length-1} aria-label="Descendre" onClick={()=>void move(i,1)}><ChevronDown/></button><button className="bare-action danger-icon setlist-remove-btn" aria-label="Retirer" onClick={()=>void remove(s.id)}><X/></button></div>):<Empty text="Cette setlist est vide."/>}</div></section>
   {addOpen&&<Modal className="setlist-add-modal" title="Ajouter des morceaux" onClose={closeAdd}><div className="setlist-add-mode"><button className={addMode==='song'?'active':''} onClick={()=>{setAddMode('song');setArtistPick('');setAddQuery('')}}><Search/>Rechercher un morceau</button><button className={addMode==='artist'?'active':''} onClick={()=>{setAddMode('artist');setArtistPick('');setAddQuery('')}}><UsersRound/>Rechercher un artiste</button></div><div className="setlist-add-search"><Search/><input value={addQuery} onChange={e=>setAddQuery(e.target.value)} placeholder={addMode==='song'?'Titre, artiste, tonalité, BPM…':'Nom de l’artiste…'}/>{addQuery&&<button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={()=>setAddQuery('')}><X/></button>}</div>{addMode==='song'?<div className="setlist-add-results">{songMatches.length?songMatches.map(s=><button key={s.id} onClick={()=>void addAndStay(s.id)}><span><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}</small></span><span>{setlistSongDisplayKey(list,s)}{setlistSongDisplayKey(list,s)&&s.bpm!==null?' · ':''}{s.bpm!==null?s.bpm+' BPM':''}</span><Plus/></button>):<p className="muted-copy">Aucun morceau disponible.</p>}</div>:artistPick?<><button className="ghost setlist-artist-back" onClick={()=>setArtistPick('')}><ChevronLeft/>Artistes</button><div className="setlist-add-results">{artistSongs.map(s=><button key={s.id} onClick={()=>void addAndStay(s.id)}><span><b>{s.title}</b><small>{s.artist}</small></span><span>{setlistSongDisplayKey(list,s)}{setlistSongDisplayKey(list,s)&&s.bpm!==null?' · ':''}{s.bpm!==null?s.bpm+' BPM':''}</span><Plus/></button>)}</div></>:<div className="setlist-artist-results">{artistMatches.map(a=><button key={a} onClick={()=>setArtistPick(a)}><span className="avatar">{a[0]}</span><span><b>{a}</b><small>{available.filter(s=>s.artist.trim()===a).length} morceau(x) disponible(s)</small></span><ChevronRight/></button>)}</div>}</Modal>}
   {stage&&<SetlistStage mode={stage} list={list} songs={listSongs} refresh={refresh} toast={toast} onClose={()=>setStage(null)} onOpenSong={onOpenSong}/>}
   </>
@@ -1350,7 +1366,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const [localNotes,setLocalNotes]=useState<Record<string,string>>(list.rehearsalNotes??{})
   const [localOverrides,setLocalOverrides]=useState(list.songOverrides??{})
   const [lyricsFontSize,setLyricsFontSize]=useState(()=>prefNumber('diart-stage-font',22,14,48))
-  const [transpose,setTranspose]=useState(()=>{const first=songs.filter(Boolean)[0];return first?(list.songOverrides?.[first.id]?.transpose??0):0})
+  const [transpose,setTranspose]=useState(()=>{const first=songs.filter(Boolean)[0];return first?setlistSongSavedTranspose(list,first):0})
   const [autoScroll,setAutoScroll]=useState(false)
   const [scrollSpeed,setScrollSpeed]=useState(()=>prefNumber('diart-stage-scroll-speed',2,0.05,20))
   const [toolsCollapsed,setToolsCollapsed]=useState(()=>prefBool('diart-stage-tools-collapsed',false))
@@ -1464,7 +1480,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     if(!song)return
     setView(hasGuide?'guide':song.lyrics?'lyrics':'guide')
     setNoteDraft(localNotes[song.id]??'')
-    setTranspose(localOverrides[song.id]?.transpose??0)
+    setTranspose(setlistSongSavedTranspose({...list,songOverrides:localOverrides},song))
     setAutoScroll(false)
     setShowHeaderIdentity(false)
     let raf1=0,raf2=0
@@ -1543,11 +1559,13 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const persistTranspose=(next:number)=>{
     setTranspose(next)
     if(standalone||!song)return
-    const nextOverrides={...localOverrides,[song.id]:{...(localOverrides[song.id]??{}),transpose:next}}
+    const reference=song.originalKey||song.personalKey
+    const selectedKey=reference?transposeKey(reference,next):''
+    const nextOverrides={...localOverrides,[song.id]:{...(localOverrides[song.id]??{}),transpose:next,key:selectedKey}}
     setLocalOverrides(nextOverrides)
     void updateSetlist(list.id,{songOverrides:nextOverrides}).then(()=>refresh())
   }
-  const baseKey=song.personalKey||song.originalKey
+  const baseKey=song.originalKey||song.personalKey
   const displayKey=baseKey?transposeKey(baseKey,transpose):''
   const displayChords=transposeChordText(song.chords??'',transpose)
   const chordSections=chordGuideSections(displayChords)
