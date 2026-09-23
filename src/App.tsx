@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.4.3'
+const APP_VERSION='2.4.4'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -275,6 +275,33 @@ function App() {
   const artists=artistGroups.length
   const authors=authorGroups.length
   const currentSetlist=useMemo(()=>setlists.find(s=>s.id===selectedSetlistId)||null,[setlists,selectedSetlistId])
+  const sectionMeta=(()=>{
+    const parentLabel=(p:Page)=>{
+      if(p==='dashboard')return "DI'ART by ARIZONA"
+      if(p==='library'||p==='new'||p==='edit')return 'BIBLIOTHÈQUE'
+      if(p==='artists'||p==='artist')return 'ARTISTES'
+      if(p==='authors'||p==='author')return 'A/C'
+      if(p==='favorites')return 'FAVORIS'
+      if(p==='recent')return 'RÉCENTS'
+      if(p==='setlists'||p==='setlist')return 'SETLISTS'
+      if(p==='recueils')return 'RECUEILS'
+      if(p==='import')return 'IMPORTER'
+      if(p==='backup')return 'SAUVEGARDE'
+      if(p==='history')return 'HISTORIQUE'
+      if(p==='about')return 'À PROPOS'
+      if(p==='settings')return 'PARAMÈTRES'
+      return 'DI’ART'
+    }
+    if(page==='artist')return {label:'ARTISTES',back:()=>go('artists')}
+    if(page==='author')return {label:'A/C',back:()=>go('authors')}
+    if(page==='setlist')return {label:'SETLISTS',back:()=>go('setlists')}
+    if(page==='song')return {label:parentLabel(songBack.page),back:()=>go(songBack.page)}
+    if(page==='new'||page==='edit'){
+      const backPage:Page=selected?'song':selectedArtist?'artist':selectedAuthor?'author':'library'
+      return {label:parentLabel(backPage),back:()=>go(backPage)}
+    }
+    return {label:parentLabel(page),back:null as null|(()=>void)}
+  })()
 
   return <div className="app-shell">
     <aside className={`sidebar ${sidebar?'open':''}`}>
@@ -285,7 +312,7 @@ function App() {
     {sidebar&&<div className="scrim" onClick={()=>setSidebar(false)}/>}
     <main className="main">
       <header className="topbar">
-        <button className="icon-btn menu-btn logo-menu-btn" onClick={()=>setSidebar(v=>!v)} aria-label="Ouvrir le menu DI'ART" title="Menu"><img className="menu-logo logo-night" src="./logo-night-v2.png" alt=""/><img className="menu-logo logo-day" src="./logo-day-v2.png" alt=""/></button>
+        <div className="topbar-leading"><button className="icon-btn menu-btn logo-menu-btn" onClick={()=>setSidebar(v=>!v)} aria-label="Ouvrir le menu DI'ART" title="Menu"><img className="menu-logo logo-night" src="./logo-night-v2.png" alt=""/><img className="menu-logo logo-day" src="./logo-day-v2.png" alt=""/></button><button type="button" className={'app-section-title '+(sectionMeta.back?'can-back':'')} onClick={()=>sectionMeta.back?.()} aria-label={sectionMeta.back?'Revenir à '+sectionMeta.label:sectionMeta.label}>{sectionMeta.back&&<ChevronLeft/>}<span>{sectionMeta.label}</span></button></div>
         <div className="top-actions"><button className="primary global-create-btn" aria-label="Créer" title="Créer" onClick={()=>{setCreateMode('menu');setCreateName('')}}><Plus size={22}/></button></div>
       </header>
       <div className="content">
@@ -316,7 +343,7 @@ function App() {
       <button onClick={()=>go('favorites')}><Heart/><span>Favoris</span></button>
       <button onClick={()=>go('setlists')}><ListMusic/><span>Setlists</span></button>
     </nav>
-    {createMode==='menu'&&<Modal title="Créer" onClose={()=>setCreateMode(null)}><div className="create-choice-grid"><button onClick={()=>startNewSong()}><Music2/><span><b>Nouveau morceau</b><small>Créer une nouvelle fiche musicale</small></span></button><button onClick={()=>{setCreateMode('artist');setCreateName('')}}><UsersRound/><span><b>Nouvel artiste</b><small>Créer son premier morceau</small></span></button><button onClick={()=>{setCreateMode('setlist');setCreateName('')}}><ListMusic/><span><b>Nouvelle setlist</b><small>Créer une liste vide</small></span></button><button onClick={()=>{setCreateMode(null);go('import')}}><Import/><span><b>Nouvel import</b><small>Importer Excel ou CSV</small></span></button><button onClick={()=>{setCreateMode(null);setRecueilEntry(null);setRecueilPrefill(null);setPage('recueils')}}><BookMarked/><span><b>Importer depuis recueil</b><small>Choisir Tononkira, Ultimate Guitar, Chordify ou ChordPro</small></span></button></div></Modal>}
+    {createMode==='menu'&&<Modal title="Créer" onClose={()=>setCreateMode(null)}><div className="create-choice-grid"><button onClick={()=>startNewSong(page==='artist'?selectedArtist:'',page==='author'?selectedAuthor:'')}><Music2/><span><b>Nouveau morceau</b><small>Créer une nouvelle fiche musicale</small></span></button><button onClick={()=>{setCreateMode('artist');setCreateName('')}}><UsersRound/><span><b>Nouvel artiste</b><small>Créer son premier morceau</small></span></button><button onClick={()=>{setCreateMode('setlist');setCreateName('')}}><ListMusic/><span><b>Nouvelle setlist</b><small>Créer une liste vide</small></span></button><button onClick={()=>{setCreateMode(null);go('import')}}><Import/><span><b>Nouvel import</b><small>Importer Excel ou CSV</small></span></button><button onClick={()=>{setCreateMode(null);setRecueilEntry(null);setRecueilPrefill(null);setPage('recueils')}}><BookMarked/><span><b>Importer depuis recueil</b><small>Choisir Tononkira, Ultimate Guitar, Chordify ou ChordPro</small></span></button></div></Modal>}
     {createMode==='artist'&&<Modal title="Nouvel artiste" onClose={()=>setCreateMode(null)}><div className="create-name-form"><label>Nom de l’artiste<input autoFocus value={createName} onChange={e=>setCreateName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')createNamedArtist()}}/></label><div className="modal-actions"><button className="secondary" onClick={()=>setCreateMode('menu')}>Retour</button><button className="primary" disabled={!createName.trim()} onClick={createNamedArtist}><Plus/>Continuer</button></div></div></Modal>}
     {createMode==='setlist'&&<Modal title="Nouvelle setlist" onClose={()=>setCreateMode(null)}><div className="create-name-form"><label>Nom de la setlist<input autoFocus value={createName} onChange={e=>setCreateName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createNamedSetlist()}}/></label><div className="modal-actions"><button className="secondary" onClick={()=>setCreateMode('menu')}>Retour</button><button className="primary" disabled={!createName.trim()} onClick={()=>void createNamedSetlist()}><Plus/>Créer</button></div></div></Modal>}
     <Toasts items={toasts}/>
