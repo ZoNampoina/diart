@@ -1270,17 +1270,20 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const [keepAwake,setKeepAwake]=useState(true)
   const [wakeActive,setWakeActive]=useState(false)
   const [resumeIndex,setResumeIndex]=useState<number|null>(null)
+  const [stageFeedback,setStageFeedback]=useState<{id:number;text:string}|null>(null)
   const sessionId=useRef(crypto.randomUUID())
   const wakeLockRef=useRef<any>(null)
   const lastTapRef=useRef(0)
   const longPressRef=useRef<number|null>(null)
-  const gesturePrefs=useMemo(()=>{try{return {...DEFAULT_GESTURES,...JSON.parse(localStorage.getItem('diart-gestures')||'{}')}}catch{return DEFAULT_GESTURES}},[])
+  const gesturePrefs=useMemo(()=>{try{const saved=JSON.parse(localStorage.getItem('diart-gestures')||'{}');return {...DEFAULT_GESTURES,...saved,doubleTapPlay:saved.doubleTapPlay??saved.doubleTapTools??true}}catch{return DEFAULT_GESTURES}},[])
   const contentRef=useRef<HTMLDivElement>(null)
   const songHeadRef=useRef<HTMLDivElement>(null)
   const swipeStart=useRef<{x:number;y:number}|null>(null)
   const song=orderedSongs[index]??orderedSongs[0]
   const nextSong=orderedSongs[index+1]??null
   const [noteDraft,setNoteDraft]=useState(song?localNotes[song.id]??'':'')
+  const showStageFeedback=(text:string)=>{const id=Date.now()+Math.random();setStageFeedback({id,text});window.setTimeout(()=>setStageFeedback(prev=>prev?.id===id?null:prev),850)}
+  const go=(delta:number)=>{setAutoScroll(false);setNavDirection(delta<0?-1:1);setIndex(current=>Math.max(0,Math.min(orderedSongs.length-1,current+delta)))}
 
   useEffect(()=>{try{localStorage.setItem('diart-stage-font',String(lyricsFontSize))}catch{}},[lyricsFontSize])
   useEffect(()=>{try{localStorage.setItem('diart-stage-scroll-speed',String(scrollSpeed))}catch{}},[scrollSpeed])
@@ -1288,8 +1291,6 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   useEffect(()=>{try{localStorage.setItem('diart-stage-role',stageRole);localStorage.setItem('diart-musician-role',musicianRole)}catch{}},[stageRole,musicianRole])
 
   useEffect(()=>{
-    const onKey=(e:KeyboardEvent)=>{if(e.key==='Escape'&&!locked){e.preventDefault();onClose()}else if(e.key==='ArrowRight'){e.preventDefault();go(1)}else if(e.key==='ArrowLeft'){e.preventDefault();go(-1)}}
-    window.addEventListener('keydown',onKey)
     const previousBody=document.body.style.overflow
     const previousHtml=document.documentElement.style.overflow
     document.body.style.overflow='hidden'
@@ -1300,7 +1301,6 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
       cancelAnimationFrame(raf1);cancelAnimationFrame(raf2)
       document.body.style.overflow=previousBody
       document.documentElement.style.overflow=previousHtml
-      window.removeEventListener('keydown',onKey)
     }
   },[])
 
@@ -1336,7 +1336,38 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
 
   const structureParts=useMemo(()=>parseStructureSequence(song?.structure??''),[song?.structure])
   const rawChordSections=useMemo(()=>chordGuideSections(song?.chords??''),[song?.chords])
-  const hasGuide=Boolean(structureParts.length||rawChordSections.length||song?.instrumentNotes?.trim())
+  const hasGuide=Boolean(structureParts.length||rawChordSections.length||song?.instrumentNotes?.trim()||Object.values(song?.musicianNotes??{}).some(Boolean))
+
+  useEffect(()=>{
+    const onKey=(e:KeyboardEvent)=>{
+      const target=e.target as HTMLElement|null
+      const editing=Boolean(target&&['INPUT','TEXTAREA','SELECT'].includes(target.tagName))
+      if(e.key==='Escape'&&!locked){e.preventDefault();onClose();return}
+      if(editing)return
+      if(e.key==='ArrowRight'){e.preventDefault();go(1);return}
+      if(e.key==='ArrowLeft'){e.preventDefault();go(-1);return}
+      if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+        e.preventDefault()
+        const el=contentRef.current
+        if(el){const amount=Math.max(90,Math.round(el.clientHeight*.18));el.scrollBy({top:e.key==='ArrowDown'?amount:-amount,behavior:'smooth'})}
+        return
+      }
+      if(e.key==='Tab'&&hasGuide&&Boolean(song?.lyrics)){
+        e.preventDefault()
+        setAutoScroll(false)
+        setView(v=>v==='guide'?'lyrics':'guide')
+        requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0,behavior:'smooth'}))
+        showStageFeedback(view==='guide'?'Paroles':'Repères')
+        return
+      }
+      if(e.code==='Space'){
+        e.preventDefault()
+        setAutoScroll(v=>{const next=!v;showStageFeedback(next?'Défilement · Play':'Défilement · Stop');return next})
+      }
+    }
+    window.addEventListener('keydown',onKey)
+    return()=>window.removeEventListener('keydown',onKey)
+  },[locked,hasGuide,song?.id,song?.lyrics,view])
 
   useEffect(()=>{
     if(!song)return
@@ -1372,11 +1403,6 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   if(!song)return null
 
   const saveNote=async()=>{const next={...localNotes,[song.id]:noteDraft};setLocalNotes(next);await updateSetlist(list.id,{rehearsalNotes:next});void refresh();toast('Notes de répétition enregistrées.')}
-  const go=(delta:number)=>{
-    setAutoScroll(false)
-    setNavDirection(delta<0?-1:1)
-    setIndex(current=>Math.max(0,Math.min(orderedSongs.length-1,current+delta)))
-  }
   const beginSwipe=(e:TouchEvent<HTMLElement>)=>{
     if(!gesturePrefs.swipeSongs||e.touches.length!==1){swipeStart.current=null;return}
     const t=e.touches[0]
@@ -1400,9 +1426,13 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     if(Math.abs(dx)<58||Math.abs(dx)<Math.abs(dy)*1.25)return
     go(dx>0?-1:1)
   }
-  const handleTap=()=>{
+  const handleTap=(e:any)=>{
+    if((e.target as HTMLElement)?.closest?.('button,input,textarea,select,a'))return
     const now=Date.now()
-    if(gesturePrefs.doubleTapPlay&&now-lastTapRef.current<320){setToolsCollapsed(v=>!v);lastTapRef.current=0}else lastTapRef.current=now
+    if(gesturePrefs.doubleTapPlay&&now-lastTapRef.current<320){
+      setAutoScroll(v=>{const next=!v;showStageFeedback(next?'Défilement · Play':'Défilement · Stop');return next})
+      lastTapRef.current=0
+    }else lastTapRef.current=now
   }
   const beginLongPress=()=>{if(!gesturePrefs.longPressLock)return;if(longPressRef.current!==null)window.clearTimeout(longPressRef.current);longPressRef.current=window.setTimeout(()=>{setLocked(v=>!v);navigator.vibrate?.(25)},650)}
   const cancelLongPress=()=>{if(longPressRef.current!==null){window.clearTimeout(longPressRef.current);longPressRef.current=null}}
@@ -1427,12 +1457,12 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const stageTools=<div className={'stage-session-tools '+(toolsCollapsed?'collapsed':'')}>
     <button type="button" className="stage-tools-toggle" aria-label={toolsCollapsed?'Afficher les réglages':'Masquer les réglages'} title={toolsCollapsed?'Afficher les réglages':'Masquer les réglages'} onClick={()=>setToolsCollapsed(v=>!v)}><Settings/></button>
     <div className={'stage-tools-body collapsible-body '+(toolsCollapsed?'is-collapsed':'is-expanded')}>
-      <div className="stage-control-group stage-role-control"><span>Mode</span>{(['normal','chef','musicien'] as StageRole[]).map(role=><button type="button" key={role} className={stageRole===role?'active':''} onClick={()=>setStageRole(role)}>{role==='normal'?'N':role==='chef'?'C':'M'}</button>)}</div>
+      <div className="stage-control-group stage-role-control"><span>Mode</span>{(['normal','chef','musicien'] as StageRole[]).map(role=><button type="button" key={role} className={stageRole===role?'active':''} onClick={()=>{setStageRole(role);showStageFeedback(role==='normal'?'Mode Normal':role==='chef'?'Mode Chef':'Mode Musicien')}}>{role==='normal'?'N':role==='chef'?'C':'M'}</button>)}</div>
       {stageRole==='musicien'&&<div className="stage-control-group"><span>Rôle</span><select value={musicianRole} onChange={e=>setMusicianRole(e.target.value)}>{MUSICIAN_ROLES.map(role=><option key={role}>{role}</option>)}</select></div>}
-      <div className="stage-control-group"><span>Écran</span><button type="button" className={keepAwake?'active':''} title="Maintenir l’écran actif" onClick={()=>setKeepAwake(v=>!v)}><MonitorUp/></button><b>{wakeActive?'Actif':'Auto'}</b></div>
+      <div className="stage-control-group"><span>Écran</span><button type="button" className={keepAwake?'active':''} title="Maintenir l’écran actif" onClick={()=>setKeepAwake(v=>{const next=!v;showStageFeedback(next?'Écran maintenu actif':'Écran actif désactivé');return next})}><MonitorUp/></button><b>{wakeActive?'Actif':'Auto'}</b></div>
       <div className="stage-control-group"><span>Paroles</span><button type="button" title="Réduire la police" onClick={()=>setLyricsFontSize(v=>Math.max(14,v-2))}><Minus/></button><b>{lyricsFontSize}</b><button type="button" title="Agrandir la police" onClick={()=>setLyricsFontSize(v=>Math.min(48,v+2))}><Plus/></button></div>
       <div className="stage-control-group"><span>Transposer</span><button type="button" title="-1 demi-ton" onClick={()=>setTranspose(v=>Math.max(-12,v-1))}><Minus/></button><b>{formatSemitoneOffset(transpose)}</b><button type="button" title="+1 demi-ton" onClick={()=>setTranspose(v=>Math.min(12,v+1))}><Plus/></button><button type="button" title="Réinitialiser" className="stage-reset-btn" disabled={transpose===0} onClick={()=>setTranspose(0)}><RotateCcw/></button></div>
-      <div className={'stage-control-group auto-scroll-control '+(autoScroll?'active':'')}><span>Défilement</span><button type="button" className="stage-autoscroll-toggle" title={autoScroll?'Arrêter':'Démarrer'} onClick={()=>setAutoScroll(v=>!v)}>{autoScroll?<Square/>:<Play/>}</button><input aria-label="Vitesse de défilement" type="range" min="0.05" max="20" step="0.05" value={scrollSpeed} onChange={e=>setScrollSpeed(Number(e.target.value))}/><b>{scrollSpeed<1?scrollSpeed.toFixed(2):scrollSpeed<10?scrollSpeed.toFixed(1):Math.round(scrollSpeed)}</b><button type="button" title="Retour en haut" onClick={()=>{setAutoScroll(false);contentRef.current?.scrollTo({top:0,behavior:'smooth'})}}><ChevronUp/></button></div>
+      <div className={'stage-control-group auto-scroll-control '+(autoScroll?'active':'')}><span>Défilement</span><button type="button" className="stage-autoscroll-toggle" title={autoScroll?'Arrêter':'Démarrer'} onClick={()=>setAutoScroll(v=>{const next=!v;showStageFeedback(next?'Défilement · Play':'Défilement · Stop');return next})}>{autoScroll?<Square/>:<Play/>}</button><input aria-label="Vitesse de défilement" type="range" min="0.05" max="20" step="0.05" value={scrollSpeed} onChange={e=>setScrollSpeed(Number(e.target.value))}/><b>{scrollSpeed<1?scrollSpeed.toFixed(2):scrollSpeed<10?scrollSpeed.toFixed(1):Math.round(scrollSpeed)}</b><button type="button" title="Retour en haut" onClick={()=>{setAutoScroll(false);contentRef.current?.scrollTo({top:0,behavior:'smooth'})}}><ChevronUp/></button></div>
     </div>
   </div>
 
@@ -1461,6 +1491,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     </main>
 
     <div className="stage-floating-tools">{stageTools}</div>
+    {stageFeedback&&<div key={stageFeedback.id} className="stage-feedback" role="status">{stageFeedback.text}</div>}
     {nextSong&&<div className="stage-next-song"><span>SUIVANT</span><b>{nextSong.title}</b><small>{nextSong.personalKey||nextSong.originalKey||'—'}{nextSong.bpm!==null?' · '+nextSong.bpm+' BPM':''}</small></div>}
     <div className="stage-floating-count" aria-label="Position dans la setlist">{index+1} / {orderedSongs.length}</div>
     {resumeIndex!==null&&<div className="stage-resume-overlay"><div className="stage-resume-card"><RefreshCw/><div><b>Reprendre la session ?</b><span>{list.name} · morceau {resumeIndex+1}/{orderedSongs.length}</span></div><button className="secondary" onClick={()=>{setResumeIndex(null);setIndex(0)}}>Recommencer</button><button className="primary" onClick={()=>{setIndex(resumeIndex);setResumeIndex(null)}}>Reprendre</button></div></div>}
