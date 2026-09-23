@@ -3619,3 +3619,216 @@ textarea{resize:vertical}
 }
 
 .sidebar .grouped-nav{flex:1 1 auto;}
+
+
+/* DI'ART V2.4.1 — search refinement, smart song form, compact setlists */
+
+/* Search bars: no outer card effect, only a subtle internal field */
+.searchbox,
+.home-search,
+.recueil-searchbox,
+.setlist-add-search,
+.global-search{
+  background:color-mix(in srgb,var(--surface2) 78%,transparent)!important;
+  border:1px solid color-mix(in srgb,var(--line) 82%,transparent)!important;
+  box-shadow:none!important;
+  outline:0!important;
+}
+.searchbox:focus-within,
+.home-search:focus-within,
+.recueil-searchbox:focus-within,
+.setlist-add-search:focus-within,
+.global-search:focus-within{
+  border-color:color-mix(in srgb,var(--accent2) 58%,var(--line))!important;
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--accent2) 10%,transparent)!important;
+}
+.searchbox input,
+.home-search input,
+.recueil-searchbox input,
+.setlist-add-search input,
+.global-search input{
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+.artist-search{
+  background:transparent!important;
+  box-shadow:none!important;
+}
+.field-clear-wrap{
+  position:relative;
+  background:color-mix(in srgb,var(--surface2) 78%,transparent)!important;
+  border:1px solid color-mix(in srgb,var(--line) 82%,transparent)!important;
+  border-radius:9px;
+  box-shadow:none!important;
+}
+.field-clear-wrap:focus-within{
+  border-color:color-mix(in srgb,var(--accent2) 58%,var(--line))!important;
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--accent2) 10%,transparent)!important;
+}
+.field-clear-wrap input{
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+
+/* Smart autocomplete in song editor */
+.autocomplete-wrap{
+  position:relative;
+}
+.autocomplete-wrap>input{
+  width:100%;
+}
+.autocomplete-menu{
+  position:absolute;
+  z-index:90;
+  left:0;
+  right:0;
+  top:calc(100% + 5px);
+  display:grid;
+  gap:3px;
+  padding:6px;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:11px;
+  box-shadow:var(--shadow);
+}
+.autocomplete-menu small{
+  color:var(--muted);
+  padding:5px 7px 7px;
+}
+.autocomplete-menu kbd{
+  display:inline-block;
+  padding:2px 5px;
+  margin-right:3px;
+  border:1px solid var(--line);
+  border-radius:5px;
+  background:var(--surface3);
+  color:var(--text);
+  font-size:10px;
+}
+.autocomplete-menu button{
+  width:100%;
+  min-height:36px;
+  border:0;
+  border-radius:8px;
+  background:transparent;
+  color:var(--text);
+  padding:7px 9px;
+  text-align:left;
+}
+.autocomplete-menu button:hover,
+.autocomplete-menu button:focus-visible{
+  background:var(--surface2);
+}
+
+/* Duplicate warning in create/edit form */
+.duplicate-warning{
+  display:grid;
+  grid-template-columns:24px minmax(0,1fr) auto;
+  gap:11px;
+  align-items:center;
+  padding:12px 13px;
+  border:1px solid color-mix(in srgb,var(--gold) 38%,var(--line));
+  border-radius:12px;
+  background:color-mix(in srgb,var(--gold) 8%,var(--surface2));
+}
+.duplicate-warning>svg{
+  color:var(--gold);
+}
+.duplicate-warning b,
+.duplicate-warning span{
+  display:block;
+}
+.duplicate-warning span{
+  margin-top:3px;
+  color:var(--muted);
+  font-size:11px;
+}
+
+/* Setlist sorting and compact previews */
+.setlist-sortbar{
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+  margin:-8px 0 14px;
+}
+.setlist-sortbar label{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  min-height:42px;
+  padding:0 9px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--surface2);
+  color:var(--muted);
+  font-size:11px;
+}
+.setlist-sortbar select{
+  min-height:36px;
+  border:0;
+  background:transparent;
+  padding:0 4px;
+  color:var(--text);
+}
+.setlist-preview-more{
+  margin-top:7px;
+  border-top:1px solid var(--line);
+}
+.setlist-preview-more summary{
+  min-height:42px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  cursor:pointer;
+  list-style:none;
+  color:var(--accent2);
+  font-size:12px;
+  font-weight:800;
+}
+.setlist-preview-more summary::-webkit-details-marker{
+  display:none;
+}
+.setlist-preview-more summary svg{
+  width:17px;
+  height:17px;
+  transition:transform .15s ease;
+}
+.setlist-preview-more[open] summary svg{
+  transform:rotate(180deg);
+}
+.setlist-preview-overflow{
+  max-height:220px;
+  overflow:auto;
+  padding-right:3px;
+}
+
+@media(max-width:760px){
+  .autocomplete-menu{
+    position:static;
+    margin-top:5px;
+  }
+  .duplicate-warning{
+    grid-template-columns:22px minmax(0,1fr);
+  }
+  .duplicate-warning>button{
+    grid-column:1/-1;
+    width:100%;
+  }
+  .setlist-sortbar{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    margin-top:-4px;
+  }
+  .setlist-sortbar label{
+    min-width:0;
+    display:grid;
+    gap:1px;
+    padding:5px 8px;
+  }
+  .setlist-sortbar select{
+    width:100%;
+  }
+}
