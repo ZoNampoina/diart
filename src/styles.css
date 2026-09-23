@@ -3885,3 +3885,36 @@ textarea{resize:vertical}
     -webkit-overflow-scrolling:touch;
   }
 }
+
+
+/* DI'ART V2.4.3 — native PNG logo rendering */
+.brand-mark{
+  overflow:visible!important;
+  background:transparent!important;
+  border-color:transparent!important;
+  box-shadow:none!important;
+}
+.brand-logo{
+  width:44px!important;
+  height:44px!important;
+  object-fit:contain!important;
+  object-position:center!important;
+}
+.mobile-logo{
+  width:38px!important;
+  height:38px!important;
+  object-fit:contain!important;
+  object-position:center!important;
+}
+@media(max-width:760px){
+  .mobile-brand{
+    min-width:46px;
+    min-height:46px;
+    padding:4px;
+    overflow:visible;
+  }
+  .mobile-logo{
+    width:40px!important;
+    height:40px!important;
+  }
+}
