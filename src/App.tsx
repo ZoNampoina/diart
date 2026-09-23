@@ -6,23 +6,23 @@ import {
   Trash2, Upload, UserRound, UsersRound, Wifi, WifiOff, X, Pencil, Save, RotateCcw,
   Filter, ArrowUpDown, Check, AlertTriangle, Minus, ListMusic, Cloud, LogIn, LogOut,
   Play, Square, Gauge, Maximize2, ChevronUp, ChevronDown, ListPlus, BookMarked, ExternalLink, FileUp, Globe2,
-  History, GitMerge, Info, GripVertical
+  History, GitMerge, Info, GripVertical, Wrench, BarChart3, Keyboard, Hand, Lock, Unlock, MonitorUp, Tag, ShieldCheck, RefreshCw
 } from 'lucide-react'
 import { db, createSong, ensureDemoSeed, getSetting, markViewed, setSetting, softDeleteSong, updateSong, createSetlist, updateSetlist, logActivity, listActivity } from './db'
-import type { ActivityEntry, ActivityKind, ImportField, ImportMapping, ImportRowPreview, Song, SongDraft, Setlist } from './types'
+import type { ActivityEntry, ActivityKind, FavoriteStatus, ImportField, ImportMapping, ImportRowPreview, Song, SongDraft, Setlist, StageRole } from './types'
 import { duplicateKey, emptySongDraft, formatDuration, normalizeIdentity, normalizeKey, parseBpm, parseDuration, searchSong, transposeKey, transposeChordText, formatSemitoneOffset } from './music'
 import { parseWorkbook, rowsToPreview, suggestMapping, type ParsedWorkbook } from './importer'
 import { exportCsv, exportJson, exportXlsx, restoreJson } from './exporter'
-import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToLocal } from './cloud'
+import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToLocal, resolveSyncConflict, type SyncConflict } from './cloud'
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.4.4'
+const APP_VERSION='2.5.0'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
   ['authors','Auteurs',UserRound], ['favorites','Favoris',Heart], ['recent','Récents',BookOpen],
-  ['setlists','Setlists',ListMusic], ['recueils','Recueils',BookMarked], ['import','Importer',Import], ['backup','Sauvegarde',Download], ['history','Historique',History], ['about','À propos',Info], ['settings','Paramètres',Settings]
+  ['setlists','Setlists',ListMusic], ['recueils','Recueils',BookMarked], ['tools','Outils',Wrench], ['import','Importer',Import], ['backup','Sauvegarde',Download], ['history','Historique',History], ['shortcuts','Raccourcis',Keyboard], ['gestures','Gestes',Hand], ['about','À propos',Info], ['settings','Paramètres',Settings]
 ] as const
 
 type Page = typeof navItems[number][0] | 'song' | 'edit' | 'new' | 'artist' | 'author' | 'setlist'
@@ -30,13 +30,17 @@ type Page = typeof navItems[number][0] | 'song' | 'edit' | 'new' | 'artist' | 'a
 const navGroupDefs = [
   {label:'Bibliothèque',ids:['dashboard','library','artists','authors','favorites','recent']},
   {label:'Organisation',ids:['setlists','recueils']},
-  {label:'Outils',ids:['import','backup','history','about','settings']}
+  {label:'Outils',ids:['tools','import','backup','history','shortcuts','gestures','about','settings']}
 ] as const
 type Toast = { id:number; text:string; action?:{label:string;run:()=>void} }
 type SyncMode = 'auto'|'manual'
 type SyncInterval = 5|15|30|60
 const KEY_OPTIONS=['Ab','A','Bb','B','C','C#','D','Eb','E','F','F#','G'] as const
 const SIGNATURE_OPTIONS=['2/4','3/4','4/4','5/4','6/8','7/8','9/8','12/8'] as const
+const MUSICIAN_ROLES=['Piano','Clavier','Guitare','Basse','Batterie','Sax','Chœurs','Chef'] as const
+const FAVORITE_STATUS_OPTIONS:[FavoriteStatus,string][]=[['','Aucun statut'],['favorite','Favori'],['learn','À apprendre'],['rehearse','À répéter'],['mastered','Maîtrisé'],['review','À revoir']]
+const DEFAULT_SHORTCUTS={search:'/',newSong:'n',setlists:'s',favorites:'f',live:'l'}
+const DEFAULT_GESTURES={swipeSongs:true,doubleTapTools:true,longPressLock:true}
 
 function useSongs() {
   const [songs,setSongs] = useState<Song[]>([])
