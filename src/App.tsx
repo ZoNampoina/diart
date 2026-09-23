@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.5.0'
+const APP_VERSION='2.5.1'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -40,7 +40,7 @@ const SIGNATURE_OPTIONS=['2/4','3/4','4/4','5/4','6/8','7/8','9/8','12/8'] as co
 const MUSICIAN_ROLES=['Piano','Clavier','Guitare','Basse','Batterie','Sax','Chœurs','Chef'] as const
 const FAVORITE_STATUS_OPTIONS:[FavoriteStatus,string][]=[['','Aucun statut'],['favorite','Favori'],['learn','À apprendre'],['rehearse','À répéter'],['mastered','Maîtrisé'],['review','À revoir']]
 const DEFAULT_SHORTCUTS={search:'/',newSong:'n',setlists:'s',favorites:'f'}
-const DEFAULT_GESTURES={swipeSongs:true,doubleTapTools:true,longPressLock:true}
+const DEFAULT_GESTURES={swipeSongs:true,doubleTapPlay:true,longPressLock:true}
 
 function useSongs() {
   const [songs,setSongs] = useState<Song[]>([])
@@ -143,7 +143,7 @@ function App() {
   const [syncPrefsReady,setSyncPrefsReady]=useState(false)
   const [syncConflicts,setSyncConflicts]=useState<SyncConflict[]>([])
   const [shortcuts,setShortcuts]=useState<Record<string,string>>(()=>{try{return {...DEFAULT_SHORTCUTS,...JSON.parse(localStorage.getItem('diart-shortcuts')||'{}')}}catch{return DEFAULT_SHORTCUTS}})
-  const [gestures,setGestures]=useState(()=>{try{return {...DEFAULT_GESTURES,...JSON.parse(localStorage.getItem('diart-gestures')||'{}')}}catch{return DEFAULT_GESTURES}})
+  const [gestures,setGestures]=useState(()=>{try{const saved=JSON.parse(localStorage.getItem('diart-gestures')||'{}');return {...DEFAULT_GESTURES,...saved,doubleTapPlay:saved.doubleTapPlay??saved.doubleTapPlay??true}}catch{return DEFAULT_GESTURES}})
   const syncLockRef=useRef(false)
   const syncTimerRef=useRef<number|null>(null)
   const searchRef=useRef<HTMLInputElement>(null)
@@ -268,8 +268,8 @@ function App() {
     for(const song of items){await softDeleteSong(song.id);removeLocal(song.id);await recordActivity('delete','Morceau supprimé',song.title,{songId:song.id,songTitle:song.title})}
     toast(items.length>1?`${items.length} morceaux placés dans la corbeille.`:'Morceau placé dans la corbeille.')
   }
-  const mergeSongs=async(primary:Song,secondary:Song)=>{
-    const draft=mergeSongDraft(primary,secondary)
+  const mergeSongs=async(primary:Song,secondary:Song,override?:SongDraft)=>{
+    const draft=override??mergeSongDraft(primary,secondary)
     await updateSong(primary.id,draft)
     await softDeleteSong(secondary.id)
     const updatedAt=new Date().toISOString()
@@ -398,7 +398,7 @@ function Dashboard({songs,artists,authors,setlists,refreshSetlists,toast,onOpen,
   </>
 }
 
-function LibraryPage({songs,setlists,refreshSetlists,toast,searchRef,onOpen,onFav,onDeleteMany,onMerge,onRecueilSearch}:{songs:Song[];setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;searchRef:RefObject<HTMLInputElement>;onOpen:(s:Song)=>void;onFav:(s:Song)=>void;onDeleteMany:(songs:Song[])=>Promise<void>;onMerge:(primary:Song,secondary:Song)=>Promise<void>;onRecueilSearch:(query:string)=>void}) {
+function LibraryPage({songs,setlists,refreshSetlists,toast,searchRef,onOpen,onFav,onDeleteMany,onMerge,onRecueilSearch}:{songs:Song[];setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;searchRef:RefObject<HTMLInputElement>;onOpen:(s:Song)=>void;onFav:(s:Song)=>void;onDeleteMany:(songs:Song[])=>Promise<void>;onMerge:(primary:Song,secondary:Song,draft?:SongDraft)=>Promise<void>;onRecueilSearch:(query:string)=>void}) {
   const [q,setQ]=useState(''),[key,setKey]=useState(''),[sig,setSig]=useState(''),[style,setStyle]=useState(''),[favOnly,setFavOnly]=useState(false),[min,setMin]=useState(''),[max,setMax]=useState(''),[sort,setSort]=useState('title'),[filters,setFilters]=useState(false)
   const [artistFilter,setArtistFilter]=useState(''),[authorFilter,setAuthorFilter]=useState(''),[tagFilter,setTagFilter]=useState(''),[favoriteStatusFilter,setFavoriteStatusFilter]=useState(''),[hasLyrics,setHasLyrics]=useState(false),[hasChords,setHasChords]=useState(false)
   const [manage,setManage]=useState(false)
@@ -432,36 +432,67 @@ function LibraryPage({songs,setlists,refreshSetlists,toast,searchRef,onOpen,onFa
     {manage&&<div className="library-manage-bar"><div><b>{selectedIds.length} sélectionné{selectedIds.length>1?'s':''}</b><small>Sélectionnez 1+ morceau pour supprimer, exactement 2 pour fusionner.</small></div><div><button className="secondary" disabled={selectedIds.length!==2} onClick={()=>setMergeOpen(true)}><GitMerge/>Fusionner</button><button className="danger" disabled={!selectedIds.length} onClick={()=>setConfirmDelete(true)}><Trash2/>Supprimer</button></div></div>}
     <p className="result-count">{result.length} résultat{result.length>1?'s':''}</p><div className="songs-list library-song-list">{result.length?result.map(s=><div className={'managed-song '+(selectedIds.includes(s.id)?'selected':'')} key={s.id}>{manage&&<button className="manage-select" aria-label={selectedIds.includes(s.id)?'Désélectionner':'Sélectionner'} onClick={()=>toggle(s.id)}>{selectedIds.includes(s.id)?<Check/>:<span/>}</button>}<SongRow song={s} onOpen={()=>manage?toggle(s.id):onOpen(s)} onFav={()=>onFav(s)} action={manage?undefined:<QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/>}/></div>):q.trim()?<div className="empty-search-suggestion"><BookMarked/><b>Aucun morceau correspondant</b><span>La recherche peut être envoyée directement aux Recueils.</span><button className="secondary" onClick={()=>onRecueilSearch(q.trim())}><Search/>Rechercher dans les Recueils</button></div>:<Empty text="Aucun résultat."/>}</div>
     {confirmDelete&&<Modal title={selectedIds.length>1?'Supprimer les morceaux sélectionnés ?':'Supprimer ce morceau ?'} onClose={()=>setConfirmDelete(false)}><p>{selectedIds.length} morceau{selectedIds.length>1?'x':''} sera{selectedIds.length>1?'ont':''} placé{selectedIds.length>1?'s':''} dans la corbeille.</p><div className="modal-actions"><button className="secondary" onClick={()=>setConfirmDelete(false)}>Annuler</button><button className="danger" onClick={()=>void onDeleteMany(selectedSongs).then(()=>{setConfirmDelete(false);exitManage()})}><Trash2/>Supprimer</button></div></Modal>}
-    {mergeOpen&&selectedSongs.length===2&&<MergeSongsModal a={selectedSongs[0]} b={selectedSongs[1]} onClose={()=>setMergeOpen(false)} onMerge={async(primary,secondary)=>{await onMerge(primary,secondary);setMergeOpen(false);exitManage()}}/>}
+    {mergeOpen&&selectedSongs.length===2&&<MergeSongsModal a={selectedSongs[0]} b={selectedSongs[1]} onClose={()=>setMergeOpen(false)} onMerge={async(primary,secondary,draft)=>{await onMerge(primary,secondary,draft);setMergeOpen(false);exitManage()}}/>}
   </>
 }
 
-function MergeSongsModal({a,b,onClose,onMerge}:{a:Song;b:Song;onClose:()=>void;onMerge:(primary:Song,secondary:Song)=>Promise<void>}) {
+function MergeSongsModal({a,b,onClose,onMerge}:{a:Song;b:Song;onClose:()=>void;onMerge:(primary:Song,secondary:Song,draft?:SongDraft)=>Promise<void>}) {
+  type Choice='auto'|'a'|'b'
   const [primaryId,setPrimaryId]=useState(a.id)
   const [busy,setBusy]=useState(false)
+  const [choices,setChoices]=useState<Record<string,Choice>>({})
   const primary=primaryId===a.id?a:b
   const secondary=primaryId===a.id?b:a
-  const merged=mergeSongDraft(primary,secondary)
-  const fields:{label:string;read:(s:Song)=>string}[]=[
-    {label:'Titre',read:s=>s.title||'—'},
-    {label:'Artiste',read:s=>s.artist||'—'},
-    {label:'Auteur / Compositeur',read:s=>s.authorComposer||'—'},
-    {label:'Tonalité originale',read:s=>s.originalKey||'—'},
-    {label:'Tonalité habituelle',read:s=>s.personalKey||'—'},
-    {label:'BPM',read:s=>s.bpm===null?'—':String(s.bpm)},
-    {label:'Signature',read:s=>s.timeSignature||'—'},
-    {label:'Style',read:s=>s.style||'—'},
-    {label:'Tags',read:s=>(s.tags??[]).join(', ')||'—'},
-    {label:'Paroles',read:s=>s.lyrics?.trim()?'✓ Présentes':'—'},
-    {label:'Accords',read:s=>hasMeaningfulChordContent(s.chords??'')?'✓ Présents':'—'},
-    {label:'Notes musiciens',read:s=>Object.values(s.musicianNotes??{}).some(Boolean)?'✓ Présentes':'—'}
+  const auto=mergeSongDraft(primary,secondary)
+  const choose=<K extends keyof SongDraft>(key:K):SongDraft[K]=>{
+    const choice=choices[String(key)]??'auto'
+    if(choice==='a')return a[key as keyof Song] as SongDraft[K]
+    if(choice==='b')return b[key as keyof Song] as SongDraft[K]
+    return auto[key]
+  }
+  const manualDraft:SongDraft={
+    ...auto,
+    title:choose('title'),artist:choose('artist'),authorComposer:choose('authorComposer'),
+    originalKey:choose('originalKey'),personalKey:choose('personalKey'),bpm:choose('bpm'),
+    timeSignature:choose('timeSignature'),style:choose('style'),durationSeconds:choose('durationSeconds'),
+    tags:choose('tags'),notes:choose('notes'),referenceUrl:choose('referenceUrl'),capo:choose('capo'),
+    structure:choose('structure'),chords:choose('chords'),instrumentNotes:choose('instrumentNotes'),
+    musicianNotes:choose('musicianNotes'),lyrics:choose('lyrics'),favorite:choose('favorite'),
+    favoriteStatus:choose('favoriteStatus'),source:choose('source')
+  }
+  const display=(key:keyof SongDraft,s:Song|SongDraft)=>{
+    const v=(s as any)[key]
+    if(key==='tags')return Array.isArray(v)&&v.length?v.join(', '):'—'
+    if(key==='musicianNotes')return v&&Object.values(v).some(Boolean)?Object.entries(v).filter(([,x])=>String(x).trim()).map(([r])=>r).join(', '):'—'
+    if(key==='lyrics')return String(v??'').trim()?String(v).split('\n').filter(Boolean).length+' lignes':'—'
+    if(key==='chords')return hasMeaningfulChordContent(String(v??''))?'✓ Présents':'—'
+    if(key==='bpm'||key==='durationSeconds'||key==='capo')return v===null||v===undefined?'—':String(v)
+    if(key==='favoriteStatus')return FAVORITE_STATUS_OPTIONS.find(([x])=>x===v)?.[1]||'—'
+    return String(v??'').trim()||'—'
+  }
+  const fields:{key:keyof SongDraft;label:string}[]=[
+    {key:'title',label:'Titre'},{key:'artist',label:'Artiste'},{key:'authorComposer',label:'Auteur / Compositeur'},
+    {key:'originalKey',label:'Tonalité originale'},{key:'personalKey',label:'Tonalité habituelle'},
+    {key:'bpm',label:'BPM'},{key:'timeSignature',label:'Signature'},{key:'style',label:'Style'},
+    {key:'durationSeconds',label:'Durée'},{key:'capo',label:'Capo'},{key:'tags',label:'Tags'},
+    {key:'structure',label:'Structure'},{key:'chords',label:'Accords'},{key:'lyrics',label:'Paroles'},
+    {key:'instrumentNotes',label:'Notes instrumentales'},{key:'musicianNotes',label:'Notes par musicien'},
+    {key:'notes',label:'Notes générales'},{key:'referenceUrl',label:'Lien source'},{key:'favoriteStatus',label:'Statut personnel'}
   ]
-  return <Modal className="merge-modal merge-visual-modal" title="Fusion visuelle de morceaux" onClose={onClose}>
-    <p className="muted-copy">Choisissez la fiche principale. DI’ART conserve ses valeurs et complète automatiquement les champs manquants avec l’autre fiche.</p>
-    <div className="merge-primary-picker"><button className={primaryId===a.id?'selected':''} onClick={()=>setPrimaryId(a.id)}><Check/><span>Fiche principale</span><b>{a.title}</b></button><button className={primaryId===b.id?'selected':''} onClick={()=>setPrimaryId(b.id)}><Check/><span>Fiche principale</span><b>{b.title}</b></button></div>
-    <div className="merge-compare-table"><div className="merge-compare-head"><span>Champ</span><b>{a.title}</b><b>{b.title}</b><b>Résultat</b></div>{fields.map(field=><div className="merge-compare-row" key={field.label}><span>{field.label}</span><em>{field.read(a)}</em><em>{field.read(b)}</em><strong>{field.label==='Titre'?merged.title:field.label==='Artiste'?merged.artist:field.label==='Auteur / Compositeur'?merged.authorComposer:field.label==='Tonalité originale'?merged.originalKey||'—':field.label==='Tonalité habituelle'?merged.personalKey||'—':field.label==='BPM'?merged.bpm??'—':field.label==='Signature'?merged.timeSignature||'—':field.label==='Style'?merged.style||'—':field.label==='Tags'?merged.tags.join(', ')||'—':field.label==='Paroles'?merged.lyrics?.trim()?'✓':'—':field.label==='Accords'?hasMeaningfulChordContent(merged.chords??'')?'✓':'—':Object.values(merged.musicianNotes??{}).some(Boolean)?'✓':'—'}</strong></div>)}</div>
-    <div className="merge-summary"><GitMerge/><span>La seconde fiche sera placée dans la corbeille après fusion.</span></div>
-    <div className="modal-actions"><button className="secondary" onClick={onClose}>Annuler</button><button className="primary" disabled={busy} onClick={()=>{setBusy(true);void onMerge(primary,secondary).finally(()=>setBusy(false))}}><GitMerge/>{busy?'Fusion…':'Fusionner'}</button></div>
+  const setChoice=(key:keyof SongDraft,value:Choice)=>setChoices(prev=>({...prev,[String(key)]:value}))
+  return <Modal className="merge-modal merge-visual-modal" title="Fusion manuelle de morceaux" onClose={onClose}>
+    <p className="muted-copy">Choisissez la fiche principale puis, champ par champ, laissez DI’ART décider automatiquement ou imposez la valeur de A ou B.</p>
+    <div className="merge-primary-picker"><button className={primaryId===a.id?'selected':''} onClick={()=>setPrimaryId(a.id)}><Check/><span>Fiche principale A</span><b>{a.title}</b></button><button className={primaryId===b.id?'selected':''} onClick={()=>setPrimaryId(b.id)}><Check/><span>Fiche principale B</span><b>{b.title}</b></button></div>
+    <div className="merge-compare-table manual-merge-table">
+      <div className="merge-compare-head"><span>Champ</span><b>A</b><b>B</b><b>Choix</b><b>Résultat</b></div>
+      {fields.map(field=><div className="merge-compare-row" key={field.key}>
+        <span>{field.label}</span><em title={display(field.key,a)}>{display(field.key,a)}</em><em title={display(field.key,b)}>{display(field.key,b)}</em>
+        <div className="merge-field-choice"><button className={(choices[String(field.key)]??'auto')==='auto'?'active':''} onClick={()=>setChoice(field.key,'auto')}>Auto</button><button className={choices[String(field.key)]==='a'?'active':''} onClick={()=>setChoice(field.key,'a')}>A</button><button className={choices[String(field.key)]==='b'?'active':''} onClick={()=>setChoice(field.key,'b')}>B</button></div>
+        <strong title={display(field.key,manualDraft)}>{display(field.key,manualDraft)}</strong>
+      </div>)}
+    </div>
+    <div className="merge-summary"><GitMerge/><span>Seule la fiche fusionnée remplacera le doublon. « Garder les deux » laisse les deux fiches intactes.</span></div>
+    <div className="modal-actions"><button className="secondary" disabled={busy} onClick={onClose}>Garder les deux</button><button className="ghost" disabled={busy} onClick={()=>setChoices({})}><RotateCcw/>Réinitialiser les choix</button><button className="primary" disabled={busy} onClick={()=>{setBusy(true);void onMerge(primary,secondary,manualDraft).finally(()=>setBusy(false))}}><GitMerge/>{busy?'Fusion…':'Fusionner avec ces choix'}</button></div>
   </Modal>
 }
 
@@ -964,7 +995,7 @@ function duplicateScore(a:Song,b:Song):number{
   return Math.min(100,score)
 }
 
-function ToolsPage({songs,onMerge}:{songs:Song[];onMerge:(primary:Song,secondary:Song)=>Promise<void>}) {
+function ToolsPage({songs,onMerge}:{songs:Song[];onMerge:(primary:Song,secondary:Song,draft?:SongDraft)=>Promise<void>}) {
   const [pair,setPair]=useState<[Song,Song]|null>(null)
   const [threshold,setThreshold]=useState(66)
   const candidates=useMemo(()=>{
@@ -978,7 +1009,7 @@ function ToolsPage({songs,onMerge}:{songs:Song[];onMerge:(primary:Song,secondary
   return <>
     <section className="panel tools-intro"><div><GitMerge/><div><h2>Détection améliorée des doublons</h2><p>DI’ART compare les titres, variantes d’écriture et artistes, pas seulement les correspondances exactes.</p></div></div><label>Seuil <input type="range" min="50" max="90" value={threshold} onChange={e=>setThreshold(Number(e.target.value))}/><b>{threshold}%</b></label></section>
     <div className="duplicate-scan-list">{candidates.length?candidates.map(({a,b,score})=><article className="duplicate-scan-card" key={a.id+'-'+b.id}><span className="duplicate-score">{score}%</span><div><b>{a.title}</b><small>{a.artist||'Artiste inconnu'}</small></div><GitMerge/><div><b>{b.title}</b><small>{b.artist||'Artiste inconnu'}</small></div><button className="secondary" onClick={()=>setPair([a,b])}>Comparer</button></article>):<Empty text="Aucun doublon probable avec ce seuil."/>}</div>
-    {pair&&<MergeSongsModal a={pair[0]} b={pair[1]} onClose={()=>setPair(null)} onMerge={async(a,b)=>{await onMerge(a,b);setPair(null)}}/>}
+    {pair&&<MergeSongsModal a={pair[0]} b={pair[1]} onClose={()=>setPair(null)} onMerge={async(a,b,draft)=>{await onMerge(a,b,draft);setPair(null)}}/>}
   </>
 }
 
@@ -989,7 +1020,7 @@ function ShortcutsPage({value,onChange}:{value:Record<string,string>;onChange:(v
 
 function GesturesPage({value,onChange}:{value:typeof DEFAULT_GESTURES;onChange:(v:typeof DEFAULT_GESTURES)=>void}) {
   const toggle=(key:keyof typeof DEFAULT_GESTURES)=><button className={value[key]?'gesture-toggle active':'gesture-toggle'} onClick={()=>onChange({...value,[key]:!value[key]})}>{value[key]?<Check/>:<X/>}</button>
-  return <section className="panel interaction-settings"><div className="interaction-intro"><Hand/><div><h2>Commandes tactiles</h2><p>Ces gestes s’appliquent principalement aux modes Live, Répétition et Plein écran.</p></div></div><div className="gesture-row"><span><b>Balayage horizontal</b><small>Gauche/droite pour morceau suivant/précédent</small></span>{toggle('swipeSongs')}</div><div className="gesture-row"><span><b>Double toucher</b><small>Afficher ou réduire les réglages de scène</small></span>{toggle('doubleTapTools')}</div><div className="gesture-row"><span><b>Appui long</b><small>Verrouiller ou déverrouiller le mode Live</small></span>{toggle('longPressLock')}</div><button className="secondary" onClick={()=>onChange(DEFAULT_GESTURES)}><RotateCcw/>Valeurs par défaut</button></section>
+  return <section className="panel interaction-settings"><div className="interaction-intro"><Hand/><div><h2>Commandes tactiles</h2><p>Ces gestes s’appliquent principalement aux modes Live, Répétition et Plein écran.</p></div></div><div className="gesture-row"><span><b>Balayage horizontal</b><small>Gauche/droite pour morceau suivant/précédent</small></span>{toggle('swipeSongs')}</div><div className="gesture-row"><span><b>Double toucher / double clic</b><small>Play / Stop du défilement automatique</small></span>{toggle('doubleTapPlay')}</div><div className="gesture-row"><span><b>Appui long</b><small>Verrouiller ou déverrouiller le mode Live</small></span>{toggle('longPressLock')}</div><button className="secondary" onClick={()=>onChange(DEFAULT_GESTURES)}><RotateCcw/>Valeurs par défaut</button></section>
 }
 
 function HistoryPage({songs}:{songs:Song[]}) {
@@ -1371,7 +1402,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   }
   const handleTap=()=>{
     const now=Date.now()
-    if(gesturePrefs.doubleTapTools&&now-lastTapRef.current<320){setToolsCollapsed(v=>!v);lastTapRef.current=0}else lastTapRef.current=now
+    if(gesturePrefs.doubleTapPlay&&now-lastTapRef.current<320){setToolsCollapsed(v=>!v);lastTapRef.current=0}else lastTapRef.current=now
   }
   const beginLongPress=()=>{if(!gesturePrefs.longPressLock)return;if(longPressRef.current!==null)window.clearTimeout(longPressRef.current);longPressRef.current=window.setTimeout(()=>{setLocked(v=>!v);navigator.vibrate?.(25)},650)}
   const cancelLongPress=()=>{if(longPressRef.current!==null){window.clearTimeout(longPressRef.current);longPressRef.current=null}}
