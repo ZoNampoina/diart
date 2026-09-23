@@ -1012,7 +1012,7 @@ function duplicateScore(a:Song,b:Song):number{
 function ToolsPage({songs,onMerge}:{songs:Song[];onMerge:(primary:Song,secondary:Song,draft?:SongDraft)=>Promise<void>}) {
   const [pair,setPair]=useState<[Song,Song]|null>(null)
   const [threshold,setThreshold]=useState(66)
-  const [keptPairs,setKeptPairs]=useState<Set<string>>(()=>new Set())
+  const [keptPairs,setKeptPairs]=useState<Set<string>>(()=>{try{return new Set(JSON.parse(localStorage.getItem('diart-kept-duplicate-pairs')||'[]'))}catch{return new Set()}})
   const pairKey=(a:Song,b:Song)=>[a.id,b.id].sort().join('::')
   const candidates=useMemo(()=>{
     const out:{a:Song;b:Song;score:number}[]=[]
@@ -1025,7 +1025,7 @@ function ToolsPage({songs,onMerge}:{songs:Song[];onMerge:(primary:Song,secondary
   return <>
     <section className="panel tools-intro"><div><GitMerge/><div><h2>Détection améliorée des doublons</h2><p>DI’ART compare les titres, variantes d’écriture et artistes, pas seulement les correspondances exactes.</p></div></div><label>Seuil <input type="range" min="50" max="90" value={threshold} onChange={e=>setThreshold(Number(e.target.value))}/><b>{threshold}%</b></label></section>
     <div className="duplicate-scan-list">{candidates.length?candidates.map(({a,b,score})=><article className="duplicate-scan-card" key={a.id+'-'+b.id}><span className="duplicate-score">{score}%</span><div><b>{a.title}</b><small>{a.artist||'Artiste inconnu'}</small></div><GitMerge/><div><b>{b.title}</b><small>{b.artist||'Artiste inconnu'}</small></div><button className="secondary" onClick={()=>setPair([a,b])}>Comparer</button></article>):<Empty text="Aucun doublon probable avec ce seuil."/>}</div>
-    {pair&&<MergeSongsModal a={pair[0]} b={pair[1]} onClose={()=>setPair(null)} onKeepBoth={()=>{setKeptPairs(prev=>new Set(prev).add(pairKey(pair[0],pair[1])));setPair(null)}} onMerge={async(a,b,draft)=>{await onMerge(a,b,draft);setPair(null)}}/>}
+    {pair&&<MergeSongsModal a={pair[0]} b={pair[1]} onClose={()=>setPair(null)} onKeepBoth={()=>{const key=pairKey(pair[0],pair[1]);setKeptPairs(prev=>{const next=new Set(prev).add(key);try{localStorage.setItem('diart-kept-duplicate-pairs',JSON.stringify([...next]))}catch{};return next});setPair(null)}} onMerge={async(a,b,draft)=>{await onMerge(a,b,draft);setPair(null)}}/>}
   </>
 }
 
