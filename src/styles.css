@@ -3617,3 +3617,5 @@ textarea{resize:vertical}
     gap:7px!important;
   }
 }
+
+.sidebar .grouped-nav{flex:1 1 auto;}
