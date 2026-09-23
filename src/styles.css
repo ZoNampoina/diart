@@ -3337,3 +3337,283 @@ textarea{resize:vertical}
   }
   .about-version b{text-align:left}
 }
+
+
+/* DI'ART V2.4.1 — unified search fields, scrollable desktop nav, optional metronome, tablet stage nav */
+
+/* Sidebar must remain fully reachable on shorter PC screens */
+.sidebar{
+  min-height:0;
+  overflow:hidden;
+}
+.sidebar .grouped-nav,
+.sidebar nav{
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  scrollbar-width:thin;
+  padding-right:3px;
+  margin-bottom:10px;
+}
+.sidebar .grouped-nav::-webkit-scrollbar,
+.sidebar nav::-webkit-scrollbar{
+  width:5px;
+}
+.sidebar .grouped-nav::-webkit-scrollbar-thumb,
+.sidebar nav::-webkit-scrollbar-thumb{
+  border-radius:999px;
+  background:color-mix(in srgb,var(--accent2) 32%,transparent);
+}
+.sidebar-bottom{
+  flex:none;
+}
+
+/* Search fields: one visual layer only */
+.searchbox,
+.home-search,
+.recueil-searchbox,
+.setlist-add-search,
+.global-search{
+  background:var(--surface2)!important;
+  border:0!important;
+  box-shadow:none!important;
+  outline:0!important;
+}
+.searchbox:focus-within,
+.home-search:focus-within,
+.recueil-searchbox:focus-within,
+.setlist-add-search:focus-within,
+.global-search:focus-within{
+  border:0!important;
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--accent2) 18%,transparent)!important;
+}
+.searchbox input,
+.home-search input,
+.recueil-searchbox input,
+.setlist-add-search input,
+.global-search input,
+.field-clear-wrap input{
+  background:transparent!important;
+  border:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+}
+.searchbox input:focus,
+.home-search input:focus,
+.recueil-searchbox input:focus,
+.setlist-add-search input:focus,
+.global-search input:focus,
+.field-clear-wrap input:focus{
+  border:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+}
+.field-clear-wrap{
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+
+/* Optional / retractable metronome */
+.optional-metronome-panel{
+  grid-column:1/-1;
+  padding:0!important;
+  overflow:hidden;
+}
+.optional-metronome-toggle{
+  width:100%;
+  min-height:58px;
+  border:0;
+  background:transparent;
+  color:var(--text);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 15px;
+  text-align:left;
+}
+.optional-metronome-toggle:hover{
+  background:var(--surface2);
+}
+.optional-metronome-toggle>span{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.optional-metronome-toggle>span>svg{
+  color:var(--accent2);
+}
+.optional-metronome-toggle b,
+.optional-metronome-toggle small{
+  display:block;
+}
+.optional-metronome-toggle small{
+  margin-top:3px;
+  color:var(--muted);
+  font-size:10px;
+}
+.optional-metronome-panel>.metronome-card{
+  margin:0!important;
+  border:0!important;
+  border-top:1px solid var(--line)!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  background:transparent!important;
+}
+
+/* Setlist metrics adapt to only existing data */
+.setlist-detail-metrics{
+  grid-template-columns:repeat(auto-fit,minmax(100px,1fr))!important;
+}
+.setlist-detail-metrics>div:last-child{
+  grid-column:auto!important;
+}
+
+/* Stage nav: one centered inner grid prevents PC/tablet drift */
+.stage-nav.compact-stage-nav{
+  display:block!important;
+  width:100%!important;
+  padding:5px max(12px,env(safe-area-inset-right)) max(5px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))!important;
+}
+.stage-nav-inner{
+  width:min(760px,100%);
+  min-height:44px;
+  margin:0 auto;
+  display:grid;
+  grid-template-columns:minmax(120px,1fr) 72px minmax(120px,1fr);
+  align-items:center;
+  gap:14px;
+}
+.stage-nav-inner .stage-nav-btn{
+  width:min(180px,100%)!important;
+  min-width:0!important;
+  min-height:36px!important;
+  justify-self:center!important;
+  justify-content:center!important;
+}
+.stage-nav-inner .stage-nav-count{
+  width:72px!important;
+  min-width:72px!important;
+  justify-self:center!important;
+  text-align:center!important;
+}
+
+/* Tablet-specific stage layout */
+@media(min-width:761px) and (max-width:1100px){
+  .stage-nav.compact-stage-nav{
+    padding-left:18px!important;
+    padding-right:18px!important;
+  }
+  .stage-nav-inner{
+    width:min(680px,100%);
+    grid-template-columns:minmax(110px,1fr) 64px minmax(110px,1fr);
+    gap:12px;
+  }
+  .stage-nav-inner .stage-nav-btn{
+    width:min(160px,100%)!important;
+    min-height:40px!important;
+    padding-inline:12px!important;
+  }
+  .stage-nav-inner .stage-nav-count{
+    width:64px!important;
+    min-width:64px!important;
+  }
+}
+
+/* Android search ergonomics */
+@media(max-width:760px){
+  .searchbox,
+  .home-search,
+  .recueil-searchbox,
+  .setlist-add-search,
+  .global-search{
+    min-height:48px!important;
+    border-radius:12px!important;
+    padding-left:12px!important;
+    padding-right:7px!important;
+    gap:8px!important;
+  }
+  .searchbox input,
+  .home-search input,
+  .recueil-searchbox input,
+  .setlist-add-search input,
+  .global-search input{
+    min-width:0!important;
+    min-height:46px!important;
+    padding:0!important;
+    font-size:16px!important; /* avoids Android/iOS zoom behavior */
+  }
+  .searchbox>svg,
+  .home-search>svg,
+  .recueil-searchbox>svg,
+  .setlist-add-search>svg,
+  .global-search>svg{
+    width:18px!important;
+    height:18px!important;
+    flex:none;
+  }
+  .search-clear{
+    width:36px!important;
+    height:36px!important;
+    flex:none!important;
+  }
+  .field-clear-wrap{
+    min-width:0!important;
+  }
+  .field-clear-wrap input{
+    width:100%!important;
+    min-width:0!important;
+    padding-right:40px!important;
+  }
+
+  .stage-nav-inner{
+    width:100%;
+    grid-template-columns:64px 58px 64px;
+    justify-content:space-between;
+    gap:8px;
+  }
+  .stage-nav-inner .stage-nav-btn{
+    width:64px!important;
+    min-width:64px!important;
+    height:48px!important;
+    min-height:48px!important;
+    padding:0!important;
+    border-radius:12px!important;
+  }
+  .stage-nav-inner .stage-nav-btn span{
+    display:none!important;
+  }
+  .stage-nav-inner .stage-nav-btn svg{
+    width:28px!important;
+    height:28px!important;
+  }
+  .stage-nav-inner .stage-nav-count{
+    width:58px!important;
+    min-width:58px!important;
+    font-size:11px!important;
+  }
+
+  .optional-metronome-toggle{
+    min-height:54px;
+    padding:10px 12px;
+  }
+}
+
+/* Narrow Android phones */
+@media(max-width:430px){
+  .toolbar{
+    grid-template-columns:1fr!important;
+  }
+  .toolbar>.secondary,
+  .toolbar>.select-wrap{
+    width:100%!important;
+  }
+  .artist-search{
+    max-width:none!important;
+  }
+  .tononkira-search-fields,
+  .external-recueil-fields{
+    gap:7px!important;
+  }
+}
