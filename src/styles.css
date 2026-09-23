@@ -6160,3 +6160,227 @@ body,
     margin-top:4px!important;
   }
 }
+
+
+/* DI'ART V2.4.9 — definitive search-bar normalization
+   Rule: outer rows are transparent; only the actual input/search field owns a surface. */
+
+/* 1) OUTER ROWS / LAYOUT CONTAINERS — never draw a card */
+.library-toolbar,
+.history-toolbar,
+.tononkira-search-fields,
+.external-recueil-fields{
+  background:transparent!important;
+  border:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+
+/* Generic toolbar rules from older responsive layers must not repaint search rows. */
+.toolbar.library-toolbar,
+.toolbar.history-toolbar{
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+
+/* 2) ACTUAL SEARCH FIELDS — one and only one visual surface */
+.searchbox,
+.home-search,
+.artist-search.searchbox,
+.setlist-add-search,
+.recueil-searchbox,
+.global-search,
+.field-clear-wrap{
+  background:color-mix(in srgb,var(--surface2) 88%,transparent)!important;
+  border:1px solid color-mix(in srgb,var(--line) 92%,transparent)!important;
+  outline:0!important;
+  box-shadow:none!important;
+}
+
+/* Recueil fields are already wrapped by field-clear-wrap: the raw input stays transparent. */
+.searchbox input,
+.home-search input,
+.artist-search.searchbox input,
+.setlist-add-search input,
+.recueil-searchbox input,
+.global-search input,
+.field-clear-wrap input{
+  background:transparent!important;
+  border:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+}
+
+/* Focus belongs to the field, never to the outer row. */
+.searchbox:focus-within,
+.home-search:focus-within,
+.artist-search.searchbox:focus-within,
+.setlist-add-search:focus-within,
+.recueil-searchbox:focus-within,
+.global-search:focus-within,
+.field-clear-wrap:focus-within{
+  border-color:color-mix(in srgb,var(--accent2) 58%,var(--line))!important;
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--accent2) 10%,transparent)!important;
+}
+.library-toolbar:focus-within,
+.history-toolbar:focus-within,
+.tononkira-search-fields:focus-within,
+.external-recueil-fields:focus-within{
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+
+/* Clear buttons never create a second surface. */
+.search-clear,
+.searchbox .search-clear,
+.home-search .search-clear,
+.artist-search.searchbox .search-clear,
+.setlist-add-search .search-clear,
+.field-clear-wrap .search-clear{
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+
+/* History action selector is a sibling field, not a toolbar background. */
+.history-toolbar .select-wrap{
+  background:color-mix(in srgb,var(--surface2) 88%,transparent)!important;
+  border:1px solid color-mix(in srgb,var(--line) 92%,transparent)!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+}
+.history-toolbar .select-wrap:focus-within{
+  border-color:color-mix(in srgb,var(--accent2) 58%,var(--line))!important;
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--accent2) 10%,transparent)!important;
+}
+
+/* 3) SPACING — enough air below the app header, without a visible strip */
+.library-toolbar,
+.history-toolbar{
+  margin-top:4px!important;
+  margin-bottom:8px!important;
+  padding:0!important;
+}
+.home-search,
+.artist-search.searchbox{
+  margin-top:4px!important;
+  margin-bottom:10px!important;
+}
+
+/* Setlist modal search stays a standalone internal field. */
+.setlist-add-search{
+  margin-top:0!important;
+  margin-bottom:10px!important;
+}
+
+/* Recueil rows stay visually open; only each title/artist field is boxed. */
+.tononkira-search-fields,
+.external-recueil-fields{
+  padding:0!important;
+}
+.tononkira-search-fields .field-clear-wrap,
+.external-recueil-fields .field-clear-wrap{
+  min-height:44px!important;
+  border-radius:10px!important;
+}
+
+/* 4) DESKTOP STICKY — position remains fixed while the wrapper stays transparent */
+@media(min-width:821px){
+  .home-search,
+  .artist-search.searchbox,
+  .library-toolbar,
+  .history-toolbar{
+    position:sticky!important;
+    top:76px!important;
+    z-index:16!important;
+  }
+
+  .home-search,
+  .artist-search.searchbox{
+    box-shadow:none!important;
+  }
+
+  .library-toolbar,
+  .history-toolbar{
+    padding:4px 0!important;
+    background:transparent!important;
+    border:0!important;
+    box-shadow:none!important;
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+  }
+}
+
+/* 5) TABLET / ANDROID — identical visual language, no external plate */
+@media(max-width:820px){
+  .library-toolbar,
+  .history-toolbar{
+    background:transparent!important;
+    border:0!important;
+    box-shadow:none!important;
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+    padding:0!important;
+    margin-top:3px!important;
+    margin-bottom:7px!important;
+  }
+
+  .searchbox,
+  .home-search,
+  .artist-search.searchbox,
+  .setlist-add-search,
+  .recueil-searchbox,
+  .global-search{
+    min-height:40px!important;
+    border-radius:12px!important;
+  }
+
+  .home-search,
+  .artist-search.searchbox{
+    height:40px!important;
+    padding:0 8px 0 10px!important;
+    gap:7px!important;
+  }
+
+  .library-toolbar .searchbox,
+  .history-toolbar .searchbox{
+    min-height:40px!important;
+    height:40px!important;
+    border-radius:12px!important;
+  }
+
+  .searchbox input,
+  .home-search input,
+  .artist-search.searchbox input,
+  .setlist-add-search input,
+  .recueil-searchbox input,
+  .global-search input,
+  .field-clear-wrap input{
+    min-width:0!important;
+    font-size:16px!important;
+  }
+
+  .tononkira-search-fields,
+  .external-recueil-fields{
+    background:transparent!important;
+    border:0!important;
+    box-shadow:none!important;
+  }
+}
+
+/* Narrow phones: do not let the generic .toolbar mobile rule turn search rows into cards. */
+@media(max-width:430px){
+  .toolbar.library-toolbar,
+  .toolbar.history-toolbar{
+    background:transparent!important;
+    border:0!important;
+    box-shadow:none!important;
+    padding:0!important;
+  }
+}
