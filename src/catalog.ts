@@ -93,6 +93,8 @@ export interface ExternalRecueilImport {
   structure?:string
   chords?:string
   lyrics?:string
+  originalKey?:string
+  bpm?:number|null
 }
 
 export async function searchExternalRecueil(source:ExternalRecueilSource,title:string,artist=''):Promise<ExternalRecueilResult[]>{
