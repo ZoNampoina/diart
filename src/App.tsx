@@ -401,8 +401,19 @@ function numberedStructureLabels(parts:string[]):string[]{
 function generatedChordTemplate(parts:string[]):string{
   return numberedStructureLabels(parts).map(label=>'['+label+']').join('\n\n')
 }
+function uniqueStructureChoices(parts:string[]):string[]{
+  const seen=new Set<string>()
+  const out:string[]=[]
+  for(const part of parts.map(normalizeStructurePart)){
+    const key=part.toLowerCase()
+    if(seen.has(key))continue
+    seen.add(key)
+    out.push(part)
+  }
+  return out
+}
 function chordGuideSections(value:string):{label:string;body:string}[]{
-  const lines=value.split('\n')
+  const lines=value.replace(/\r/g,'').split('\n')
   const out:{label:string;body:string}[]=[]
   let current:{label:string;body:string}|null=null
   for(const line of lines){
@@ -410,10 +421,13 @@ function chordGuideSections(value:string):{label:string;body:string}[]{
     if(header){
       if(current&&current.body.trim())out.push({...current,body:current.body.trim()})
       current={label:normalizeStructurePart(header[1]),body:''}
-    }else if(line.trim()){
-      if(!current)current={label:'Accords',body:''}
-      current.body+=(current.body?'\n':'')+line.trim()
+      continue
     }
+    if(!current){
+      if(!line.trim())continue
+      current={label:'Accords',body:''}
+    }
+    current.body+=(current.body?'\n':'')+line.trimEnd()
   }
   if(current&&current.body.trim())out.push({...current,body:current.body.trim()})
   return out
@@ -431,6 +445,7 @@ function SongForm({initial,presetArtist='',presetAuthor='',onCancel,onSave}:{ini
   const set=<K extends keyof SongDraft>(k:K,v:SongDraft[K])=>setD(x=>({...x,[k]:v}))
   const sequence=useMemo(()=>parseStructureSequence(d.structure??''),[d.structure])
   const numberedSequence=useMemo(()=>numberedStructureLabels(sequence),[sequence])
+  const structureChoices=useMemo(()=>uniqueStructureChoices(sequence),[sequence])
 
   const applyStructure=(next:string[])=>setD(prev=>({...prev,structure:next.map(normalizeStructurePart).join(' · ')}))
   const addStructure=(part:string)=>applyStructure([...sequence,part])
@@ -441,10 +456,20 @@ function SongForm({initial,presetArtist='',presetAuthor='',onCancel,onSave}:{ini
     next[index]=/\(variation\)$/i.test(next[index])?base:base+' (variation)'
     applyStructure(next)
   }
-  const appendStructureTemplate=()=>{
-    if(!sequence.length)return
-    const template=generatedChordTemplate(sequence)
-    setD(prev=>({...prev,chords:[(prev.chords??'').trimEnd(),template].filter(Boolean).join('\n\n')}))
+  const insertChordSection=(label:string)=>{
+    const token='['+normalizeStructurePart(label)+']\n'
+    const el=chordRef.current
+    const value=d.chords??''
+    const start=el?.selectionStart??value.length
+    const end=el?.selectionEnd??start
+    const before=value.slice(0,start)
+    const after=value.slice(end)
+    const prefix=before&&!before.endsWith('\n\n')?(before.endsWith('\n')?'\n':'\n\n'):''
+    const suffix=after&&!after.startsWith('\n')?'\n':''
+    const next=before+prefix+token+suffix+after
+    const cursor=(before+prefix+token).length
+    set('chords',next)
+    requestAnimationFrame(()=>{chordRef.current?.focus();chordRef.current?.setSelectionRange(cursor,cursor)})
   }
   const insertChord=(root:string)=>{
     const suffix=chordType==='M'?'':chordType==='m'?'m':chordType==='7'?'7':chordType==='Sus'?'sus':'aug'
@@ -477,7 +502,7 @@ function SongForm({initial,presetArtist='',presetAuthor='',onCancel,onSave}:{ini
   <div className="structure-builder span2"><div className="structure-builder-head"><div><b>Structure du morceau</b><small>Couplet 1/2 et Refrain 1/2 sont considérés comme la même section. Activez « Var. » uniquement si une occurrence change réellement.</small></div>{sequence.length>0&&<button type="button" className="bare-action structure-clear" onClick={()=>applyStructure([])}>Effacer</button>}</div><div className="structure-options">{STRUCTURE_PARTS.map(part=><button type="button" key={part} onClick={()=>addStructure(part)}><Plus/>{part}</button>)}</div>{sequence.length>0?<div className="structure-sequence">{numberedSequence.map((label,index)=><div className="structure-chip" key={label+'-'+index}><span>{index+1}</span><b>{label}</b><button type="button" className={/\(variation\)$/i.test(label)?'variation-active':''} title="Variation optionnelle" onClick={()=>toggleVariation(index)}>Var.</button><button type="button" disabled={index===0} title="Déplacer avant" onClick={()=>moveStructure(index,-1)}><ChevronUp/></button><button type="button" disabled={index===sequence.length-1} title="Déplacer après" onClick={()=>moveStructure(index,1)}><ChevronDown/></button><button type="button" title="Retirer" onClick={()=>removeStructure(index)}><X/></button></div>)}</div>:<p className="structure-empty">Aucune structure sélectionnée.</p>}</div>
 
   <label className="span2">Structure<textarea rows={3} value={d.structure??''} onChange={e=>set('structure',e.target.value)} placeholder="Prélude · Couplet · Refrain · Couplet · Bridge · Refrain · Postlude"/></label>
-  <label className="span2 chord-label"><span className="field-label-row"><span>Accords / repères</span><button type="button" className="secondary compact-field-action" disabled={!sequence.length} onClick={appendStructureTemplate}><Plus/>Ajouter la séquence</button></span>{sequence.length>0&&<div className="chord-sequence-suggestion"><small>Séquence suggérée à ajouter</small><div>{numberedSequence.map((label,index)=><span key={label+'-'+index}>[{label}]</span>)}</div></div>}<div className="chord-assistant"><div className="chord-type-picker">{(['M','m','7','Sus','Aug'] as const).map(type=><button type="button" className={chordType===type?'active':''} key={type} onClick={()=>setChordType(type)}>{type}</button>)}</div><div className="chord-root-picker">{['A','B','C','D','E','F','G'].map(root=><button type="button" key={root} onClick={()=>insertChord(root)}>{root}</button>)}</div></div><textarea ref={chordRef} rows={Math.max(6,sequence.length*2)} className="chord-input" value={d.chords??''} onChange={e=>set('chords',e.target.value)} placeholder="[Prélude]&#10;C  G  Am  F&#10;&#10;[Couplet]&#10;C  G/B  Am7  F"/></label>
+  <label className="span2 chord-label"><span className="field-label-row"><span>Accords / repères</span></span>{structureChoices.length>0&&<div className="chord-section-picker"><small>Insérer une section</small><div>{structureChoices.map(label=><button type="button" key={label} onClick={()=>insertChordSection(label)}>[{label}]</button>)}</div></div>}<div className="chord-assistant"><div className="chord-type-picker">{(['M','m','7','Sus','Aug'] as const).map(type=><button type="button" className={chordType===type?'active':''} key={type} onClick={()=>setChordType(type)}>{type}</button>)}</div><div className="chord-root-picker">{['A','B','C','D','E','F','G'].map(root=><button type="button" key={root} onClick={()=>insertChord(root)}>{root}</button>)}</div></div><textarea ref={chordRef} rows={Math.max(6,sequence.length*2)} className="chord-input" value={d.chords??''} onChange={e=>set('chords',e.target.value)} placeholder="[Prélude]&#10;C  G  Am  F&#10;&#10;[Couplet]&#10;C  G/B  Am7  F"/></label>
   <label className="span2">Notes instrumentales<textarea rows={4} value={d.instrumentNotes??''} onChange={e=>set('instrumentNotes',e.target.value)} placeholder="Sax après refrain 2, basse légère au couplet, pad au pont…"/></label><label className="span2">Paroles<textarea rows={8} value={d.lyrics??''} onChange={e=>set('lyrics',e.target.value)} placeholder="Paroles du morceau…"/></label><label className="span2">Lien de référence<input value={d.referenceUrl} onChange={e=>set('referenceUrl',e.target.value)}/></label><label className="span2">Notes générales<textarea rows={5} value={d.notes} onChange={e=>set('notes',e.target.value)}/></label><div className="form-actions span2"><button type="button" className="secondary" onClick={onCancel}>Annuler</button><button className="primary" disabled={saving}><Save/>{saving?'Enregistrement…':'Enregistrer'}</button></div></form></>
 }
 
