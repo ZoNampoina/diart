@@ -800,6 +800,28 @@ function ImportWizard({songs,refresh,toast,onRecord,onLibrary}:{songs:Song[];ref
   </>
 }
 
+function AboutPage({songs,setlists,cloudStats}:{songs:Song[];setlists:Setlist[];cloudStats:{songs:number;setlists:number}|null}) {
+  const [historyCount,setHistoryCount]=useState(0)
+  useEffect(()=>{void db.activity.count().then(setHistoryCount)},[])
+  const artists=new Set(songs.map(s=>s.artist.trim()).filter(Boolean)).size
+  const authors=new Set(songs.map(s=>s.authorComposer.trim()).filter(Boolean)).size
+  const withLyrics=songs.filter(s=>Boolean(s.lyrics?.trim())).length
+  const withChords=songs.filter(s=>hasMeaningfulChordContent(s.chords??'')).length
+  const favorites=songs.filter(s=>s.favorite).length
+  return <>
+    <div className="page-head"><div><p className="eyebrow">DI’ART by ARIZONA</p><h1>À propos</h1><p>Un répertoire musical personnel pensé pour retrouver, préparer et utiliser rapidement les informations utiles d’un morceau.</p></div></div>
+    <section className="panel about-hero"><div className="about-mark"><Music2/></div><div><span className="eyebrow">Version {APP_VERSION}</span><h2>Votre mémoire musicale, de la préparation à la scène.</h2><p>DI’ART centralise titres, artistes, auteurs, tonalités, BPM, signatures rythmiques, paroles, accords, structures, notes instrumentales, setlists et recueils. L’application est conçue pour fonctionner sur ordinateur, tablette et téléphone, avec une approche locale-first et une synchronisation cloud lorsque le compte DI’ART est connecté.</p></div></section>
+    <div className="about-grid">
+      <section className="panel"><h2>But</h2><p>Réduire le temps passé à chercher une information musicale et disposer d’un seul espace pour préparer un morceau, répéter, construire une setlist et jouer en Live.</p></section>
+      <section className="panel"><h2>Usage</h2><p>Bibliothèque personnelle, aide-mémoire, préparation de répétition, consultation de paroles et accords, transposition, métronome, organisation de setlists et affichage plein écran sur scène.</p></section>
+      <section className="panel"><h2>Créateur</h2><p><b>ARIZONA — Zo Nampoina</b></p><p>Projet conçu et développé comme un outil musical personnel évolutif.</p></section>
+      <section className="panel"><h2>Copyright</h2><p>© 2026 ARIZONA. Tous droits réservés pour l’application DI’ART et son identité. Les paroles, accords et contenus provenant de sources externes restent attribués à leurs auteurs, éditeurs et plateformes respectifs.</p></section>
+    </div>
+    <section className="panel about-stats"><div className="panel-title-row"><div><h2>Statistiques actuelles</h2><small>Calculées à partir des données présentes dans DI’ART au moment de l’ouverture.</small></div></div><div className="about-stat-grid"><Metric label="Morceaux" value={songs.length}/><Metric label="Artistes" value={artists}/><Metric label="Auteurs" value={authors}/><Metric label="Setlists" value={setlists.length}/><Metric label="Avec paroles" value={withLyrics}/><Metric label="Avec accords" value={withChords}/><Metric label="Favoris" value={favorites}/><Metric label="Historique" value={historyCount}/>{cloudStats&&<Metric label="Cloud" value={cloudStats.songs}/>}</div></section>
+    <section className="panel about-version"><div><span>Version de l’application</span><b>{APP_VERSION}</b></div><div><span>Architecture</span><b>PWA · React · IndexedDB · Supabase</b></div><div><span>Mode de données</span><b>Local-first + synchronisation cloud</b></div></section>
+  </>
+}
+
 function HistoryPage() {
   const [items,setItems]=useState<ActivityEntry[]>([])
   const [q,setQ]=useState('')
