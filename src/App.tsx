@@ -433,10 +433,28 @@ function MergeSongsModal({a,b,onClose,onMerge}:{a:Song;b:Song;onClose:()=>void;o
   const primary=primaryId===a.id?a:b
   const secondary=primaryId===a.id?b:a
   const merged=mergeSongDraft(primary,secondary)
-  const gains=songCompletion(primary,merged).labels
-  return <Modal className="merge-modal" title="Fusionner deux morceaux" onClose={onClose}><p className="muted-copy">Choisissez la fiche principale. Ses informations existantes seront conservées ; les champs manquants seront complétés par l’autre fiche. Le doublon sera placé dans la corbeille.</p><div className="merge-choice-grid">{[a,b].map(song=><button type="button" key={song.id} className={primaryId===song.id?'selected':''} onClick={()=>setPrimaryId(song.id)}><span>{primaryId===song.id?<Check/>:<span/>}</span><div><b>{song.title}</b><small>{song.artist||'Artiste inconnu'}</small></div></button>)}</div><div className="import-review-suggestion"><b>La fiche principale gagnera :</b><div>{gains.length?gains.map(x=><span key={x}><Plus/>{x}</span>):<span><Check/>Aucun champ vide supplémentaire</span>}</div></div><div className="modal-actions"><button className="secondary" onClick={onClose}>Annuler</button><button className="primary" disabled={busy} onClick={()=>{setBusy(true);void onMerge(primary,secondary).finally(()=>setBusy(false))}}><GitMerge/>{busy?'Fusion…':'Fusionner'}</button></div></Modal>
+  const fields:{label:string;read:(s:Song)=>string}[]=[
+    {label:'Titre',read:s=>s.title||'—'},
+    {label:'Artiste',read:s=>s.artist||'—'},
+    {label:'Auteur / Compositeur',read:s=>s.authorComposer||'—'},
+    {label:'Tonalité originale',read:s=>s.originalKey||'—'},
+    {label:'Tonalité habituelle',read:s=>s.personalKey||'—'},
+    {label:'BPM',read:s=>s.bpm===null?'—':String(s.bpm)},
+    {label:'Signature',read:s=>s.timeSignature||'—'},
+    {label:'Style',read:s=>s.style||'—'},
+    {label:'Tags',read:s=>(s.tags??[]).join(', ')||'—'},
+    {label:'Paroles',read:s=>s.lyrics?.trim()?'✓ Présentes':'—'},
+    {label:'Accords',read:s=>hasMeaningfulChordContent(s.chords??'')?'✓ Présents':'—'},
+    {label:'Notes musiciens',read:s=>Object.values(s.musicianNotes??{}).some(Boolean)?'✓ Présentes':'—'}
+  ]
+  return <Modal className="merge-modal merge-visual-modal" title="Fusion visuelle de morceaux" onClose={onClose}>
+    <p className="muted-copy">Choisissez la fiche principale. DI’ART conserve ses valeurs et complète automatiquement les champs manquants avec l’autre fiche.</p>
+    <div className="merge-primary-picker"><button className={primaryId===a.id?'selected':''} onClick={()=>setPrimaryId(a.id)}><Check/><span>Fiche principale</span><b>{a.title}</b></button><button className={primaryId===b.id?'selected':''} onClick={()=>setPrimaryId(b.id)}><Check/><span>Fiche principale</span><b>{b.title}</b></button></div>
+    <div className="merge-compare-table"><div className="merge-compare-head"><span>Champ</span><b>{a.title}</b><b>{b.title}</b><b>Résultat</b></div>{fields.map(field=><div className="merge-compare-row" key={field.label}><span>{field.label}</span><em>{field.read(a)}</em><em>{field.read(b)}</em><strong>{field.label==='Titre'?merged.title:field.label==='Artiste'?merged.artist:field.label==='Auteur / Compositeur'?merged.authorComposer:field.label==='Tonalité originale'?merged.originalKey||'—':field.label==='Tonalité habituelle'?merged.personalKey||'—':field.label==='BPM'?merged.bpm??'—':field.label==='Signature'?merged.timeSignature||'—':field.label==='Style'?merged.style||'—':field.label==='Tags'?merged.tags.join(', ')||'—':field.label==='Paroles'?merged.lyrics?.trim()?'✓':'—':field.label==='Accords'?hasMeaningfulChordContent(merged.chords??'')?'✓':'—':Object.values(merged.musicianNotes??{}).some(Boolean)?'✓':'—'}</strong></div>)}</div>
+    <div className="merge-summary"><GitMerge/><span>La seconde fiche sera placée dans la corbeille après fusion.</span></div>
+    <div className="modal-actions"><button className="secondary" onClick={onClose}>Annuler</button><button className="primary" disabled={busy} onClick={()=>{setBusy(true);void onMerge(primary,secondary).finally(()=>setBusy(false))}}><GitMerge/>{busy?'Fusion…':'Fusionner'}</button></div>
+  </Modal>
 }
-
 
 function QuickSetlistAdd({song,setlists,refresh,toast}:{song:Song;setlists:Setlist[];refresh:()=>Promise<void>;toast:(s:string)=>void}) {
   const [open,setOpen]=useState(false)
