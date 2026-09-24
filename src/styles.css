@@ -7521,3 +7521,54 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
 .stage-next-nav-stack{display:grid;justify-items:center;gap:5px}
 .stage-transition-trigger{width:28px;height:22px;min-height:22px;padding:0;border-radius:999px;border:1px solid rgba(213,171,74,.58);background:rgba(213,171,74,.16);color:#e5bd56;font-size:10px;font-weight:900;line-height:1;box-shadow:0 0 0 2px rgba(213,171,74,.08)}
 .stage-transition-trigger:hover{background:rgba(213,171,74,.24);border-color:#d5ab4a;color:#f0ca69}
+
+/* DI'ART 2.7.4 — fixed next arrow + clickable transition badge */
+.stage-next-nav-slot{
+  position:relative;
+  width:min(180px,100%);
+  min-height:42px;
+  justify-self:center;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.stage-next-nav-slot>.stage-nav-btn{
+  position:relative;
+  z-index:1;
+  margin:0!important;
+}
+.stage-next-nav-slot>.stage-transition-trigger{
+  position:absolute;
+  z-index:20;
+  left:50%;
+  top:calc(100% + 4px);
+  transform:translateX(-50%);
+  display:grid;
+  place-items:center;
+  width:30px!important;
+  height:24px!important;
+  min-width:30px!important;
+  min-height:24px!important;
+  padding:0!important;
+  margin:0!important;
+  border-radius:999px;
+  cursor:pointer;
+  pointer-events:auto;
+  touch-action:manipulation;
+  user-select:none;
+}
+.stage-next-nav-slot>.stage-transition-trigger:active{
+  transform:translateX(-50%) scale(.94);
+}
+.compact-stage-nav{
+  overflow:visible!important;
+}
+.stage-nav-inner{
+  overflow:visible!important;
+}
+@media(max-width:760px){
+  .stage-next-nav-slot{
+    width:48px;
+    min-height:42px;
+  }
+}
