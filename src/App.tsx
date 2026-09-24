@@ -596,7 +596,6 @@ function App() {
 function Dashboard({songs,artists,authors,setlists,refreshSetlists,toast,onOpen,onGo,onFav,onRecueilSearch}:{songs:Song[];artists:number;authors:number;setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;onOpen:(s:Song)=>void;onGo:(p:Page)=>void;onFav:(s:Song)=>void;onRecueilSearch:(query:string)=>void}) {
   const [q,setQ]=useState('')
   const deferredQ=useDeferredValue(q)
-  useEffect(()=>{const id=requestAnimationFrame(()=>window.scrollTo({top:restoreY,behavior:'auto'}));return()=>cancelAnimationFrame(id)},[])
   const results=useMemo(()=>deferredQ.trim()?songs.filter(s=>searchSong(s,deferredQ)).slice(0,12):[],[songs,deferredQ])
   const recent=[...songs].sort((a,b)=>(b.lastViewedAt||'').localeCompare(a.lastViewedAt||'')).filter(s=>s.lastViewedAt).slice(0,3)
   const added=[...songs].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,3)
