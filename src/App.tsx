@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.14'
+const APP_VERSION='2.9.15'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1079,6 +1079,38 @@ function normalizeImportedLyrics(value:string):string{
   return out.join('\n').replace(/\n{3,}/g,'\n\n').trim()
 }
 
+type RemovedTononkiraNoise={word:string;line:number}
+
+const TONONKIRA_KNOWN_NOISE=new Set('aovex knjmxm jdatu nggixe tabdtmf cpztr csvo ztzw bsylx kcpib yzlpj dwruu kwjaqreo mkku lgksrym mnszr'.split(' '))
+function looksLikeTononkiraNoiseWord(word:string):boolean{
+  const clean=word.toLowerCase().replace(/^[^a-z]+|[^a-z]+$/g,'')
+  if(!clean||clean.length<4||clean.length>12)return false
+  if(TONONKIRA_KNOWN_NOISE.has(clean))return true
+  // Signature prudente des jetons parasites observés : uniquement ASCII, aucune apostrophe,
+  // forte densité de consonnes et combinaisons rares. On évite volontairement de filtrer
+  // un mot normal sur un seul critère.
+  if(!/^[a-z]+$/.test(clean))return false
+  const vowels=(clean.match(/[aeiouy]/g)||[]).length
+  const consonantRuns=clean.match(/[bcdfghjklmnpqrstvwxz]{4,}/g)||[]
+  const rare=(clean.match(/[qxzwkj]/g)||[]).length
+  return clean.length>=5&&vowels/clean.length<=.25&&consonantRuns.length>0&&rare>=1
+}
+function cleanTononkiraNoiseWords(value:string):{lyrics:string;removed:RemovedTononkiraNoise[]}{
+  const removed:RemovedTononkiraNoise[]=[]
+  const lines=String(value||'').split('\n').map((line,lineIndex)=>{
+    const tokens=line.split(/(\s+)/)
+    const kept=tokens.filter(token=>{
+      if(/^\s+$/.test(token))return true
+      const bare=token.replace(/^[^A-Za-z]+|[^A-Za-z]+$/g,'')
+      if(!looksLikeTononkiraNoiseWord(bare))return true
+      removed.push({word:bare,line:lineIndex+1})
+      return false
+    })
+    return kept.join('').replace(/[ \t]{2,}/g,' ').trimEnd()
+  })
+  return {lyrics:lines.join('\n').replace(/\n{3,}/g,'\n\n').trim(),removed}
+}
+
 type TononkiraStructureBlock={id:string;label:string;text:string;kind:'verse'|'refrain'|'other';confidence:'forte'|'probable'|'à vérifier'}
 
 function detectTononkiraStructure(lyrics:string):TononkiraStructureBlock[]{
@@ -1198,7 +1230,7 @@ function RecueilsPage({songs,entryMode,prefill,onImport,onComplete,onViewImporte
   const [tononkiraSearched,setTononkiraSearched]=useState(false)
   const [tononkiraImporting,setTononkiraImporting]=useState('')
   const [review,setReview]=useState<{existing:Song;incoming:SongDraft;source:string}|null>(null)
-  const [tononkiraStructure,setTononkiraStructure]=useState<{draft:SongDraft;blocks:TononkiraStructureBlock[]}|null>(null)
+  const [tononkiraStructure,setTononkiraStructure]=useState<{draft:SongDraft;blocks:TononkiraStructureBlock[];removedNoise:RemovedTononkiraNoise[]}|null>(null)
   const [tononkiraVerifying,setTononkiraVerifying]=useState(false)
   const [tononkiraIdentityConflict,setTononkiraIdentityConflict]=useState<{existing:Song;draft:SongDraft}|null>(null)
   const [importedSong,setImportedSong]=useState<Song|null>(null)
@@ -1241,15 +1273,39 @@ function RecueilsPage({songs,entryMode,prefill,onImport,onComplete,onViewImporte
       const draft=emptySongDraft()
       draft.title=full.title||item.title||'Morceau Tononkira'
       draft.artist=full.artist||item.artist||''
-      draft.lyrics=normalizeImportedLyrics(full.lyrics)
+      const normalizedLyrics=normalizeImportedLyrics(full.lyrics)
+      const cleanedLyrics=cleanTononkiraNoiseWords(normalizedLyrics)
+      draft.lyrics=cleanedLyrics.lyrics
       draft.referenceUrl=full.sourceUrl
       draft.notes='Source des paroles : Tononkira Malagasy'
       draft.source='import'
       const blocks=detectTononkiraStructure(draft.lyrics||'')
       setTononkiraVerifying(false)
-      setTononkiraStructure({draft,blocks})
+      setTononkiraStructure({draft,blocks,removedNoise:cleanedLyrics.removed})
     }catch{toast('Import Tononkira impossible pour ce morceau.')}
     finally{setTononkiraImporting('')}
+  }
+
+  const restoreTononkiraNoise=(index:number)=>{
+    setTononkiraStructure(current=>{
+      if(!current)return current
+      const item=current.removedNoise[index]
+      if(!item)return current
+      const lines=tononkiraBlocksToLyrics(current.blocks).split('\n')
+      const target=Math.max(0,Math.min(lines.length-1,item.line-1))
+      lines[target]=((lines[target]||'')+' '+item.word).trim()
+      const lyrics=normalizeImportedLyrics(lines.join('\n'))
+      return {...current,draft:{...current.draft,lyrics},blocks:detectTononkiraStructure(lyrics),removedNoise:current.removedNoise.filter((_,i)=>i!==index)}
+    })
+  }
+  const restoreAllTononkiraNoise=()=>{
+    setTononkiraStructure(current=>{
+      if(!current||!current.removedNoise.length)return current
+      const lines=tononkiraBlocksToLyrics(current.blocks).split('\n')
+      current.removedNoise.forEach(item=>{const target=Math.max(0,Math.min(lines.length-1,item.line-1));lines[target]=((lines[target]||'')+' '+item.word).trim()})
+      const lyrics=normalizeImportedLyrics(lines.join('\n'))
+      return {...current,draft:{...current.draft,lyrics},blocks:detectTononkiraStructure(lyrics),removedNoise:[]}
+    })
   }
 
   const saveTononkiraStructure=async()=>{
@@ -1311,7 +1367,7 @@ function RecueilsPage({songs,entryMode,prefill,onImport,onComplete,onViewImporte
   <section className="panel recueil-source-card chordpro-direct-card"><div className="recueil-source-head"><span className="recueil-badge">CP</span><div><h2>ChordPro</h2><p>Import direct d’un fichier .pro, .chopro, .cho, .crd ou .txt avec paroles et accords.</p></div></div><div className="recueil-source-actions"><button className="primary recueil-action" onClick={()=>fileRef.current?.click()}><FileUp/>Importer ChordPro</button></div></section>
   <input ref={fileRef} hidden type="file" accept=".pro,.chopro,.cho,.crd,.txt,text/plain" onChange={e=>{const f=e.target.files?.[0];if(f)void readChordPro(f);e.currentTarget.value=''}}/>
 
-  {tononkiraStructure&&<Modal className="tononkira-ready-modal" title="Paroles traitées" onClose={()=>{setTononkiraStructure(null);setTononkiraVerifying(false)}}><div className="tononkira-ready-summary"><Check/><div><b>{tononkiraStructure.draft.title}</b><small>{tononkiraStructure.draft.artist||'Artiste non renseigné'} · {tononkiraStructure.blocks.length} bloc{tononkiraStructure.blocks.length>1?'s':''} détecté{tononkiraStructure.blocks.length>1?'s':''}</small></div></div>{tononkiraVerifying&&<div className="tononkira-verify-content"><p className="muted-copy">Vérification manuelle avant enregistrement. Vous pouvez corriger le type ou le texte d’un bloc si nécessaire.</p><div className="tononkira-structure-list">{tononkiraStructure.blocks.map((block,index)=><article className="tononkira-structure-block" key={block.id}><div className="tononkira-structure-block-head"><select value={block.kind} onChange={e=>setTononkiraStructure(current=>current?{...current,blocks:current.blocks.map((b,i)=>i===index?{...b,kind:e.target.value as TononkiraStructureBlock['kind'],label:e.target.value==='refrain'?'Refrain':e.target.value==='verse'?'Couplet '+(current.blocks.slice(0,index+1).filter(x=>x.kind==='verse').length||1):'Autre'}:b)}:current)}><option value="verse">Couplet</option><option value="refrain">Refrain</option><option value="other">Autre</option></select><small>{block.confidence}</small></div><textarea rows={Math.min(8,Math.max(3,block.text.split('\n').length))} value={block.text} onChange={e=>setTononkiraStructure(current=>current?{...current,blocks:current.blocks.map((b,i)=>i===index?{...b,text:e.target.value}:b)}:current)}/><div className="tononkira-structure-actions">{index>0&&<button type="button" className="bare-action" onClick={()=>setTononkiraStructure(current=>{if(!current)return current;const blocks=[...current.blocks];blocks[index-1]={...blocks[index-1],text:(blocks[index-1].text+'\n'+blocks[index].text).trim()};blocks.splice(index,1);return {...current,blocks}})}>Fusionner avec précédent</button>}</div></article>)}</div></div>}<div className="modal-actions tononkira-ready-actions"><button className="secondary" onClick={()=>{setTononkiraStructure(null);setTononkiraVerifying(false)}}>Annuler</button><button type="button" className={'icon-btn '+(tononkiraVerifying?'active':'')} aria-label="Vérifier les paroles" title="Vérifier les paroles" onClick={()=>setTononkiraVerifying(v=>!v)}><Eye/></button><button type="button" className="icon-btn primary" aria-label="Enregistrer" title="Enregistrer" onClick={()=>void saveTononkiraStructure()}><Save/></button></div></Modal>}
+  {tononkiraStructure&&<Modal className="tononkira-ready-modal" title="Paroles traitées" onClose={()=>{setTononkiraStructure(null);setTononkiraVerifying(false)}}><div className="tononkira-ready-summary"><Check/><div><b>{tononkiraStructure.draft.title}</b><small>{tononkiraStructure.draft.artist||'Artiste non renseigné'} · {tononkiraStructure.blocks.length} bloc{tononkiraStructure.blocks.length>1?'s':''} détecté{tononkiraStructure.blocks.length>1?'s':''}</small></div></div>{tononkiraStructure.removedNoise.length>0&&<div className="tononkira-noise-review"><small>Parasites retirés automatiquement : {tononkiraStructure.removedNoise.map((item,index)=><button type="button" key={item.word+'-'+index} title="Restaurer ce mot" onClick={()=>restoreTononkiraNoise(index)}>{item.word}</button>)}</small><button type="button" className="bare-action" onClick={restoreAllTononkiraNoise}>Tout restaurer</button></div>}{tononkiraVerifying&&<div className="tononkira-verify-content"><p className="muted-copy">Vérification manuelle avant enregistrement. Vous pouvez corriger le type ou le texte d’un bloc si nécessaire.</p><div className="tononkira-structure-list">{tononkiraStructure.blocks.map((block,index)=><article className="tononkira-structure-block" key={block.id}><div className="tononkira-structure-block-head"><select value={block.kind} onChange={e=>setTononkiraStructure(current=>current?{...current,blocks:current.blocks.map((b,i)=>i===index?{...b,kind:e.target.value as TononkiraStructureBlock['kind'],label:e.target.value==='refrain'?'Refrain':e.target.value==='verse'?'Couplet '+(current.blocks.slice(0,index+1).filter(x=>x.kind==='verse').length||1):'Autre'}:b)}:current)}><option value="verse">Couplet</option><option value="refrain">Refrain</option><option value="other">Autre</option></select><small>{block.confidence}</small></div><textarea rows={Math.min(8,Math.max(3,block.text.split('\n').length))} value={block.text} onChange={e=>setTononkiraStructure(current=>current?{...current,blocks:current.blocks.map((b,i)=>i===index?{...b,text:e.target.value}:b)}:current)}/><div className="tononkira-structure-actions">{index>0&&<button type="button" className="bare-action" onClick={()=>setTononkiraStructure(current=>{if(!current)return current;const blocks=[...current.blocks];blocks[index-1]={...blocks[index-1],text:(blocks[index-1].text+'\n'+blocks[index].text).trim()};blocks.splice(index,1);return {...current,blocks}})}>Fusionner avec précédent</button>}</div></article>)}</div></div>}<div className="modal-actions tononkira-ready-actions"><button className="secondary" onClick={()=>{setTononkiraStructure(null);setTononkiraVerifying(false)}}>Annuler</button><button type="button" className={'icon-btn '+(tononkiraVerifying?'active':'')} aria-label="Vérifier les paroles" title="Vérifier les paroles" onClick={()=>setTononkiraVerifying(v=>!v)}><Eye/></button><button type="button" className="icon-btn primary" aria-label="Enregistrer" title="Enregistrer" onClick={()=>void saveTononkiraStructure()}><Save/></button></div></Modal>}
   {tononkiraIdentityConflict&&<Modal className="import-review-modal tononkira-identity-modal" title="Morceau similaire détecté" onClose={()=>setTononkiraIdentityConflict(null)}><div className="import-review-head"><AlertTriangle/><div><b>{tononkiraIdentityConflict.existing.title}</b><small>DI’ART trouve un morceau existant correspondant à votre recherche.</small></div></div><div className="identity-compare"><div><span>Dans DI’ART</span><b>{tononkiraIdentityConflict.existing.title}</b><small>{tononkiraIdentityConflict.existing.artist||'Artiste non renseigné'}</small></div><div><span>Tononkira</span><b>{tononkiraIdentityConflict.draft.title}</b><small>{tononkiraIdentityConflict.draft.artist||'Artiste non renseigné'}</small></div></div><p className="muted-copy">Le titre ou l’artiste diffère. Choisissez si les paroles doivent être fusionnées avec la fiche existante ou enregistrées comme un nouveau morceau.</p><div className="modal-actions"><button className="secondary" onClick={()=>void createTononkiraSeparately()}><Plus/>Créer séparément</button><button className="primary" onClick={()=>void mergeTononkiraIdentity()}><GitMerge/>Fusionner</button></div></Modal>}
   {review&&<MergeSongsModal a={review.existing} b={{...review.existing,...review.incoming,id:'import-'+Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),deletedAt:null} as Song} onClose={()=>setReview(null)} onKeepBoth={()=>{const draft=review.incoming;setReview(null);void onImport(draft).then(song=>{toast(draft.title+' créé séparément.');setImportedSong(song)})}} onMerge={async(primary,secondary,draft)=>{const merged=draft??mergeSongDraft(primary,secondary);await onComplete(review.existing.id,merged);const updated={...review.existing,...merged,updatedAt:new Date().toISOString()};setReview(null);toast('Fusion terminée.');setImportedSong(updated)}}/>}
   {importedSong&&<Modal className="post-import-modal" title="Morceau enregistré" onClose={()=>setImportedSong(null)}><div className="post-import-success"><Check/><div><b>{importedSong.title}</b><span>{importedSong.artist||'Artiste non renseigné'} est prêt dans DI’ART.</span></div></div><div className="post-import-actions icon-only"><button className="primary icon-btn" aria-label="Voir" title="Voir" onClick={()=>{const song=importedSong;setImportedSong(null);onViewImported(song)}}><BookOpen/></button><button className="secondary icon-btn" aria-label="Plein écran" title="Plein écran" onClick={()=>{setFullscreenImportedSong(importedSong);setImportedSong(null)}}><Maximize2/></button><button className="secondary icon-btn" aria-label="Modifier" title="Modifier" onClick={()=>{const song=importedSong;setImportedSong(null);onEditImported(song)}}><Pencil/></button><button className="secondary icon-btn" aria-label="Nouvel import" title="Nouvel import" onClick={startNewTononkiraImport}><Import/></button></div></Modal>}
