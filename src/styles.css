@@ -8617,3 +8617,26 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
   vertical-align:baseline;
   white-space:nowrap;
 }
+
+
+/* Fix Tononkira loading row: span full card width and never collapse into the left grid column */
+.tononkira-search-card>.recueil-search-loading{
+  grid-column:1/-1!important;
+  width:100%!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+  flex-direction:row!important;
+  justify-content:center!important;
+  white-space:nowrap!important;
+}
+.tononkira-search-card>.recueil-search-loading span{
+  display:inline!important;
+  white-space:nowrap!important;
+}
+@media(max-width:430px){
+  .tononkira-search-card>.recueil-search-loading{
+    min-height:64px!important;
+    padding:12px 8px!important;
+    font-size:11px!important;
+  }
+}
