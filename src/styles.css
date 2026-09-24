@@ -7877,3 +7877,70 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
     min-height:32px!important;
   }
 }
+
+/* DI'ART 2.8.6 — structural fix: transition control fully outside stage navigation */
+.stage-transition-floating{
+  position:fixed!important;
+  right:max(18px,env(safe-area-inset-right))!important;
+  left:auto!important;
+  bottom:auto!important;
+  z-index:10060!important;
+  width:44px!important;
+  min-width:44px!important;
+  height:34px!important;
+  min-height:34px!important;
+  margin:0!important;
+  padding:0!important;
+  display:grid!important;
+  place-items:center!important;
+  border-radius:12px!important;
+  border:1px solid rgba(213,171,74,.62)!important;
+  background:rgba(213,171,74,.16)!important;
+  color:#d5ab4a!important;
+  font-size:16px!important;
+  font-weight:900!important;
+  line-height:1!important;
+  pointer-events:auto!important;
+  cursor:pointer!important;
+  touch-action:manipulation!important;
+  transform:none!important;
+  box-shadow:0 8px 22px rgba(0,0,0,.12)!important;
+}
+.stage-transition-floating:hover{transform:scale(1.05)!important}
+.stage-transition-floating:active{transform:scale(.95)!important}
+
+/* Navigation is now completely independent from T */
+.stage-nav.compact-stage-nav .stage-prev-btn,
+.stage-nav.compact-stage-nav .stage-next-btn{
+  width:46px!important;
+  min-width:46px!important;
+  height:38px!important;
+  min-height:38px!important;
+  border-radius:10px!important;
+  padding:0!important;
+}
+.stage-nav.compact-stage-nav .stage-prev-btn svg,
+.stage-nav.compact-stage-nav .stage-next-btn svg{
+  width:22px!important;
+  height:22px!important;
+}
+.stage-nav.compact-stage-nav .stage-prev-btn{
+  left:0!important;
+  right:auto!important;
+}
+.stage-nav.compact-stage-nav .stage-next-btn{
+  right:0!important;
+  left:auto!important;
+}
+@media(min-width:761px){
+  .stage-transition-floating{
+    right:max(22px,env(safe-area-inset-right))!important;
+  }
+  .stage-nav.compact-stage-nav .stage-prev-btn,
+  .stage-nav.compact-stage-nav .stage-next-btn{
+    width:48px!important;
+    min-width:48px!important;
+    height:40px!important;
+    min-height:40px!important;
+  }
+}
