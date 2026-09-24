@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.16'
+const APP_VERSION='2.9.17'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1125,10 +1125,12 @@ function detectTononkiraStructure(lyrics:string):TononkiraStructureBlock[]{
   const normalized=String(lyrics||'').replace(/\r/g,'').replace(/\u00a0/g,' ').replace(/[ \t]+$/gm,'').trim()
   if(!normalized)return []
   const canonical=(x:string)=>normalizeIdentity(x)
-    .replace(/^\[?\s*(couplet|verse|refrain|chorus|ref|fiv|pré[- ]?refrain|pre[- ]?chorus|pont|bridge|intro|outro|interlude)\s*\d*\s*\]?\s*[:.-]?\s*/i,'')
+    .replace(/^\[?\s*(couplet|verse|refrain|chorus|ref|fiv|pré[- ]?refrain|pre[- ]?chorus|pont|bridge|intro|outro|interlude)\s*\d*\s*\]?\s*[:.\-–—]?\s*/i,'')
     .replace(/[^a-z0-9\s]/g,'').replace(/\s+/g,' ').trim()
   const labelKind=(line:string):TononkiraStructureBlock['kind']|null=>{
-    if(/^\[?\s*(?:(?:ref|fiv)(?=\s*(?:\d+)?\s*\]?\s*[:.\-–—]?\s*$)|refrain\b|chorus\b|pré[- ]?refrain\b|pre[- ]?chorus\b)/i.test(line))return 'refrain'
+    // Tononkira utilise aussi Ref/Fiv collé au premier vers : "Ref: ...", "Fiv - ...".
+    // Ces marqueurs ouvrent toujours un nouveau bloc, même s'ils ne sont pas seuls sur la ligne.
+    if(/^\[?\s*(?:ref|fiv)(?=\s|\d|[:.\-–—\]])/i.test(line)||/^\[?\s*(refrain|chorus|pré[- ]?refrain|pre[- ]?chorus)\b/i.test(line))return 'refrain'
     if(/^\[?\s*(couplet|verse)\b/i.test(line))return 'verse'
     if(/^\[?\s*(pont|bridge|intro|outro|interlude|prélude|prelude|postlude)\b/i.test(line))return 'other'
     return null
@@ -1157,10 +1159,15 @@ function detectTononkiraStructure(lyrics:string):TononkiraStructureBlock[]{
   // (beaucoup de blocs d'une seule ligne / moyenne quasi égale à un vers par bloc).
   const suspicious=blocks.length>=10&&explicitSectionCount<Math.ceil(blocks.length*.35)&&(averageLines<1.8||tinyBlocks/blocks.length>.55)
   if(suspicious){
-    const preferredLinesPerBlock=allLines.length>=36?5:allLines.length>=20?4:3
-    const target=Math.max(2,Math.round(allLines.length/preferredLinesPerBlock))
-    const size=Math.max(2,Math.ceil(allLines.length/target))
-    blocks.splice(0,blocks.length,...Array.from({length:Math.ceil(allLines.length/size)},(_,i)=>allLines.slice(i*size,i*size+size).join('\n')).filter(Boolean))
+    const rebuilt:string[]=[]
+    let chunk:string[]=[]
+    const flushChunk=()=>{if(!chunk.length)return;const preferred=chunk.length>=36?5:chunk.length>=20?4:3;for(let i=0;i<chunk.length;i+=preferred)rebuilt.push(chunk.slice(i,i+preferred).join('\n'));chunk=[]}
+    for(const line of allLines){
+      if(labelKind(line)){flushChunk();chunk=[line]}
+      else chunk.push(line)
+    }
+    flushChunk()
+    blocks.splice(0,blocks.length,...rebuilt.filter(Boolean))
   }
 
   // Si tous les séparateurs ont disparu, reconstituer selon la cadence des lignes sans
