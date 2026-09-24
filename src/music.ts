@@ -122,30 +122,30 @@ export function searchSong(song: Song, query: string): boolean {
   if(!raw)return true
   let residual=raw
 
-  const withoutLyrics=/\\bsans\\s+(?:les\\s+)?paroles?\\b/i.test(residual)
-  const withLyrics=/\\bavec\\s+(?:les\\s+)?paroles?\\b/i.test(residual)
-  const withoutChords=/\\bsans\\s+(?:les\\s+)?accords?\\b/i.test(residual)
-  const withChords=/\\bavec\\s+(?:les\\s+)?accords?\\b/i.test(residual)
+  const withoutLyrics=/\bsans\s+(?:les\s+)?paroles?\b/i.test(residual)
+  const withLyrics=/\bavec\s+(?:les\s+)?paroles?\b/i.test(residual)
+  const withoutChords=/\bsans\s+(?:les\s+)?accords?\b/i.test(residual)
+  const withChords=/\bavec\s+(?:les\s+)?accords?\b/i.test(residual)
   if(withoutLyrics&&song.lyrics?.trim())return false
   if(withLyrics&&!song.lyrics?.trim())return false
   if(withoutChords&&song.chords?.trim())return false
   if(withChords&&!song.chords?.trim())return false
-  residual=residual.replace(/\\b(?:sans|avec)\\s+(?:les\\s+)?(?:paroles?|accords?)\\b/gi,' ')
+  residual=residual.replace(/\b(?:sans|avec)\s+(?:les\s+)?(?:paroles?|accords?)\b/gi,' ')
 
-  const bpmRange=residual.match(/\\b(?:entre\\s+)?(\\d{2,3})\\s*(?:et|a|à|[-–])\\s*(\\d{2,3})\\s*(?:bpm)?\\b/i)
+  const bpmRange=residual.match(/\b(?:entre\s+)?(\d{2,3})\s*(?:et|a|à|[-–])\s*(\d{2,3})\s*(?:bpm)?\b/i)
   if(bpmRange){
     const lo=Math.min(Number(bpmRange[1]),Number(bpmRange[2])),hi=Math.max(Number(bpmRange[1]),Number(bpmRange[2]))
     if(song.bpm===null||song.bpm<lo||song.bpm>hi)return false
     residual=residual.replace(bpmRange[0],' ')
   }else{
-    const bpmExact=residual.match(/\\b(?:bpm\\s*)?(\\d{2,3})\\s*bpm\\b/i)
+    const bpmExact=residual.match(/\b(?:bpm\s*)?(\d{2,3})\s*bpm\b/i)
     if(bpmExact){if(song.bpm!==Number(bpmExact[1]))return false;residual=residual.replace(bpmExact[0],' ')}
   }
 
-  const signature=residual.match(/\\b(2\\/4|3\\/4|4\\/4|5\\/4|6\\/8|7\\/8|9\\/8|12\\/8)\\b/)
+  const signature=residual.match(/\b(2\/4|3\/4|4\/4|5\/4|6\/8|7\/8|9\/8|12\/8)\b/)
   if(signature){if(song.timeSignature!==signature[1])return false;residual=residual.replace(signature[0],' ')}
 
-  const keyMatch=residual.match(/\\b(?:en|tonalit[eé]\\s*[:=]?)\\s*(Ab|A|Bb|B|C#?|D|Eb|E|F#?|G)\\b/i)
+  const keyMatch=residual.match(/\b(?:en|tonalit[eé]\s*[:=]?)\s*(Ab|A|Bb|B|C#?|D|Eb|E|F#?|G)\b/i)
   if(keyMatch){
     const wanted=normalizeKey(keyMatch[1])
     if(normalizeKey(song.originalKey)!==wanted&&normalizeKey(song.personalKey)!==wanted)return false
