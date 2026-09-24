@@ -118,12 +118,46 @@ export function emptySongDraft(): SongDraft {
 }
 
 export function searchSong(song: Song, query: string): boolean {
-  const q = normalizeIdentity(query)
-  if (!q) return true
+  const raw=String(query??'').trim()
+  if(!raw)return true
+  let residual=raw
+
+  const withoutLyrics=/\\bsans\\s+(?:les\\s+)?paroles?\\b/i.test(residual)
+  const withLyrics=/\\bavec\\s+(?:les\\s+)?paroles?\\b/i.test(residual)
+  const withoutChords=/\\bsans\\s+(?:les\\s+)?accords?\\b/i.test(residual)
+  const withChords=/\\bavec\\s+(?:les\\s+)?accords?\\b/i.test(residual)
+  if(withoutLyrics&&song.lyrics?.trim())return false
+  if(withLyrics&&!song.lyrics?.trim())return false
+  if(withoutChords&&song.chords?.trim())return false
+  if(withChords&&!song.chords?.trim())return false
+  residual=residual.replace(/\\b(?:sans|avec)\\s+(?:les\\s+)?(?:paroles?|accords?)\\b/gi,' ')
+
+  const bpmRange=residual.match(/\\b(?:entre\\s+)?(\\d{2,3})\\s*(?:et|a|à|[-–])\\s*(\\d{2,3})\\s*(?:bpm)?\\b/i)
+  if(bpmRange){
+    const lo=Math.min(Number(bpmRange[1]),Number(bpmRange[2])),hi=Math.max(Number(bpmRange[1]),Number(bpmRange[2]))
+    if(song.bpm===null||song.bpm<lo||song.bpm>hi)return false
+    residual=residual.replace(bpmRange[0],' ')
+  }else{
+    const bpmExact=residual.match(/\\b(?:bpm\\s*)?(\\d{2,3})\\s*bpm\\b/i)
+    if(bpmExact){if(song.bpm!==Number(bpmExact[1]))return false;residual=residual.replace(bpmExact[0],' ')}
+  }
+
+  const signature=residual.match(/\\b(2\\/4|3\\/4|4\\/4|5\\/4|6\\/8|7\\/8|9\\/8|12\\/8)\\b/)
+  if(signature){if(song.timeSignature!==signature[1])return false;residual=residual.replace(signature[0],' ')}
+
+  const keyMatch=residual.match(/\\b(?:en|tonalit[eé]\\s*[:=]?)\\s*(Ab|A|Bb|B|C#?|D|Eb|E|F#?|G)\\b/i)
+  if(keyMatch){
+    const wanted=normalizeKey(keyMatch[1])
+    if(normalizeKey(song.originalKey)!==wanted&&normalizeKey(song.personalKey)!==wanted)return false
+    residual=residual.replace(keyMatch[0],' ')
+  }
+
   const haystack = [
     song.title, song.artist, song.authorComposer, song.originalKey, song.personalKey,
     song.bpm ?? '', song.timeSignature, song.style, song.tags.join(' '), song.notes,
-    song.structure ?? '', song.chords ?? '', song.instrumentNotes ?? '', song.lyrics ?? ''
+    song.structure ?? '', song.chords ?? '', song.instrumentNotes ?? '',
+    Object.entries(song.musicianNotes??{}).map(([role,note])=>role+' '+note).join(' '),song.lyrics ?? ''
   ].map((v) => normalizeIdentity(String(v))).join(' ')
-  return haystack.includes(q)
+  const terms=normalizeIdentity(residual).split(' ').filter(Boolean)
+  return terms.every(term=>haystack.includes(term))
 }

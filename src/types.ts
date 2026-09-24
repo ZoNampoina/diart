@@ -2,6 +2,30 @@ export type SongSource = 'demo' | 'manual' | 'import'
 export type FavoriteStatus = ''|'favorite'|'learn'|'rehearse'|'mastered'|'review'
 export type StageRole = 'normal'|'chef'|'musicien'
 
+export interface LyricVersion {
+  id: string
+  lyrics: string
+  createdAt: string
+  source: 'manual'|'import'|'recueil'|'restore'|'sync'
+  label?: string
+}
+
+export interface RehearsalIssue {
+  id: string
+  text: string
+  createdAt: string
+  resolvedAt?: string | null
+}
+
+export interface SetlistTransition {
+  fromSongId: string
+  toSongId: string
+  notes: string
+  bars?: number | null
+  chords?: string
+  updatedAt: string
+}
+
 export interface Song {
   id: string
   title: string
@@ -22,6 +46,7 @@ export interface Song {
   instrumentNotes?: string
   musicianNotes?: Record<string,string>
   lyrics?: string
+  lyricVersions?: LyricVersion[]
   favorite: boolean
   favoriteStatus?: FavoriteStatus
   createdAt: string
@@ -83,6 +108,8 @@ export interface Setlist {
   songIds: string[]
   notes: string
   rehearsalNotes?: Record<string,string>
+  rehearsalIssues?: Record<string,RehearsalIssue[]>
+  transitions?: Record<string,SetlistTransition>
   songOverrides?: Record<string,{key?:string;bpm?:number|null;notes?:string;transpose?:number}>
   createdAt: string
   updatedAt: string

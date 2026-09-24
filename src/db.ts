@@ -58,7 +58,21 @@ export async function createSong(draft: SongDraft): Promise<Song> {
 }
 
 export async function updateSong(id: string, patch: Partial<SongDraft>): Promise<void> {
-  await db.songs.update(id, { ...patch, updatedAt: now() })
+  const stamp=now()
+  const next:Partial<Song>={ ...patch, updatedAt: stamp }
+  if(Object.prototype.hasOwnProperty.call(patch,'lyrics')){
+    const current=await db.songs.get(id)
+    const previous=String(current?.lyrics??'')
+    const incoming=String(patch.lyrics??'')
+    if(current&&previous!==incoming&&previous.trim()){
+      const versions=[...(current.lyricVersions??[])]
+      if(!versions.length||versions[versions.length-1].lyrics!==previous){
+        versions.push({id:crypto.randomUUID(),lyrics:previous,createdAt:stamp,source:'manual',label:'Avant modification'})
+      }
+      next.lyricVersions=versions.slice(-30)
+    }
+  }
+  await db.songs.update(id,next)
 }
 
 export async function softDeleteSong(id: string): Promise<void> {
@@ -83,7 +97,7 @@ export async function getSetting(key: string, fallback = ''): Promise<string> {
 
 export async function createSetlist(name: string): Promise<Setlist> {
   const t = now()
-  const item: Setlist = { id:crypto.randomUUID(), name:name.trim() || 'Nouvelle setlist', songIds:[], notes:'', rehearsalNotes:{}, createdAt:t, updatedAt:t, deletedAt:null }
+  const item: Setlist = { id:crypto.randomUUID(), name:name.trim() || 'Nouvelle setlist', songIds:[], notes:'', rehearsalNotes:{}, rehearsalIssues:{}, transitions:{}, createdAt:t, updatedAt:t, deletedAt:null }
   await db.setlists.add(item)
   return item
 }
