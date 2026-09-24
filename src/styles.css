@@ -7684,3 +7684,22 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
     right:17px!important;
   }
 }
+
+/* DI'ART 2.8.2 — transition trigger in upper-right content zone */
+.stage-nav.compact-stage-nav .stage-transition-fixed-trigger{
+  top:clamp(118px,18vh,180px)!important;
+  right:max(16px,env(safe-area-inset-right))!important;
+  left:auto!important;
+}
+@media(min-width:761px) and (max-width:1100px){
+  .stage-nav.compact-stage-nav .stage-transition-fixed-trigger{
+    top:clamp(128px,17vh,190px)!important;
+    right:max(20px,env(safe-area-inset-right))!important;
+  }
+}
+@media(max-width:760px){
+  .stage-nav.compact-stage-nav .stage-transition-fixed-trigger{
+    top:clamp(108px,16vh,155px)!important;
+    right:max(14px,env(safe-area-inset-right))!important;
+  }
+}
