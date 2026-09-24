@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.10'
+const APP_VERSION='2.9.11'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1046,44 +1046,42 @@ function patchSummary(patch:Partial<SongDraft>):{label:string;value:string}[]{
 
 
 function normalizeImportedLyrics(value:string):string{
-  const lines=String(value??'')
+  let text=String(value??'')
     .replace(/\r/g,'')
     .replace(/\u00a0/g,' ')
-    .split('\n')
-    .map(line=>line.replace(/[ \t]+$/,'').trimStart())
+    .replace(/[\u200B-\u200D\uFEFF]/g,'')
+    .replace(/<br\s*\/?>/gi,'\n')
 
-  const isSection=(line:string)=>/^\[(?:Couplet|Refrain|Pré-refrain|Pré refrain|Bridge|Pont|Prélude|Prelude|Interlude|Postlude|Intro|Outro)[^\]]*\]$/i.test(line.trim())
+  // Certains extracteurs exposent les retours visuels sous forme de séparateurs.
+  // On ne les convertit que lorsqu'ils séparent clairement deux segments de paroles.
+  text=text.replace(/\s+[|•·]\s+(?=\S)/g,'\n')
+  text=text.replace(/\s+\/\s+(?=[A-ZÀ-ÖØ-Þ])/g,'\n')
+
+  const section=/^\s*\[?\s*(couplet|verse|refrain|chorus|pré[- ]?refrain|pre[- ]?chorus|pont|bridge|intro|outro|interlude|prélude|prelude|postlude)(?:\s*\d+)?\s*\]?\s*[:.-]?\s*$/i
+  const source=text.split('\n').map(line=>line.replace(/[ \t]+$/,''))
   const out:string[]=[]
+  const pushBlank=()=>{if(out.length&&out[out.length-1]!=='')out.push('')}
 
-  const pushBlank=()=>{
-    if(out.length&&out[out.length-1]!=='')out.push('')
-  }
-
-  for(const raw of lines){
+  for(const raw of source){
+    const indentation=(raw.match(/^[ \t]+/)?.[0]??'').replace(/\t/g,'    ').length
     const line=raw.trim()
-    if(!line){
-      pushBlank()
+    if(!line){pushBlank();continue}
+    if(section.test(line)){
+      pushBlank();out.push(line)
       continue
     }
-
-    if(isSection(line)){
-      pushBlank()
-      out.push(line)
-      continue
-    }
-
-    // Pas de blanc entre un titre de section et son premier vers.
-    if(out.length>=2&&out[out.length-1]===''&&isSection(out[out.length-2]))out.pop()
+    // Tononkira utilise souvent l'indentation pour matérialiser le refrain.
+    // Une rupture d'indentation devient donc une frontière de bloc, pas une ligne vide entre chaque vers.
+    const previousRaw=source[Math.max(0,source.indexOf(raw)-1)]??''
+    const previousIndent=(previousRaw.match(/^[ \t]+/)?.[0]??'').replace(/\t/g,'    ').length
+    if(out.length&&indentation>=3&&previousIndent<3)pushBlank()
+    if(out.length&&indentation<3&&previousIndent>=3)pushBlank()
+    if(out.length>=2&&out[out.length-1]===''&&section.test(out[out.length-2]))out.pop()
     out.push(line)
   }
-
   while(out[0]==='')out.shift()
   while(out.length&&out[out.length-1]==='')out.pop()
-
-  return out.join('\n')
-    .replace(/\n{3,}/g,'\n\n')
-    .replace(/(\[(?:Couplet|Refrain|Pré-refrain|Pré refrain|Bridge|Pont|Prélude|Prelude|Interlude|Postlude|Intro|Outro)[^\]]*\])\n\n+/gi,'$1\n')
-    .trim()
+  return out.join('\n').replace(/\n{3,}/g,'\n\n').trim()
 }
 
 type TononkiraStructureBlock={id:string;label:string;text:string;kind:'verse'|'refrain'|'other';confidence:'forte'|'probable'|'à vérifier'}
@@ -1091,32 +1089,64 @@ type TononkiraStructureBlock={id:string;label:string;text:string;kind:'verse'|'r
 function detectTononkiraStructure(lyrics:string):TononkiraStructureBlock[]{
   const normalized=String(lyrics||'').replace(/\r/g,'').replace(/\u00a0/g,' ').replace(/[ \t]+$/gm,'').trim()
   if(!normalized)return []
-  const canonical=(x:string)=>normalizeIdentity(x).replace(/[^a-z0-9\s]/g,'').replace(/\s+/g,' ').trim()
-  const explicit=/^\[?(refrain|chorus|couplet|verse|pont|bridge|intro|outro|interlude)\b/i
-  let rawBlocks=normalized.split(/\n[ \t]*\n+/).map(x=>x.split('\n').map(l=>l.trim()).filter(Boolean).join('\n')).filter(Boolean)
-  // Tononkira contient parfois un seul grand bloc malgré une mise en page visuelle par strophes.
-  // Dans ce cas, on conserve les lignes et on regroupe prudemment par paquets réguliers de 4
-  // uniquement si cela ressemble réellement à des strophes, sans inventer de blanc ligne par ligne.
-  if(rawBlocks.length===1){
-    const lines=normalized.split('\n').map(l=>l.trim()).filter(Boolean)
-    const hasLabels=lines.some(l=>explicit.test(l))
-    if(!hasLabels&&lines.length>=8&&lines.length%4===0)rawBlocks=Array.from({length:lines.length/4},(_,i)=>lines.slice(i*4,i*4+4).join('\n'))
+  const canonical=(x:string)=>normalizeIdentity(x)
+    .replace(/^\[?\s*(couplet|verse|refrain|chorus|pré[- ]?refrain|pre[- ]?chorus|pont|bridge|intro|outro|interlude)\s*\d*\s*\]?\s*[:.-]?\s*/i,'')
+    .replace(/[^a-z0-9\s]/g,'').replace(/\s+/g,' ').trim()
+  const labelKind=(line:string):TononkiraStructureBlock['kind']|null=>{
+    if(/^\[?\s*(refrain|chorus|pré[- ]?refrain|pre[- ]?chorus)\b/i.test(line))return 'refrain'
+    if(/^\[?\s*(couplet|verse)\b/i.test(line))return 'verse'
+    if(/^\[?\s*(pont|bridge|intro|outro|interlude|prélude|prelude|postlude)\b/i.test(line))return 'other'
+    return null
   }
-  const counts=new Map<string,number>()
-  rawBlocks.forEach(b=>{const k=canonical(b);if(k)counts.set(k,(counts.get(k)||0)+1)})
+  const lines=normalized.split('\n')
+  const blocks:string[]=[]
+  let current:string[]=[]
+  const flush=()=>{const text=current.map(x=>x.trim()).filter(Boolean).join('\n').trim();if(text)blocks.push(text);current=[]}
+  for(const raw of lines){
+    const line=raw.trim()
+    if(!line){flush();continue}
+    if(labelKind(line)&&current.length)flush()
+    current.push(line)
+  }
+  flush()
+
+  // Fallback conservateur : si la source a perdu tous les blancs, chercher une cadence de strophes.
+  if(blocks.length===1){
+    const clean=blocks[0].split('\n').filter(Boolean)
+    if(!clean.some(x=>labelKind(x))&&clean.length>=8){
+      const candidates=[4,3,5,6].filter(size=>clean.length%size===0&&clean.length/size>=2)
+      if(candidates.length){
+        const size=candidates[0]
+        blocks.splice(0,1,...Array.from({length:clean.length/size},(_,i)=>clean.slice(i*size,i*size+size).join('\n')))
+      }
+    }
+  }
+
+  // Détection de refrain tolérante : les blocs peuvent différer par ponctuation ou par leur étiquette.
+  const similarity=(a:string,b:string)=>{
+    const aa=canonical(a).split(' ').filter(Boolean),bb=canonical(b).split(' ').filter(Boolean)
+    if(!aa.length||!bb.length)return 0
+    const sa=new Set(aa),sb=new Set(bb)
+    let common=0;sa.forEach(x=>{if(sb.has(x))common++})
+    return common/Math.max(sa.size,sb.size)
+  }
+  const repeated=new Set<number>()
+  for(let i=0;i<blocks.length;i++)for(let j=i+1;j<blocks.length;j++)if(similarity(blocks[i],blocks[j])>=.88){repeated.add(i);repeated.add(j)}
+
   let verseNo=0
-  return rawBlocks.map((text,index)=>{
+  return blocks.map((text,index)=>{
     const first=text.split('\n')[0]?.trim()||''
-    const explicitKind=/^\[?(refrain|chorus)\b/i.test(first)?'refrain':/^\[?(couplet|verse)\b/i.test(first)?'verse':/^\[?(pont|bridge|intro|outro|interlude)\b/i.test(first)?'other':null
-    const repeated=(counts.get(canonical(text))||0)>1
-    const kind:TononkiraStructureBlock['kind']=explicitKind||(repeated?'refrain':'verse')
+    const explicitKind=labelKind(first)
+    const kind:TononkiraStructureBlock['kind']=explicitKind||(repeated.has(index)?'refrain':'verse')
     if(kind==='verse')verseNo++
     const label=kind==='refrain'?'Refrain':kind==='verse'?'Couplet '+verseNo:'Section '+(index+1)
-    return {id:'tk-'+index,label,text,kind,confidence:explicitKind||repeated?'forte':rawBlocks.length>1?'probable':'à vérifier'}
+    const lineCount=text.split('\n').filter(Boolean).length
+    const confidence:TononkiraStructureBlock['confidence']=explicitKind||repeated.has(index)?'forte':blocks.length>1&&lineCount>=2&&lineCount<=8?'probable':'à vérifier'
+    return {id:'tk-'+index,label,text,kind,confidence}
   })
 }
 function tononkiraBlocksToLyrics(blocks:TononkiraStructureBlock[]):string{
-  return blocks.map(b=>b.text.trim()).filter(Boolean).join('\n\n')
+  return blocks.map(b=>b.text.split('\n').map(line=>line.trim()).filter(Boolean).join('\n')).filter(Boolean).join('\n\n').trim()
 }
 
 function reviewDraftFromExternal(full:{title?:string;artist?:string;sourceUrl?:string;source?:string;structure?:string;chords?:string;lyrics?:string;originalKey?:string;bpm?:number|null},fallback:{title:string;artist:string;url:string}):SongDraft{
