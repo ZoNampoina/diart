@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.8.0'
+const APP_VERSION='2.8.1'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -277,11 +277,16 @@ function App() {
     setSyncing(true)
     try{
       const result=await syncAll(userId,lastSyncAt)
-      setSyncConflicts(result.conflicts)
+      const harmless=result.conflicts.filter(conflict=>conflictDiff(conflict).length===0)
+      const realConflicts=result.conflicts.filter(conflict=>conflictDiff(conflict).length>0)
+      if(harmless.length){
+        await Promise.all(harmless.map(conflict=>resolveSyncConflict(userId,conflict,'local')))
+      }
+      setSyncConflicts(realConflicts)
       if(result.pulled>0) await Promise.all([refresh(),refreshSetlists()])
-      if(showToast||result.pulled>0||result.pushed>0) await refreshCloudStats(userId)
-      if(!result.conflicts.length)markSynced()
-      if(showToast)toast(result.conflicts.length?`${result.conflicts.length} conflit(s) à résoudre.`:'Synchronisation cloud terminée.')
+      if(showToast||result.pulled>0||result.pushed>0||harmless.length>0) await refreshCloudStats(userId)
+      if(!realConflicts.length)markSynced()
+      if(showToast)toast(realConflicts.length?`${realConflicts.length} conflit(s) à résoudre.`:harmless.length?`Synchronisation terminée · ${harmless.length} faux conflit(s) résolu(s) automatiquement.`:'Synchronisation cloud terminée.')
     }catch(e){if(showToast)toast(e instanceof Error?e.message:'Synchronisation impossible.')}
     finally{syncLockRef.current=false;setSyncing(false)}
   }
@@ -1779,7 +1784,8 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     {!standalone&&<nav className="stage-nav compact-stage-nav" aria-label="Navigation entre morceaux"><div className="stage-nav-inner">
       <button type="button" className="stage-nav-btn secondary" aria-label="Morceau précédent" title="Précédent" disabled={index===0} onClick={()=>go(-1)}><ChevronLeft/></button>
       <span/>
-      <div className="stage-next-nav-cell"><button type="button" className="stage-nav-btn primary" aria-label="Morceau suivant" title="Suivant" disabled={index===orderedSongs.length-1} onClick={()=>go(1)}><ChevronRight/></button>{currentTransition&&<button type="button" className="stage-transition-trigger" aria-label="Afficher la transition vers le morceau suivant" title="Afficher la transition" onClick={(e)=>{e.preventDefault();e.stopPropagation();setShowTransitionDetail(true)}}>T</button>}</div>
+      <button type="button" className="stage-nav-btn primary" aria-label="Morceau suivant" title="Suivant" disabled={index===orderedSongs.length-1} onClick={()=>go(1)}><ChevronRight/></button>
+      {currentTransition&&<button type="button" className="stage-transition-trigger stage-transition-fixed-trigger" aria-label="Afficher la transition vers le morceau suivant" title="Afficher la transition" onClick={(e)=>{e.preventDefault();e.stopPropagation();setShowTransitionDetail(true)}}>T</button>}
     </div></nav>}
   </div>,document.body)
 }
