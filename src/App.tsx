@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.8'
+const APP_VERSION='2.9.9'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -530,17 +530,27 @@ function App() {
 
   useEffect(()=>{
     const compact=window.matchMedia('(max-width:1024px), (pointer:coarse)').matches
-    if(!compact)return
-    const depth=sectionMeta.back?1:0
-    const current=history.state??{}
-    if(depth&&!current.diartInternal)history.pushState({...current,diartInternal:true},'')
+    if(!compact||!sectionMeta.back)return
+    const marker={...(history.state??{}),diartInternal:true,diartPage:page}
+    if(!history.state?.diartInternal)history.pushState(marker,'')
+    let handling=false
     const onPop=()=>{
-      if(document.querySelector('.modal-backdrop')){history.pushState({...(history.state??{}),diartInternal:true},'');return}
-      if(sectionMeta.back){sectionMeta.back();return}
+      if(handling)return
+      if(document.querySelector('.modal-backdrop')){
+        history.pushState(marker,'')
+        return
+      }
+      handling=true
+      sectionMeta.back?.()
+      requestAnimationFrame(()=>{
+        history.replaceState({...history.state,diartInternal:false},'')
+        handling=false
+      })
     }
     window.addEventListener('popstate',onPop)
     return()=>window.removeEventListener('popstate',onPop)
-  },[page,selected?.id,selectedArtist,selectedAuthor,selectedSetlistId,sectionMeta.back])
+  },[page,selected?.id,selectedArtist,selectedAuthor,selectedSetlistId])
+
 
   useEffect(()=>{
     const onEscape=(e:KeyboardEvent)=>{
@@ -623,7 +633,7 @@ function Dashboard({songs,artists,authors,setlists,refreshSetlists,toast,onOpen,
 }
 
 function LibraryPage({songs,setlists,refreshSetlists,toast,searchRef,restoreY,onOpen,onFav,onDeleteMany,onMerge,onRecueilSearch}:{songs:Song[];setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;searchRef:RefObject<HTMLInputElement>;restoreY:number;onOpen:(s:Song)=>void;onFav:(s:Song)=>void;onDeleteMany:(songs:Song[])=>Promise<void>;onMerge:(primary:Song,secondary:Song,draft?:SongDraft)=>Promise<void>;onRecueilSearch:(query:string)=>void}) {
-  const [q,setQ]=useState(''),[key,setKey]=useState(''),[sig,setSig]=useState(''),[style,setStyle]=useState(''),[favOnly,setFavOnly]=useState(false),[min,setMin]=useState(''),[max,setMax]=useState(''),[sort,setSort]=useState('title'),[filters,setFilters]=useState(false)
+  const [q,setQ]=useState(''),[key,setKey]=useState(''),[sig,setSig]=useState(''),[style,setStyle]=useState(''),[min,setMin]=useState(''),[max,setMax]=useState(''),[sort,setSort]=useState('title'),[filters,setFilters]=useState(false)
   const [artistFilter,setArtistFilter]=useState(''),[authorFilter,setAuthorFilter]=useState(''),[tagFilter,setTagFilter]=useState(''),[favoriteStatusFilter,setFavoriteStatusFilter]=useState(''),[lyricsFilter,setLyricsFilter]=useState<'all'|'with'|'without'>('all'),[chordsFilter,setChordsFilter]=useState<'all'|'with'|'without'>('all')
   const [manage,setManage]=useState(false)
   const [sortOpen,setSortOpen]=useState(false)
@@ -640,20 +650,20 @@ function LibraryPage({songs,setlists,refreshSetlists,toast,searchRef,restoreY,on
   const tags=[...new Set(songs.flatMap(s=>s.tags??[]).filter(Boolean))].sort()
   const result=useMemo(()=>songs.filter(s=>searchSong(s,deferredQ))
     .filter(s=>!key||s.originalKey===key).filter(s=>!sig||s.timeSignature===sig)
-    .filter(s=>!style||s.style===style).filter(s=>!favOnly||s.favorite)
+    .filter(s=>!style||s.style===style)
     .filter(s=>!artistFilter||s.artist===artistFilter).filter(s=>!authorFilter||s.authorComposer===authorFilter)
     .filter(s=>!tagFilter||(s.tags??[]).includes(tagFilter)).filter(s=>!favoriteStatusFilter||(s.favoriteStatus??(s.favorite?'favorite':''))===favoriteStatusFilter)
     .filter(s=>lyricsFilter==='all'||(lyricsFilter==='with'?Boolean(s.lyrics?.trim()):!s.lyrics?.trim())).filter(s=>chordsFilter==='all'||(chordsFilter==='with'?hasMeaningfulChordContent(s.chords??''):!hasMeaningfulChordContent(s.chords??'')))
     .filter(s=>!min||(s.bpm!==null&&s.bpm>=Number(min))).filter(s=>!max||(s.bpm!==null&&s.bpm<=Number(max)))
     .sort((a,b)=>sort==='artist'?a.artist.localeCompare(b.artist):sort==='bpm'?(a.bpm??999)-(b.bpm??999):sort==='updated'?b.updatedAt.localeCompare(a.updatedAt):a.title.localeCompare(b.title)),
-  [songs,deferredQ,key,sig,style,favOnly,min,max,sort,artistFilter,authorFilter,tagFilter,favoriteStatusFilter,lyricsFilter,chordsFilter])
+  [songs,deferredQ,key,sig,style,min,max,sort,artistFilter,authorFilter,tagFilter,favoriteStatusFilter,lyricsFilter,chordsFilter])
   const selectedSongs=selectedIds.map(id=>songs.find(s=>s.id===id)).filter(Boolean) as Song[]
   const toggle=(id:string)=>setSelectedIds(ids=>ids.includes(id)?ids.filter(x=>x!==id):[...ids,id])
   const exitManage=()=>{setManage(false);setSelectedIds([])}
   return <>
     <div className="toolbar library-toolbar"><div className="searchbox"><Search/><input ref={searchRef} value={q} onChange={e=>setQ(e.target.value)} placeholder="Titre, artiste, auteur, tonalité, BPM, tags…"/>{q&&<button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={()=>setQ('')}><X/></button>}</div><div className="library-toolbar-actions">{q.trim()&&<button className="icon-btn library-tool-btn" aria-label="Rechercher aussi dans les Recueils" title="Recueils" onClick={()=>onRecueilSearch(q.trim())}><BookMarked/></button>}<button className={'icon-btn library-tool-btn '+(filters?'active':'')} aria-label="Filtres" title="Filtres" onClick={()=>{setFilters(true);setSortOpen(false)}}><Filter/></button><button className={'icon-btn library-tool-btn '+(sortOpen?'active':'')} aria-label="Trier" title="Trier" onClick={()=>{setSortOpen(true);setFilters(false)}}><ArrowUpDown/></button><button className={'icon-btn library-tool-btn '+(manage?'active':'')} aria-label={manage?'Terminer la gestion':'Gérer la bibliothèque'} title={manage?'Terminer':'Gérer'} onClick={()=>manage?exitManage():setManage(true)}>{manage?<Check/>:<MoreHorizontal/>}</button></div></div>
     {sortOpen&&<Modal className="library-tool-modal" title="Trier la bibliothèque" onClose={()=>setSortOpen(false)}><div className="library-sort-options">{[['title','Titre A–Z'],['artist','Artiste A–Z'],['bpm','BPM'],['updated','Modifiés récemment']].map(([value,label])=><button type="button" key={value} className={sort===value?'selected':''} onClick={()=>{setSort(value);setSortOpen(false)}}><ArrowUpDown/><span>{label}</span>{sort===value&&<Check/>}</button>)}</div></Modal>}
-    {filters&&<Modal className="library-tool-modal advanced-search-modal" title="Recherche avancée" onClose={()=>setFilters(false)}><div className="filters library-filter-modal advanced-search-grid"><select value={artistFilter} onChange={e=>setArtistFilter(e.target.value)}><option value="">Tous les artistes</option>{artists.map(x=><option key={x}>{x}</option>)}</select><select value={authorFilter} onChange={e=>setAuthorFilter(e.target.value)}><option value="">Tous les auteurs</option>{authors.map(x=><option key={x}>{x}</option>)}</select><select value={key} onChange={e=>setKey(e.target.value)}><option value="">Toutes tonalités</option>{keys.map(x=><option key={x}>{x}</option>)}</select><select value={sig} onChange={e=>setSig(e.target.value)}><option value="">Toutes signatures</option>{sigs.map(x=><option key={x}>{x}</option>)}</select><select value={style} onChange={e=>setStyle(e.target.value)}><option value="">Tous styles</option>{styles.map(x=><option key={x}>{x}</option>)}</select><select value={tagFilter} onChange={e=>setTagFilter(e.target.value)}><option value="">Tous tags</option>{tags.map(x=><option key={x}>{x}</option>)}</select><select value={favoriteStatusFilter} onChange={e=>setFavoriteStatusFilter(e.target.value)}><option value="">Tous statuts personnels</option>{FAVORITE_STATUS_OPTIONS.filter(([v])=>v).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select><div className="filter-bpm-row"><input value={min} onChange={e=>setMin(e.target.value)} placeholder="BPM min"/><input value={max} onChange={e=>setMax(e.target.value)} placeholder="BPM max"/></div><label><input type="checkbox" checked={favOnly} onChange={e=>setFavOnly(e.target.checked)}/> Favoris uniquement</label><div className="advanced-filter-choice"><span>Paroles</span><div>{[['all','Tous'],['with','Avec'],['without','Sans']].map(([v,l])=><button type="button" key={v} className={lyricsFilter===v?'active':''} onClick={()=>setLyricsFilter(v as 'all'|'with'|'without')}>{l}</button>)}</div></div><div className="advanced-filter-choice"><span>Accords</span><div>{[['all','Tous'],['with','Avec'],['without','Sans']].map(([v,l])=><button type="button" key={v} className={chordsFilter===v?'active':''} onClick={()=>setChordsFilter(v as 'all'|'with'|'without')}>{l}</button>)}</div></div><div className="modal-actions"><button className="secondary" onClick={()=>{setKey('');setSig('');setStyle('');setFavOnly(false);setMin('');setMax('');setArtistFilter('');setAuthorFilter('');setTagFilter('');setFavoriteStatusFilter('');setLyricsFilter('all');setChordsFilter('all')}}>Réinitialiser</button><button className="primary" onClick={()=>setFilters(false)}><Check/>Appliquer · {result.length}</button></div></div></Modal>}
+    {filters&&<Modal className="library-tool-modal advanced-search-modal" title="Recherche avancée" onClose={()=>setFilters(false)}><div className="filters library-filter-modal advanced-search-grid"><select value={artistFilter} onChange={e=>setArtistFilter(e.target.value)}><option value="">Tous les artistes</option>{artists.map(x=><option key={x}>{x}</option>)}</select><select value={authorFilter} onChange={e=>setAuthorFilter(e.target.value)}><option value="">Tous les auteurs</option>{authors.map(x=><option key={x}>{x}</option>)}</select><select value={key} onChange={e=>setKey(e.target.value)}><option value="">Toutes tonalités</option>{keys.map(x=><option key={x}>{x}</option>)}</select><select value={sig} onChange={e=>setSig(e.target.value)}><option value="">Toutes signatures</option>{sigs.map(x=><option key={x}>{x}</option>)}</select><select value={style} onChange={e=>setStyle(e.target.value)}><option value="">Tous styles</option>{styles.map(x=><option key={x}>{x}</option>)}</select><select value={tagFilter} onChange={e=>setTagFilter(e.target.value)}><option value="">Tous tags</option>{tags.map(x=><option key={x}>{x}</option>)}</select><select value={favoriteStatusFilter} onChange={e=>setFavoriteStatusFilter(e.target.value)}><option value="">Tous statuts personnels</option>{FAVORITE_STATUS_OPTIONS.filter(([v])=>v).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select><div className="filter-bpm-row"><input value={min} onChange={e=>setMin(e.target.value)} placeholder="BPM min"/><input value={max} onChange={e=>setMax(e.target.value)} placeholder="BPM max"/></div><div className="advanced-filter-choice"><span>Paroles</span><div>{[['all','Tous'],['with','Avec'],['without','Sans']].map(([v,l])=><button type="button" key={v} className={lyricsFilter===v?'active':''} onClick={()=>setLyricsFilter(v as 'all'|'with'|'without')}>{l}</button>)}</div></div><div className="advanced-filter-choice"><span>Accords</span><div>{[['all','Tous'],['with','Avec'],['without','Sans']].map(([v,l])=><button type="button" key={v} className={chordsFilter===v?'active':''} onClick={()=>setChordsFilter(v as 'all'|'with'|'without')}>{l}</button>)}</div></div><div className="modal-actions"><button className="secondary" onClick={()=>{setKey('');setSig('');setStyle('');setMin('');setMax('');setArtistFilter('');setAuthorFilter('');setTagFilter('');setFavoriteStatusFilter('');setLyricsFilter('all');setChordsFilter('all')}}>Réinitialiser</button><button className="primary" onClick={()=>setFilters(false)}><Check/>Appliquer · {result.length}</button></div></div></Modal>}
     {manage&&<div className="library-manage-bar"><div><b>{selectedIds.length} sélectionné{selectedIds.length>1?'s':''}</b><small>Sélectionnez 1+ morceau pour supprimer, exactement 2 pour fusionner.</small></div><div><button className="secondary" disabled={selectedIds.length!==2} onClick={()=>setMergeOpen(true)}><GitMerge/>Fusionner</button><button className="danger" disabled={!selectedIds.length} onClick={()=>setConfirmDelete(true)}><Trash2/>Supprimer</button></div></div>}
     <p className="result-count">{result.length} résultat{result.length>1?'s':''}</p><div className="songs-list library-song-list">{result.length?result.map(s=><div className={'managed-song '+(selectedIds.includes(s.id)?'selected':'')} key={s.id}>{manage&&<button className="manage-select" aria-label={selectedIds.includes(s.id)?'Désélectionner':'Sélectionner'} onClick={()=>toggle(s.id)}>{selectedIds.includes(s.id)?<Check/>:<span/>}</button>}<SongRow song={s} onOpen={()=>manage?toggle(s.id):onOpen(s)} onFav={()=>onFav(s)} action={manage?undefined:<QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/>}/></div>):q.trim()?<div className="empty-search-suggestion"><BookMarked/><b>Aucun morceau correspondant</b><span>La recherche peut être envoyée directement aux Recueils.</span><button className="secondary" onClick={()=>onRecueilSearch(q.trim())}><Search/>Rechercher dans les Recueils</button></div>:<Empty text="Aucun résultat."/>}</div>
     {confirmDelete&&<Modal title={selectedIds.length>1?'Supprimer les morceaux sélectionnés ?':'Supprimer ce morceau ?'} onClose={()=>setConfirmDelete(false)}><p>{selectedIds.length} morceau{selectedIds.length>1?'x':''} sera{selectedIds.length>1?'ont':''} placé{selectedIds.length>1?'s':''} dans la corbeille.</p><div className="modal-actions"><button className="secondary" onClick={()=>setConfirmDelete(false)}>Annuler</button><button className="danger" onClick={()=>void onDeleteMany(selectedSongs).then(()=>{setConfirmDelete(false);exitManage()})}><Trash2/>Supprimer</button></div></Modal>}
@@ -1079,25 +1089,32 @@ function normalizeImportedLyrics(value:string):string{
 type TononkiraStructureBlock={id:string;label:string;text:string;kind:'verse'|'refrain'|'other';confidence:'forte'|'probable'|'à vérifier'}
 
 function detectTononkiraStructure(lyrics:string):TononkiraStructureBlock[]{
-  const normalized=String(lyrics||'').replace(/\r/g,'').replace(/\u00a0/g,' ').trim()
+  const normalized=String(lyrics||'').replace(/\r/g,'').replace(/\u00a0/g,' ').replace(/[ \t]+$/gm,'').trim()
   if(!normalized)return []
-  const rawBlocks=normalized.split(/\n[ \t]*\n+/).map(x=>x.split('\n').map(l=>l.trim()).filter(Boolean).join('\n')).filter(Boolean)
-  const blocks=rawBlocks.length>1?rawBlocks:[normalized]
   const canonical=(x:string)=>normalizeIdentity(x).replace(/[^a-z0-9\s]/g,'').replace(/\s+/g,' ').trim()
+  const explicit=/^\[?(refrain|chorus|couplet|verse|pont|bridge|intro|outro|interlude)\b/i
+  let rawBlocks=normalized.split(/\n[ \t]*\n+/).map(x=>x.split('\n').map(l=>l.trim()).filter(Boolean).join('\n')).filter(Boolean)
+  // Tononkira contient parfois un seul grand bloc malgré une mise en page visuelle par strophes.
+  // Dans ce cas, on conserve les lignes et on regroupe prudemment par paquets réguliers de 4
+  // uniquement si cela ressemble réellement à des strophes, sans inventer de blanc ligne par ligne.
+  if(rawBlocks.length===1){
+    const lines=normalized.split('\n').map(l=>l.trim()).filter(Boolean)
+    const hasLabels=lines.some(l=>explicit.test(l))
+    if(!hasLabels&&lines.length>=8&&lines.length%4===0)rawBlocks=Array.from({length:lines.length/4},(_,i)=>lines.slice(i*4,i*4+4).join('\n'))
+  }
   const counts=new Map<string,number>()
-  blocks.forEach(b=>{const k=canonical(b);if(k)counts.set(k,(counts.get(k)||0)+1)})
-  let verseNo=0,refrainNo=0
-  return blocks.map((text,index)=>{
+  rawBlocks.forEach(b=>{const k=canonical(b);if(k)counts.set(k,(counts.get(k)||0)+1)})
+  let verseNo=0
+  return rawBlocks.map((text,index)=>{
     const first=text.split('\n')[0]?.trim()||''
-    const explicit=/^\[?(refrain|chorus)\b/i.test(first)?'refrain':/^\[?(couplet|verse)\b/i.test(first)?'verse':null
+    const explicitKind=/^\[?(refrain|chorus)\b/i.test(first)?'refrain':/^\[?(couplet|verse)\b/i.test(first)?'verse':/^\[?(pont|bridge|intro|outro|interlude)\b/i.test(first)?'other':null
     const repeated=(counts.get(canonical(text))||0)>1
-    const kind:TononkiraStructureBlock['kind']=explicit||(repeated?'refrain':'verse')
-    if(kind==='refrain')refrainNo++; else verseNo++
-    const label=kind==='refrain'?(refrainNo>1?'Refrain '+refrainNo:'Refrain'):kind==='verse'?'Couplet '+verseNo:'Section '+(index+1)
-    return {id:'tk-'+index,label,text,kind,confidence:explicit||repeated?'forte':rawBlocks.length>1?'probable':'à vérifier'}
+    const kind:TononkiraStructureBlock['kind']=explicitKind||(repeated?'refrain':'verse')
+    if(kind==='verse')verseNo++
+    const label=kind==='refrain'?'Refrain':kind==='verse'?'Couplet '+verseNo:'Section '+(index+1)
+    return {id:'tk-'+index,label,text,kind,confidence:explicitKind||repeated?'forte':rawBlocks.length>1?'probable':'à vérifier'}
   })
 }
-
 function tononkiraBlocksToLyrics(blocks:TononkiraStructureBlock[]):string{
   return blocks.map(b=>b.text.trim()).filter(Boolean).join('\n\n')
 }
@@ -1197,16 +1214,11 @@ function RecueilsPage({songs,entryMode,prefill,onImport,onComplete,onViewImporte
     toast(draft.title+' importé depuis Tononkira.')
     setImportedSong(song)
   }
-  const mergeTononkiraIdentity=async()=>{
+  const mergeTononkiraIdentity=()=>{
     if(!tononkiraIdentityConflict)return
     const {existing,draft}=tononkiraIdentityConflict
-    const completion=songCompletion(existing,draft)
-    const patch:Partial<SongDraft>={...completion.patch,lyrics:draft.lyrics,referenceUrl:draft.referenceUrl||existing.referenceUrl}
-    await onComplete(existing.id,patch)
-    const updated={...existing,...patch,updatedAt:new Date().toISOString()}
     setTononkiraIdentityConflict(null)
-    toast('Paroles fusionnées avec « '+existing.title+' ».')
-    setImportedSong(updated)
+    setReview({existing,incoming:draft,source:'Tononkira'})
   }
   const createTononkiraSeparately=async()=>{
     if(!tononkiraIdentityConflict)return
@@ -1235,7 +1247,7 @@ function RecueilsPage({songs,entryMode,prefill,onImport,onComplete,onViewImporte
 
   {tononkiraStructure&&<Modal className="tononkira-ready-modal" title="Paroles traitées" onClose={()=>{setTononkiraStructure(null);setTononkiraVerifying(false)}}><div className="tononkira-ready-summary"><Check/><div><b>{tononkiraStructure.draft.title}</b><small>{tononkiraStructure.draft.artist||'Artiste non renseigné'} · {tononkiraStructure.blocks.length} bloc{tononkiraStructure.blocks.length>1?'s':''} détecté{tononkiraStructure.blocks.length>1?'s':''}</small></div></div>{tononkiraVerifying&&<div className="tononkira-verify-content"><p className="muted-copy">Vérification manuelle avant enregistrement. Vous pouvez corriger le type ou le texte d’un bloc si nécessaire.</p><div className="tononkira-structure-list">{tononkiraStructure.blocks.map((block,index)=><article className="tononkira-structure-block" key={block.id}><div className="tononkira-structure-block-head"><select value={block.kind} onChange={e=>setTononkiraStructure(current=>current?{...current,blocks:current.blocks.map((b,i)=>i===index?{...b,kind:e.target.value as TononkiraStructureBlock['kind'],label:e.target.value==='refrain'?'Refrain':e.target.value==='verse'?'Couplet '+(current.blocks.slice(0,index+1).filter(x=>x.kind==='verse').length||1):'Autre'}:b)}:current)}><option value="verse">Couplet</option><option value="refrain">Refrain</option><option value="other">Autre</option></select><small>{block.confidence}</small></div><textarea rows={Math.min(8,Math.max(3,block.text.split('\n').length))} value={block.text} onChange={e=>setTononkiraStructure(current=>current?{...current,blocks:current.blocks.map((b,i)=>i===index?{...b,text:e.target.value}:b)}:current)}/><div className="tononkira-structure-actions">{index>0&&<button type="button" className="bare-action" onClick={()=>setTononkiraStructure(current=>{if(!current)return current;const blocks=[...current.blocks];blocks[index-1]={...blocks[index-1],text:(blocks[index-1].text+'\n'+blocks[index].text).trim()};blocks.splice(index,1);return {...current,blocks}})}>Fusionner avec précédent</button>}</div></article>)}</div></div>}<div className="modal-actions tononkira-ready-actions"><button className="secondary" onClick={()=>{setTononkiraStructure(null);setTononkiraVerifying(false)}}>Annuler</button><button type="button" className={'icon-btn '+(tononkiraVerifying?'active':'')} aria-label="Vérifier les paroles" title="Vérifier les paroles" onClick={()=>setTononkiraVerifying(v=>!v)}><Eye/></button><button type="button" className="icon-btn primary" aria-label="Enregistrer" title="Enregistrer" onClick={()=>void saveTononkiraStructure()}><Save/></button></div></Modal>}
   {tononkiraIdentityConflict&&<Modal className="import-review-modal tononkira-identity-modal" title="Morceau similaire détecté" onClose={()=>setTononkiraIdentityConflict(null)}><div className="import-review-head"><AlertTriangle/><div><b>{tononkiraIdentityConflict.existing.title}</b><small>DI’ART trouve un morceau existant correspondant à votre recherche.</small></div></div><div className="identity-compare"><div><span>Dans DI’ART</span><b>{tononkiraIdentityConflict.existing.title}</b><small>{tononkiraIdentityConflict.existing.artist||'Artiste non renseigné'}</small></div><div><span>Tononkira</span><b>{tononkiraIdentityConflict.draft.title}</b><small>{tononkiraIdentityConflict.draft.artist||'Artiste non renseigné'}</small></div></div><p className="muted-copy">Le titre ou l’artiste diffère. Choisissez si les paroles doivent être fusionnées avec la fiche existante ou enregistrées comme un nouveau morceau.</p><div className="modal-actions"><button className="secondary" onClick={()=>void createTononkiraSeparately()}><Plus/>Créer séparément</button><button className="primary" onClick={()=>void mergeTononkiraIdentity()}><GitMerge/>Fusionner</button></div></Modal>}
-  {review&&<Modal className="import-review-modal" title="Revoir le morceau" onClose={()=>setReview(null)}><div className="import-review-head"><RotateCcw/><div><b>{review.existing.title}</b><small>{review.existing.artist||'Artiste non renseigné'} · source : {review.source}</small></div></div>{(()=>{const completion=songCompletion(review.existing,review.incoming);return completion.labels.length?<><div className="import-review-suggestion"><b>DI’ART peut compléter :</b><div>{completion.labels.map(label=><span key={label}><Plus/>{label}</span>)}</div></div><div className="import-field-preview">{patchSummary(completion.patch).map(row=><div key={row.label}><span>{row.label}</span><b>{row.value}</b></div>)}</div><p className="muted-copy">Les informations déjà renseignées ne seront pas écrasées.</p><div className="modal-actions"><button className="secondary" onClick={()=>setReview(null)}>Annuler</button><button className="primary" onClick={()=>void onComplete(review.existing.id,completion.patch).then(()=>{const updated={...review.existing,...completion.patch,updatedAt:new Date().toISOString()};toast('Morceau complété sans écraser les données existantes.');setReview(null);setImportedSong(updated)})}><Save/>Compléter les manquants</button></div></>:<><div className="import-nothing"><Check/><div><b>Rien à ajouter</b><span>Les informations disponibles dans cette source sont déjà présentes dans DI’ART.</span></div></div><div className="modal-actions"><button className="primary" onClick={()=>setReview(null)}>Fermer</button></div></>})()}</Modal>}
+  {review&&<MergeSongsModal a={review.existing} b={{...review.existing,...review.incoming,id:'import-'+Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),deletedAt:null} as Song} onClose={()=>setReview(null)} onKeepBoth={()=>{const draft=review.incoming;setReview(null);void onImport(draft).then(song=>{toast(draft.title+' créé séparément.');setImportedSong(song)})}} onMerge={async(primary,secondary,draft)=>{const merged=draft??mergeSongDraft(primary,secondary);await onComplete(review.existing.id,merged);const updated={...review.existing,...merged,updatedAt:new Date().toISOString()};setReview(null);toast('Fusion terminée.');setImportedSong(updated)}}/>}
   {importedSong&&<Modal className="post-import-modal" title="Morceau enregistré" onClose={()=>setImportedSong(null)}><div className="post-import-success"><Check/><div><b>{importedSong.title}</b><span>{importedSong.artist||'Artiste non renseigné'} est prêt dans DI’ART.</span></div></div><div className="post-import-actions icon-only"><button className="primary icon-btn" aria-label="Voir" title="Voir" onClick={()=>{const song=importedSong;setImportedSong(null);onViewImported(song)}}><BookOpen/></button><button className="secondary icon-btn" aria-label="Plein écran" title="Plein écran" onClick={()=>{setFullscreenImportedSong(importedSong);setImportedSong(null)}}><Maximize2/></button><button className="secondary icon-btn" aria-label="Modifier" title="Modifier" onClick={()=>{const song=importedSong;setImportedSong(null);onEditImported(song)}}><Pencil/></button><button className="secondary icon-btn" aria-label="Nouvel import" title="Nouvel import" onClick={startNewTononkiraImport}><Import/></button></div></Modal>}
   {preview&&<Modal className="chordpro-preview-modal" title="Aperçu ChordPro" onClose={()=>setPreview(null)}><div className="chordpro-preview-head"><FileUp/><div><b>{preview.title}</b><small>{preview.artist||'Artiste non renseigné'} · {fileName}</small></div></div><div className="chordpro-preview-metrics">{preview.originalKey&&<div><span>Tonalité</span><b>{preview.originalKey}</b></div>}{preview.bpm!==null&&<div><span>BPM</span><b>{preview.bpm}</b></div>}{preview.capo!==null&&preview.capo!==undefined&&<div><span>Capo</span><b>{preview.capo}</b></div>}<div><span>Paroles</span><b>{preview.lyrics?.split('\n').filter(Boolean).length??0} lignes</b></div><div><span>Accords</span><b>{preview.chords?.split('\n').filter(Boolean).length??0} lignes</b></div></div>{duplicate&&<div className="duplicate-warning"><AlertTriangle/><span>Ce morceau existe déjà. DI’ART va proposer uniquement les informations manquantes.</span></div>}<div className="chordpro-preview-body">{preview.lyrics&&<section><h3>Paroles</h3><pre>{preview.lyrics.slice(0,1800)}</pre></section>}{preview.chords&&<section><h3>Accords extraits</h3><pre>{preview.chords.slice(0,1200)}</pre></section>}</div><div className="modal-actions"><button className="secondary" onClick={()=>setPreview(null)}>Annuler</button>{duplicate?(()=>{const completion=songCompletion(duplicate,preview);return completion.labels.length?<button className="primary" onClick={()=>void onComplete(duplicate.id,completion.patch).then(()=>{const updated={...duplicate,...completion.patch,updatedAt:new Date().toISOString()};setPreview(null);setImportedSong(updated);toast('Morceau complété depuis ChordPro.')})}><RotateCcw/>Compléter : {completion.labels.join(', ')}</button>:<button className="primary" disabled><Check/>Rien à ajouter</button>})():<button className="primary" onClick={()=>void onImport(preview).then(song=>{setPreview(null);setImportedSong(song);toast('Morceau ChordPro ajouté à DI’ART.')})}><Plus/>Ajouter à DI’ART</button>}</div></Modal>}{fullscreenImportedSong&&<SetlistStage standalone mode="live" list={{id:'import-preview-'+fullscreenImportedSong.id,name:fullscreenImportedSong.title,songIds:[fullscreenImportedSong.id],notes:'',createdAt:fullscreenImportedSong.createdAt,updatedAt:fullscreenImportedSong.updatedAt,deletedAt:null}} songs={[fullscreenImportedSong]} refresh={async()=>{}} toast={toast} onClose={()=>setFullscreenImportedSong(null)} onOpenSong={()=>{const song=fullscreenImportedSong;setFullscreenImportedSong(null);if(song)onEditImported(song)}}/>}</>
 }
