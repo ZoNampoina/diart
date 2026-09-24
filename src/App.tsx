@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.7.0'
+const APP_VERSION='2.7.1'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1494,6 +1494,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const [keepAwake,setKeepAwake]=useState(true)
   const [wakeActive,setWakeActive]=useState(false)
   const [resumeIndex,setResumeIndex]=useState<number|null>(null)
+  const [showTransitionDetail,setShowTransitionDetail]=useState(false)
   const [stageFeedback,setStageFeedback]=useState<{id:number;text:string}|null>(null)
   const sessionId=useRef(crypto.randomUUID())
   const wakeLockRef=useRef<any>(null)
@@ -1505,6 +1506,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const swipeStart=useRef<{x:number;y:number}|null>(null)
   const song=orderedSongs[index]??orderedSongs[0]
   const nextSong=orderedSongs[index+1]??null
+  const currentTransition=nextSong?list.transitions?.[transitionKey(song.id,nextSong.id)]:undefined
   const [noteDraft,setNoteDraft]=useState(song?localNotes[song.id]??'':'')
   const showStageFeedback=(text:string)=>{const id=Date.now()+Math.random();setStageFeedback({id,text});window.setTimeout(()=>setStageFeedback(prev=>prev?.id===id?null:prev),850)}
   const go=(delta:number)=>{setAutoScroll(false);setNavDirection(delta<0?-1:1);setIndex(current=>Math.max(0,Math.min(orderedSongs.length-1,current+delta)))}
@@ -1601,6 +1603,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     setTranspose(setlistSongSavedTranspose({...list,songOverrides:localOverrides},song))
     setAutoScroll(false)
     setShowHeaderIdentity(false)
+    setShowTransitionDetail(false)
     let raf1=0,raf2=0
     raf1=requestAnimationFrame(()=>{raf2=requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0,behavior:'auto'}))})
     return()=>{cancelAnimationFrame(raf1);cancelAnimationFrame(raf2)}
@@ -1744,7 +1747,8 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
 
     <div className="stage-floating-tools">{stageTools}</div>
     {stageFeedback&&<div key={stageFeedback.id} className="stage-feedback" role="status">{stageFeedback.text}</div>}
-    {nextSong&&<div className="stage-next-song"><span>SUIVANT</span><b>{nextSong.title}</b><small>{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)}{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)&&nextSong.bpm!==null?' · ':''}{nextSong.bpm!==null?nextSong.bpm+' BPM':''}</small>{list.transitions?.[transitionKey(song.id,nextSong.id)]&&<em>{(()=>{const t=list.transitions?.[transitionKey(song.id,nextSong.id)];return [t?.bars?t.bars+' mesures':'',t?.chords,t?.notes].filter(Boolean).join(' · ')})()}</em>}</div>}
+    {nextSong&&(currentTransition?<button type="button" className="stage-next-song has-transition" onClick={()=>setShowTransitionDetail(true)} aria-label={'Morceau suivant : '+nextSong.title+'. Afficher la transition'}><span>SUIVANT <i className="stage-transition-indicator" title="Transition configurée">T</i></span><b>{nextSong.title}</b><small>{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)}{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)&&nextSong.bpm!==null?' · ':''}{nextSong.bpm!==null?nextSong.bpm+' BPM':''}</small></button>:<div className="stage-next-song"><span>SUIVANT</span><b>{nextSong.title}</b><small>{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)}{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)&&nextSong.bpm!==null?' · ':''}{nextSong.bpm!==null?nextSong.bpm+' BPM':''}</small></div>)}
+    {showTransitionDetail&&nextSong&&currentTransition&&<div className="stage-transition-popup-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setShowTransitionDetail(false)}}><section className="stage-transition-popup" role="dialog" aria-modal="true" aria-label="Transition vers le morceau suivant"><div className="stage-transition-popup-head"><div><span>TRANSITION</span><b>{song.title} <ChevronRight/> {nextSong.title}</b></div><button type="button" onClick={()=>setShowTransitionDetail(false)} aria-label="Fermer"><X/></button></div><div className="stage-transition-popup-body">{currentTransition.bars&&<div><span>Mesures</span><strong>{currentTransition.bars}</strong></div>}{currentTransition.chords&&<div className="wide"><span>Accords / progression</span><strong>{currentTransition.chords}</strong></div>}{currentTransition.notes&&<div className="wide"><span>Consigne</span><p>{currentTransition.notes}</p></div>}</div></section></div>}
     <div className="stage-floating-count" aria-label="Position dans la setlist">{index+1} / {orderedSongs.length}</div>
     {resumeIndex!==null&&<div className="stage-resume-overlay"><div className="stage-resume-card"><RefreshCw/><div><b>Reprendre la session ?</b><span>{list.name} · morceau {resumeIndex+1}/{orderedSongs.length}</span></div><button className="secondary" onClick={()=>{setResumeIndex(null);setIndex(0)}}>Recommencer</button><button className="primary" onClick={()=>{setIndex(resumeIndex);setResumeIndex(null)}}>Reprendre</button></div></div>}
     {!standalone&&<nav className="stage-nav compact-stage-nav" aria-label="Navigation entre morceaux"><div className="stage-nav-inner">
