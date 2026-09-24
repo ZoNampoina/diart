@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.11'
+const APP_VERSION='2.9.12'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1110,15 +1110,26 @@ function detectTononkiraStructure(lyrics:string):TononkiraStructureBlock[]{
   }
   flush()
 
-  // Fallback conservateur : si la source a perdu tous les blancs, chercher une cadence de strophes.
+  // Garde-fou musical : une chanson Tononkira normale contient quelques sections,
+  // pas une section par ligne. Si l'extraction produit trop de blocs, on considère
+  // que les blancs/indentations ont été sur-interprétés et on reconstruit 1 à 8 blocs.
+  const allLines=normalized.split('\n').map(x=>x.trim()).filter(Boolean)
+  const explicitSectionCount=allLines.filter(x=>Boolean(labelKind(x))).length
+  const suspicious=blocks.length>8 || (blocks.length>Math.max(8,Math.ceil(allLines.length/2)) && explicitSectionCount===0)
+  if(suspicious){
+    const target=Math.min(8,Math.max(1,Math.round(allLines.length/4)))
+    const size=Math.max(2,Math.ceil(allLines.length/target))
+    blocks.splice(0,blocks.length,...Array.from({length:Math.ceil(allLines.length/size)},(_,i)=>allLines.slice(i*size,i*size+size).join('\n')).filter(Boolean))
+  }
+
+  // Fallback conservateur : si la source a perdu tous les blancs, chercher une cadence
+  // naturelle de strophes. On vise environ 4 blocs et on reste toujours entre 1 et 8.
   if(blocks.length===1){
     const clean=blocks[0].split('\n').filter(Boolean)
     if(!clean.some(x=>labelKind(x))&&clean.length>=8){
-      const candidates=[4,3,5,6].filter(size=>clean.length%size===0&&clean.length/size>=2)
-      if(candidates.length){
-        const size=candidates[0]
-        blocks.splice(0,1,...Array.from({length:clean.length/size},(_,i)=>clean.slice(i*size,i*size+size).join('\n')))
-      }
+      const desired=Math.min(8,Math.max(2,Math.round(clean.length/4)))
+      const size=Math.max(2,Math.ceil(clean.length/desired))
+      blocks.splice(0,1,...Array.from({length:Math.ceil(clean.length/size)},(_,i)=>clean.slice(i*size,i*size+size).join('\n')).filter(Boolean))
     }
   }
 
