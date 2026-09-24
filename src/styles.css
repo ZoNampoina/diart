@@ -7634,3 +7634,13 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
     border-radius:18px!important;
   }
 }
+
+/* DI'ART 2.8 — conflict resolution center */
+.sync-conflict-intro{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid color-mix(in srgb,var(--warning,#d5ab4a) 35%,transparent);border-radius:14px;background:color-mix(in srgb,var(--warning,#d5ab4a) 8%,transparent);margin-bottom:14px}
+.sync-conflict-intro>svg{width:20px;flex:0 0 20px;margin-top:2px}.sync-conflict-intro b{display:block}.sync-conflict-intro p{margin:3px 0 0}
+.sync-conflict-times{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.sync-conflict-times>div{display:grid;gap:3px;padding:9px 11px;border:1px solid var(--border);border-radius:11px}.sync-conflict-times span{font-size:9px;letter-spacing:.12em;font-weight:900;opacity:.68}.sync-conflict-times b{font-size:12px}.sync-conflict-times small{font-size:10px}.sync-conflict-times .newer{border-color:color-mix(in srgb,var(--accent) 45%,var(--border));background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.sync-conflict-diff-row.selectable>button{appearance:none;border:1px solid var(--border);background:var(--panel);color:inherit;border-radius:10px;padding:9px;text-align:left;display:flex;gap:8px;align-items:flex-start;min-width:0;cursor:pointer}
+.sync-conflict-diff-row.selectable>button.selected{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--panel))}
+.sync-conflict-diff-row.selectable>button i{width:18px;height:18px;border:1px solid var(--border);border-radius:50%;display:grid;place-items:center;flex:0 0 18px;font-style:normal}.sync-conflict-diff-row.selectable>button.selected i{background:var(--accent);color:white;border-color:var(--accent)}.sync-conflict-diff-row.selectable>button i svg{width:12px;height:12px}.sync-conflict-diff-row.selectable>button em{font-style:normal;white-space:pre-wrap;overflow-wrap:anywhere}
+.sync-conflict-actions.enhanced{display:grid;grid-template-columns:auto auto minmax(180px,1fr);gap:8px}.sync-conflict-actions.enhanced .primary{justify-self:end}
+@media(max-width:760px){.sync-conflict-times{grid-template-columns:1fr}.sync-conflict-diff-row.selectable{grid-template-columns:1fr!important}.sync-conflict-diff-row.selectable>span{font-weight:800;margin-top:8px}.sync-conflict-actions.enhanced{grid-template-columns:1fr 1fr}.sync-conflict-actions.enhanced .primary{grid-column:1/-1;width:100%;justify-self:stretch}}
