@@ -30,6 +30,16 @@ function newer(a:string|undefined|null,b:string|undefined|null){
   return (a??'')>(b??'')
 }
 
+function sameSyncContent(a:Song|Setlist|undefined,b:Song|Setlist|undefined){
+  if(!a||!b)return false
+  const clean=(value:Song|Setlist)=>{
+    const copy={...value} as Record<string,unknown>
+    delete copy.updatedAt
+    return copy
+  }
+  return JSON.stringify(clean(a))===JSON.stringify(clean(b))
+}
+
 export async function syncSongs(userId:string,since=''){
   const local=await db.songs.toArray()
   const {data,error}=await supabase.from('diart_songs').select('id,payload,updated_at').eq('user_id',userId)
@@ -42,9 +52,10 @@ export async function syncSongs(userId:string,since=''){
     if(song.source==='demo') continue
     const r=remote.get(song.id)
     const remoteSong=r?.payload as Song|undefined
-    const bothChanged=Boolean(r&&since&&song.updatedAt>since&&r.updated_at>since&&JSON.stringify(song)!==JSON.stringify(remoteSong))
+    const sameContent=Boolean(r&&remoteSong&&sameSyncContent(song,remoteSong))
+    const bothChanged=Boolean(r&&since&&song.updatedAt>since&&r.updated_at>since&&!sameContent)
     if(bothChanged&&r&&remoteSong){conflicts.push({kind:'song',id:song.id,local:song,remote:remoteSong,localUpdatedAt:song.updatedAt,remoteUpdatedAt:r.updated_at});remote.delete(song.id);continue}
-    if(!r || newer(song.updatedAt,r.updated_at)) pushes.push({user_id:userId,id:song.id,payload:song,updated_at:song.updatedAt})
+    if(!r || sameContent || newer(song.updatedAt,r.updated_at)) pushes.push({user_id:userId,id:song.id,payload:song,updated_at:song.updatedAt})
     else if(newer(r.updated_at,song.updatedAt)){await db.songs.put(r.payload as Song);pulled++}
     remote.delete(song.id)
   }
@@ -67,9 +78,10 @@ export async function syncSetlists(userId:string,since=''){
   for(const item of local){
     const r=remote.get(item.id)
     const remoteItem=r?.payload as Setlist|undefined
-    const bothChanged=Boolean(r&&since&&item.updatedAt>since&&r.updated_at>since&&JSON.stringify(item)!==JSON.stringify(remoteItem))
+    const sameContent=Boolean(r&&remoteItem&&sameSyncContent(item,remoteItem))
+    const bothChanged=Boolean(r&&since&&item.updatedAt>since&&r.updated_at>since&&!sameContent)
     if(bothChanged&&r&&remoteItem){conflicts.push({kind:'setlist',id:item.id,local:item,remote:remoteItem,localUpdatedAt:item.updatedAt,remoteUpdatedAt:r.updated_at});remote.delete(item.id);continue}
-    if(!r || newer(item.updatedAt,r.updated_at)) pushes.push({user_id:userId,id:item.id,payload:item,updated_at:item.updatedAt})
+    if(!r || sameContent || newer(item.updatedAt,r.updated_at)) pushes.push({user_id:userId,id:item.id,payload:item,updated_at:item.updatedAt})
     else if(newer(r.updated_at,item.updatedAt)){await db.setlists.put(r.payload as Setlist);pulled++}
     remote.delete(item.id)
   }
