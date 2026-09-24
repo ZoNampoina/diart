@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.8.5'
+const APP_VERSION='2.8.6'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1738,6 +1738,18 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const displayKey=baseKey?transposeKey(baseKey,transpose):''
   const displayChords=transposeChordText(song.chords??'',transpose)
   const chordSections=chordGuideSections(displayChords)
+  const [transitionTop,setTransitionTop]=useState(112)
+  const stageHeaderRef=useRef<HTMLElement>(null)
+  useEffect(()=>{
+    const el=stageHeaderRef.current
+    if(!el)return
+    const update=()=>setTransitionTop(Math.round(el.getBoundingClientRect().bottom+12))
+    update()
+    const ro=new ResizeObserver(update)
+    ro.observe(el)
+    window.addEventListener('resize',update)
+    return()=>{ro.disconnect();window.removeEventListener('resize',update)}
+  },[])
   const stageStyle:CSSProperties={position:'fixed',inset:0,zIndex:10000,display:'grid',gridTemplateRows:'auto minmax(0,1fr)',overflow:'hidden'}
   const stageTools=<div className={'stage-session-tools '+(toolsCollapsed?'collapsed':'')}>
     <button type="button" className="stage-tools-toggle" aria-label={toolsCollapsed?'Afficher les réglages':'Masquer les réglages'} title={toolsCollapsed?'Afficher les réglages':'Masquer les réglages'} onClick={()=>setToolsCollapsed(v=>!v)}><Settings/></button>
@@ -1752,7 +1764,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   </div>
 
   return createPortal(<div className={'stage-mode '+mode+' stage-theme-'+stageTheme+' stage-role-'+stageRole+(locked?' stage-locked':'')} data-stage-theme={stageTheme} style={stageStyle}>
-    <header className="stage-topbar" style={{zIndex:4,background:'rgba(2,9,12,.96)',borderBottom:'1px solid #17323a',display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center'}}>
+    <header ref={stageHeaderRef} className="stage-topbar" style={{zIndex:4,background:'rgba(2,9,12,.96)',borderBottom:'1px solid #17323a',display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center'}}>
       <div className="stage-left-stack" style={{gridColumn:1,justifySelf:'start'}}>{!standalone&&<div className="stage-list-context"><span>{mode==='rehearsal'?'Répétition':'Live Mode'}</span><b>{list.name}</b></div>}</div>
       <div className={'stage-current-song '+(showHeaderIdentity?'identity-visible':'identity-hidden')} style={{gridColumn:2,justifySelf:'center',textAlign:'center'}}>
         <div className="stage-header-identity" aria-hidden={!showHeaderIdentity}><b>{song.title}</b><small>{song.artist||'Artiste inconnu'}</small></div>
@@ -1785,8 +1797,8 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
       <button type="button" className="stage-nav-btn stage-prev-btn secondary" aria-label="Morceau précédent" title="Précédent" disabled={index===0} onClick={()=>go(-1)}><ChevronLeft/></button>
       <span/>
       <button type="button" className="stage-nav-btn stage-next-btn primary" aria-label="Morceau suivant" title="Suivant" disabled={index===orderedSongs.length-1} onClick={()=>go(1)}><ChevronRight/></button>
-      {currentTransition&&<button type="button" className="stage-transition-trigger stage-transition-top-right" aria-label="Afficher la transition vers le morceau suivant" title="Afficher la transition" onClick={(e)=>{e.preventDefault();e.stopPropagation();setShowTransitionDetail(true)}}>T</button>}
     </div></nav>}
+    {currentTransition&&createPortal(<button type="button" className="stage-transition-trigger stage-transition-floating" style={{top:transitionTop}} aria-label="Afficher la transition vers le morceau suivant" title="Afficher la transition" onClick={(e)=>{e.preventDefault();e.stopPropagation();setShowTransitionDetail(true)}}>T</button>,document.body)}
   </div>,document.body)
 }
 
