@@ -134,6 +134,23 @@ export async function resolveSyncConflict(userId:string,conflict:SyncConflict,ch
   }
 }
 
+
+export async function resolveMergedSyncConflict(userId:string,conflict:SyncConflict,merged:Song|Setlist){
+  const updatedAt=new Date().toISOString()
+  const item={...merged,updatedAt} as Song|Setlist
+  if(conflict.kind==='song'){
+    const song=item as Song
+    await db.songs.put(song)
+    const {error}=await supabase.from('diart_songs').upsert({user_id:userId,id:song.id,payload:song,updated_at:updatedAt},{onConflict:'user_id,id'})
+    if(error)throw error
+  }else{
+    const setlist=item as Setlist
+    await db.setlists.put(setlist)
+    const {error}=await supabase.from('diart_setlists').upsert({user_id:userId,id:setlist.id,payload:setlist,updated_at:updatedAt},{onConflict:'user_id,id'})
+    if(error)throw error
+  }
+}
+
 export async function getCloudStats(userId:string){
   const [{count:songs,error:songsError},{count:setlists,error:setlistsError}] = await Promise.all([
     supabase.from('diart_songs').select('id',{count:'exact',head:true}).eq('user_id',userId),
