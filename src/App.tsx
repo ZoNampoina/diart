@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.12'
+const APP_VERSION='2.9.13'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -530,26 +530,21 @@ function App() {
 
   useEffect(()=>{
     const compact=window.matchMedia('(max-width:1024px), (pointer:coarse)').matches
-    if(!compact||!sectionMeta.back)return
-    const marker={...(history.state??{}),diartInternal:true,diartPage:page}
-    if(!history.state?.diartInternal)history.pushState(marker,'')
-    let handling=false
+    if(!compact)return
+    // Une entrée d'historique par niveau DI'ART. Ainsi Android Back peut être pressé
+    // plusieurs fois de suite : edit -> morceau -> artiste -> liste des artistes.
+    const state=history.state??{}
+    if(state.diartPage!==page||state.diartEntity!==(selected?.id||selectedArtist||selectedAuthor||selectedSetlistId||'')){
+      history.pushState({...state,diartInternal:true,diartPage:page,diartEntity:selected?.id||selectedArtist||selectedAuthor||selectedSetlistId||''},'')
+    }
     const onPop=()=>{
-      if(handling)return
-      if(document.querySelector('.modal-backdrop')){
-        history.pushState(marker,'')
-        return
-      }
-      handling=true
+      if(document.querySelector('.modal-backdrop'))return
+      if(sidebar){setSidebar(false);return}
       sectionMeta.back?.()
-      requestAnimationFrame(()=>{
-        history.replaceState({...history.state,diartInternal:false},'')
-        handling=false
-      })
     }
     window.addEventListener('popstate',onPop)
     return()=>window.removeEventListener('popstate',onPop)
-  },[page,selected?.id,selectedArtist,selectedAuthor,selectedSetlistId])
+  },[page,selected?.id,selectedArtist,selectedAuthor,selectedSetlistId,sidebar])
 
 
   useEffect(()=>{
@@ -1115,20 +1110,26 @@ function detectTononkiraStructure(lyrics:string):TononkiraStructureBlock[]{
   // que les blancs/indentations ont été sur-interprétés et on reconstruit 1 à 8 blocs.
   const allLines=normalized.split('\n').map(x=>x.trim()).filter(Boolean)
   const explicitSectionCount=allLines.filter(x=>Boolean(labelKind(x))).length
-  const suspicious=blocks.length>8 || (blocks.length>Math.max(8,Math.ceil(allLines.length/2)) && explicitSectionCount===0)
+  const tinyBlocks=blocks.filter(b=>b.split('\n').filter(Boolean).length<=1).length
+  const averageLines=allLines.length/Math.max(1,blocks.length)
+  // Il n'existe volontairement aucun plafond fixe de 8 sections : 4 est seulement une
+  // tendance. On reconstruit uniquement quand la segmentation est manifestement cassée
+  // (beaucoup de blocs d'une seule ligne / moyenne quasi égale à un vers par bloc).
+  const suspicious=blocks.length>=10&&explicitSectionCount<Math.ceil(blocks.length*.35)&&(averageLines<1.8||tinyBlocks/blocks.length>.55)
   if(suspicious){
-    const target=Math.min(8,Math.max(1,Math.round(allLines.length/4)))
+    const preferredLinesPerBlock=allLines.length>=36?5:allLines.length>=20?4:3
+    const target=Math.max(2,Math.round(allLines.length/preferredLinesPerBlock))
     const size=Math.max(2,Math.ceil(allLines.length/target))
     blocks.splice(0,blocks.length,...Array.from({length:Math.ceil(allLines.length/size)},(_,i)=>allLines.slice(i*size,i*size+size).join('\n')).filter(Boolean))
   }
 
-  // Fallback conservateur : si la source a perdu tous les blancs, chercher une cadence
-  // naturelle de strophes. On vise environ 4 blocs et on reste toujours entre 1 et 8.
+  // Si tous les séparateurs ont disparu, reconstituer selon la cadence des lignes sans
+  // imposer un nombre de blocs : une chanson longue peut naturellement dépasser 8 sections.
   if(blocks.length===1){
     const clean=blocks[0].split('\n').filter(Boolean)
     if(!clean.some(x=>labelKind(x))&&clean.length>=8){
-      const desired=Math.min(8,Math.max(2,Math.round(clean.length/4)))
-      const size=Math.max(2,Math.ceil(clean.length/desired))
+      const preferredLinesPerBlock=clean.length>=36?5:clean.length>=20?4:3
+      const size=Math.max(2,preferredLinesPerBlock)
       blocks.splice(0,1,...Array.from({length:Math.ceil(clean.length/size)},(_,i)=>clean.slice(i*size,i*size+size).join('\n')).filter(Boolean))
     }
   }
