@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.8.6'
+const APP_VERSION='2.9.0'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -162,6 +162,11 @@ function setlistSongDisplayKey(list:Setlist,song:Song):string{
 }
 
 function transitionKey(fromSongId:string,toSongId:string){return fromSongId+'::'+toSongId}
+function transitionHasContent(transition:unknown):boolean{
+  if(!transition||typeof transition!=='object')return false
+  const t=transition as {bars?:number|null;chords?:string;notes?:string}
+  return Boolean(t.bars||t.chords?.trim()||t.notes?.trim())
+}
 
 function lyricLineDiff(previous:string,current:string):{kind:'same'|'add'|'remove';text:string}[]{
   const a=previous.replace(/\\r/g,'').split('\\n'),b=current.replace(/\\r/g,'').split('\\n')
@@ -1432,6 +1437,7 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
   const bpmSongs=listSongs.filter(s=>s.bpm!==null)
   const avgBpm=bpmSongs.length?Math.round(bpmSongs.reduce((n,s)=>n+(s.bpm??0),0)/bpmSongs.length):null
   const lyricsCount=listSongs.filter(s=>Boolean(s.lyrics)).length
+  const configuredTransitions=useMemo(()=>listSongs.slice(0,-1).flatMap((from,i)=>{const to=listSongs[i+1];const transition=list.transitions?.[transitionKey(from.id,to.id)];return transitionHasContent(transition)?[{from,to,transition}]:[]}),[listSongs,list.transitions])
 
   const persistOrder=async(ids:string[])=>{setOrderIds(ids);orderRef.current=ids;await updateSetlist(list.id,{songIds:ids});void refresh()}
   const add=async(songId:string)=>{if(!songId||orderRef.current.includes(songId))return;await persistOrder([...orderRef.current,songId]);toast('Morceau ajouté à la setlist.')}
@@ -1486,7 +1492,7 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
   return <><div className="detail-nav setlist-detail-nav stage-entry-actions"><span/><div className="setlist-mode-actions"><button type="button" className="secondary" disabled={!listSongs.length} onClick={()=>setStage('rehearsal')}><Play/>Répétition</button><button type="button" className="primary" disabled={!listSongs.length} onClick={()=>setStage('live')}><Maximize2/>Live Mode</button></div></div>
   <section className="setlist-detail-hero" style={{minHeight:0}}><div className="setlist-detail-title"><span className="setlist-hero-icon"><ListMusic/></span><p className="eyebrow">Setlist</p><h1>{list.name}</h1><p>{listSongs.length} morceau{listSongs.length>1?'x':''} · {lyricsCount} avec paroles</p></div>{(totalSeconds>0||avgBpm!==null||lyricsCount>0)&&<div className="setlist-detail-metrics" role="list">{totalSeconds>0&&<div role="listitem"><span>Durée</span><b>{formatDuration(totalSeconds)}</b></div>}{avgBpm!==null&&<div role="listitem"><span>BPM moyen</span><b>{avgBpm}</b></div>}{lyricsCount>0&&<div role="listitem"><span>Paroles</span><b>{lyricsCount}/{listSongs.length}</b></div>}</div>}</section>
   <section className="panel setlist-manager"><div className="panel-title-row setlist-order-head"><h2>Ordre des morceaux</h2><button className="bare-action setlist-add-button" aria-label="Ajouter des morceaux" title="Ajouter des morceaux" onClick={()=>setAddOpen(true)}><ListPlus/></button></div><div className={'setlist-detail-songs '+(draggingId?'drag-active':'')}>{listSongs.length?listSongs.map((s,i)=><div className={'setlist-detail-song '+(draggingId===s.id?'dragging ':'')+(dragShiftId===s.id?'drag-shift drag-shift-'+(dragDirection??'down'):'')} data-setlist-index={i} key={s.id}><span className="setlist-number">{i+1}</span><span className="setlist-drag-grip" aria-label="Maintenir puis déplacer" title="Maintenir puis déplacer" onPointerDown={e=>startHold(e,i)} onPointerMove={dragMove} onPointerUp={e=>void finishDrag(e)} onPointerCancel={e=>void finishDrag(e)}><GripVertical/></span><button className="setlist-song-main" onClick={()=>{if(!draggingId)onOpenSong(s)}}><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}{s.bpm!==null?' · '+s.bpm+' BPM':''}</small></button>{setlistSongDisplayKey(list,s)&&<strong className="setlist-song-key" title={setlistSongSavedTranspose(list,s)?`Transposition setlist ${formatSemitoneOffset(setlistSongSavedTranspose(list,s))}`:'Tonalité du morceau'}>{setlistSongDisplayKey(list,s)}{Boolean(setlistSongSavedTranspose(list,s))&&<small>{formatSemitoneOffset(setlistSongSavedTranspose(list,s))}</small>}</strong>}<div className="setlist-song-flags">{s.lyrics&&<span>Paroles</span>}{list.rehearsalNotes?.[s.id]&&<span>Notes</span>}{(list.rehearsalIssues?.[s.id]??[]).filter(issue=>!issue.resolvedAt).length>0&&<span className="issue-flag">{(list.rehearsalIssues?.[s.id]??[]).filter(issue=>!issue.resolvedAt).length} à revoir</span>}</div><button className="bare-action setlist-move-btn" disabled={i===0} aria-label="Monter" onClick={()=>void move(i,-1)}><ChevronUp/></button><button className="bare-action setlist-move-btn" disabled={i===listSongs.length-1} aria-label="Descendre" onClick={()=>void move(i,1)}><ChevronDown/></button><button className="bare-action danger-icon setlist-remove-btn" aria-label="Retirer" onClick={()=>void remove(s.id)}><X/></button></div>):<Empty text="Cette setlist est vide."/>}</div></section>
-  {listSongs.length>1&&<section className="panel setlist-transitions"><div className="panel-title-row"><div><h2>Transitions</h2><small>Repères entre deux morceaux : mesures, accords et consignes.</small></div></div><div className="transition-list">{listSongs.slice(0,-1).map((from,i)=>{const to=listSongs[i+1];const transition=list.transitions?.[transitionKey(from.id,to.id)];return <button key={from.id+'-'+to.id} className={transition?'configured':''} onClick={()=>openTransition(from,to)}><span className="transition-route"><b>{from.title}</b><ChevronRight/><b>{to.title}</b></span>{transition?<small>{transition.bars?transition.bars+' mesure'+(transition.bars>1?'s':'')+' · ':''}{transition.chords||transition.notes||'Transition configurée'}</small>:<small>Ajouter une transition</small>}<Pencil/></button>})}</div></section>}
+  {configuredTransitions.length>0&&<section className="panel setlist-transitions"><div className="panel-title-row"><div><h2>Transitions</h2><small>Repères configurés entre les morceaux.</small></div></div><div className="transition-list">{configuredTransitions.map(({from,to,transition})=><button key={from.id+'-'+to.id} className="configured" onClick={()=>openTransition(from,to)}><span className="transition-route"><b>{from.title}</b><ChevronRight/><b>{to.title}</b></span><small>{transition.bars?transition.bars+' mesure'+(transition.bars>1?'s':'')+' · ':''}{transition.chords||transition.notes||'Transition configurée'}</small><Pencil/></button>)}</div></section>}
   {transitionPair&&<Modal className="transition-modal" title="Transition entre morceaux" onClose={()=>setTransitionPair(null)}><div className="transition-heading"><b>{transitionPair.from.title}</b><ChevronRight/><b>{transitionPair.to.title}</b></div><div className="transition-form"><label>Nombre de mesures<input type="number" min="1" value={transitionBars} onChange={e=>setTransitionBars(e.target.value)} placeholder="Ex. 4"/></label><label>Accords / progression<input value={transitionChords} onChange={e=>setTransitionChords(e.target.value)} placeholder="Ex. G → D/F# → Em"/></label><label className="span2">Consigne<textarea rows={4} value={transitionNotes} onChange={e=>setTransitionNotes(e.target.value)} placeholder="Ex. Pad seul, compter 4 mesures, sax entre sur Em…"/></label></div><div className="modal-actions"><button className="secondary" onClick={()=>setTransitionPair(null)}>Annuler</button><button className="primary" onClick={()=>void saveTransition()}><Save/>Enregistrer</button></div></Modal>}
   {addOpen&&<Modal className="setlist-add-modal" title="Ajouter des morceaux" onClose={closeAdd}><div className="setlist-add-mode"><button className={addMode==='song'?'active':''} onClick={()=>{setAddMode('song');setArtistPick('');setAddQuery('')}}><Search/>Rechercher un morceau</button><button className={addMode==='artist'?'active':''} onClick={()=>{setAddMode('artist');setArtistPick('');setAddQuery('')}}><UsersRound/>Rechercher un artiste</button></div><div className="setlist-add-search"><Search/><input value={addQuery} onChange={e=>setAddQuery(e.target.value)} placeholder={addMode==='song'?'Titre, artiste, tonalité, BPM…':'Nom de l’artiste…'}/>{addQuery&&<button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={()=>setAddQuery('')}><X/></button>}</div>{addMode==='song'?<div className="setlist-add-results">{songMatches.length?songMatches.map(s=><button key={s.id} onClick={()=>void addAndStay(s.id)}><span><b>{s.title}</b><small>{s.artist||'Artiste inconnu'}</small></span><span>{setlistSongDisplayKey(list,s)}{setlistSongDisplayKey(list,s)&&s.bpm!==null?' · ':''}{s.bpm!==null?s.bpm+' BPM':''}</span><Plus/></button>):<p className="muted-copy">Aucun morceau disponible.</p>}</div>:artistPick?<><button className="ghost setlist-artist-back" onClick={()=>setArtistPick('')}><ChevronLeft/>Artistes</button><div className="setlist-add-results">{artistSongs.map(s=><button key={s.id} onClick={()=>void addAndStay(s.id)}><span><b>{s.title}</b><small>{s.artist}</small></span><span>{setlistSongDisplayKey(list,s)}{setlistSongDisplayKey(list,s)&&s.bpm!==null?' · ':''}{s.bpm!==null?s.bpm+' BPM':''}</span><Plus/></button>)}</div></>:<div className="setlist-artist-results">{artistMatches.map(a=><button key={a} onClick={()=>setArtistPick(a)}><span className="avatar">{a[0]}</span><span><b>{a}</b><small>{available.filter(s=>s.artist.trim()===a).length} morceau(x) disponible(s)</small></span><ChevronRight/></button>)}</div>}</Modal>}
   {stage&&<SetlistStage mode={stage} list={list} songs={listSongs} refresh={refresh} toast={toast} onClose={()=>setStage(null)} onOpenSong={onOpenSong}/>}
@@ -1525,6 +1531,11 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const [wakeActive,setWakeActive]=useState(false)
   const [resumeIndex,setResumeIndex]=useState<number|null>(null)
   const [showTransitionDetail,setShowTransitionDetail]=useState(false)
+  const [transitionEditing,setTransitionEditing]=useState(false)
+  const [stageTransitionNotes,setStageTransitionNotes]=useState('')
+  const [stageTransitionBars,setStageTransitionBars]=useState('')
+  const [stageTransitionChords,setStageTransitionChords]=useState('')
+  const [localTransitions,setLocalTransitions]=useState(list.transitions??{})
   const [stageFeedback,setStageFeedback]=useState<{id:number;text:string}|null>(null)
   const sessionId=useRef(crypto.randomUUID())
   const wakeLockRef=useRef<any>(null)
@@ -1536,7 +1547,8 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const swipeStart=useRef<{x:number;y:number}|null>(null)
   const song=orderedSongs[index]??orderedSongs[0]
   const nextSong=orderedSongs[index+1]??null
-  const currentTransition=nextSong?list.transitions?.[transitionKey(song.id,nextSong.id)]:undefined
+  const currentTransition=nextSong?localTransitions?.[transitionKey(song.id,nextSong.id)]:undefined
+  const hasCurrentTransition=transitionHasContent(currentTransition)
   const [noteDraft,setNoteDraft]=useState(song?localNotes[song.id]??'':'')
   const showStageFeedback=(text:string)=>{const id=Date.now()+Math.random();setStageFeedback({id,text});window.setTimeout(()=>setStageFeedback(prev=>prev?.id===id?null:prev),850)}
   const go=(delta:number)=>{setAutoScroll(false);setNavDirection(delta<0?-1:1);setIndex(current=>Math.max(0,Math.min(orderedSongs.length-1,current+delta)))}
@@ -1634,6 +1646,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     setAutoScroll(false)
     setShowHeaderIdentity(false)
     setShowTransitionDetail(false)
+    setTransitionEditing(false)
     let raf1=0,raf2=0
     raf1=requestAnimationFrame(()=>{raf2=requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0,behavior:'auto'}))})
     return()=>{cancelAnimationFrame(raf1);cancelAnimationFrame(raf2)}
@@ -1660,6 +1673,31 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
 
   if(!song)return null
 
+
+  const loadStageTransitionDraft=()=>{
+    setStageTransitionNotes(currentTransition?.notes??'')
+    setStageTransitionBars(currentTransition?.bars==null?'':String(currentTransition.bars))
+    setStageTransitionChords(currentTransition?.chords??'')
+  }
+  const openStageTransition=(edit=false)=>{
+    if(!nextSong)return
+    loadStageTransitionDraft()
+    setTransitionEditing(edit)
+    setShowTransitionDetail(true)
+  }
+  const saveStageTransition=async()=>{
+    if(!nextSong)return
+    const key=transitionKey(song.id,nextSong.id)
+    const transitions={...localTransitions}
+    if(!stageTransitionNotes.trim()&&!stageTransitionChords.trim()&&!stageTransitionBars.trim())delete transitions[key]
+    else transitions[key]={fromSongId:song.id,toSongId:nextSong.id,notes:stageTransitionNotes.trim(),bars:stageTransitionBars.trim()?Math.max(1,Number(stageTransitionBars)):null,chords:stageTransitionChords.trim(),updatedAt:new Date().toISOString()}
+    setLocalTransitions(transitions)
+    await updateSetlist(list.id,{transitions})
+    await refresh()
+    setTransitionEditing(false)
+    setShowTransitionDetail(transitionHasContent(transitions[key]))
+    toast(transitionHasContent(transitions[key])?'Transition enregistrée.':'Transition supprimée.')
+  }
   const saveNote=async()=>{const next={...localNotes,[song.id]:noteDraft};setLocalNotes(next);await updateSetlist(list.id,{rehearsalNotes:next});void refresh();toast('Notes de répétition enregistrées.')}
   const persistIssues=async(next:typeof localIssues)=>{setLocalIssues(next);await updateSetlist(list.id,{rehearsalIssues:next});void refresh()}
   const addIssue=async()=>{const text=issueDraft.trim();if(!text)return;const next={...localIssues,[song.id]:[...(localIssues[song.id]??[]),{id:crypto.randomUUID(),text,createdAt:new Date().toISOString(),resolvedAt:null}]};setIssueDraft('');await persistIssues(next);toast('Point à revoir ajouté.')}
@@ -1790,7 +1828,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     <div className="stage-floating-tools">{stageTools}</div>
     {stageFeedback&&<div key={stageFeedback.id} className="stage-feedback" role="status">{stageFeedback.text}</div>}
     {nextSong&&<div className="stage-next-song"><span>SUIVANT</span><b>{nextSong.title}</b><small>{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)}{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)&&nextSong.bpm!==null?' · ':''}{nextSong.bpm!==null?nextSong.bpm+' BPM':''}</small></div>}
-    {showTransitionDetail&&nextSong&&currentTransition&&<div className="stage-transition-popup-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setShowTransitionDetail(false)}}><section className="stage-transition-popup" role="dialog" aria-modal="true" aria-label="Transition vers le morceau suivant"><div className="stage-transition-popup-head"><div><span>TRANSITION</span><b>{song.title} <ChevronRight/> {nextSong.title}</b></div><button type="button" onClick={()=>setShowTransitionDetail(false)} aria-label="Fermer"><X/></button></div><div className="stage-transition-popup-body">{currentTransition.bars&&<div><span>Mesures</span><strong>{currentTransition.bars}</strong></div>}{currentTransition.chords&&<div className="wide"><span>Accords / progression</span><strong>{currentTransition.chords}</strong></div>}{currentTransition.notes&&<div className="wide"><span>Consigne</span><p>{currentTransition.notes}</p></div>}</div></section></div>}
+    {showTransitionDetail&&nextSong&&<div className="stage-transition-popup-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget){setShowTransitionDetail(false);setTransitionEditing(false)}}}><section className="stage-transition-popup" role="dialog" aria-modal="true" aria-label="Transition vers le morceau suivant"><div className="stage-transition-popup-head"><div><span>TRANSITION</span><b>{song.title} <ChevronRight/> {nextSong.title}</b></div><div className="stage-transition-popup-actions">{!transitionEditing&&hasCurrentTransition&&<button type="button" onClick={()=>{loadStageTransitionDraft();setTransitionEditing(true)}} aria-label="Modifier la transition" title="Modifier"><Pencil/></button>}<button type="button" onClick={()=>{setShowTransitionDetail(false);setTransitionEditing(false)}} aria-label="Fermer"><X/></button></div></div>{transitionEditing?<div className="stage-transition-editor"><label>Nombre de mesures<input type="number" min="1" value={stageTransitionBars} onChange={e=>setStageTransitionBars(e.target.value)} placeholder="Ex. 4"/></label><label>Accords / progression<input value={stageTransitionChords} onChange={e=>setStageTransitionChords(e.target.value)} placeholder="Ex. G → D/F# → Em"/></label><label className="wide">Consigne<textarea rows={4} value={stageTransitionNotes} onChange={e=>setStageTransitionNotes(e.target.value)} placeholder="Ex. Pad seul, compter 4 mesures…"/></label><div className="stage-transition-editor-actions"><button className="secondary" onClick={()=>{if(hasCurrentTransition)setTransitionEditing(false);else setShowTransitionDetail(false)}}>Annuler</button><button className="primary" onClick={()=>void saveStageTransition()}><Save/>Enregistrer</button></div></div>:hasCurrentTransition&&<div className="stage-transition-popup-body">{currentTransition?.bars&&<div><span>Mesures</span><strong>{currentTransition.bars}</strong></div>}{currentTransition?.chords&&<div className="wide"><span>Accords / progression</span><strong>{currentTransition.chords}</strong></div>}{currentTransition?.notes&&<div className="wide"><span>Consigne</span><p>{currentTransition.notes}</p></div>}</div>}</section></div>}
     <div className="stage-floating-count" aria-label="Position dans la setlist">{index+1} / {orderedSongs.length}</div>
     {resumeIndex!==null&&<div className="stage-resume-overlay"><div className="stage-resume-card"><RefreshCw/><div><b>Reprendre la session ?</b><span>{list.name} · morceau {resumeIndex+1}/{orderedSongs.length}</span></div><button className="secondary" onClick={()=>{setResumeIndex(null);setIndex(0)}}>Recommencer</button><button className="primary" onClick={()=>{setIndex(resumeIndex);setResumeIndex(null)}}>Reprendre</button></div></div>}
     {!standalone&&<nav className="stage-nav compact-stage-nav" aria-label="Navigation entre morceaux"><div className="stage-nav-inner">
@@ -1798,7 +1836,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
       <span/>
       <button type="button" className="stage-nav-btn stage-next-btn primary" aria-label="Morceau suivant" title="Suivant" disabled={index===orderedSongs.length-1} onClick={()=>go(1)}><ChevronRight/></button>
     </div></nav>}
-    {currentTransition&&createPortal(<button type="button" className="stage-transition-trigger stage-transition-floating" style={{top:transitionTop}} aria-label="Afficher la transition vers le morceau suivant" title="Afficher la transition" onClick={(e)=>{e.preventDefault();e.stopPropagation();setShowTransitionDetail(true)}}>T</button>,document.body)}
+    {nextSong&&((hasCurrentTransition)||mode==='rehearsal')&&createPortal(<button type="button" className={'stage-transition-trigger stage-transition-floating '+(!hasCurrentTransition?'is-add':'')} style={{top:transitionTop}} aria-label={hasCurrentTransition?'Afficher la transition':'Ajouter une transition'} title={hasCurrentTransition?'Afficher la transition':'Ajouter une transition'} onClick={(e)=>{e.preventDefault();e.stopPropagation();openStageTransition(!hasCurrentTransition)}}>{hasCurrentTransition?'T':'+'}</button>,document.body)}
   </div>,document.body)
 }
 
