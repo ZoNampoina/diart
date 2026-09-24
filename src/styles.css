@@ -7746,3 +7746,69 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
     right:max(20px,env(safe-area-inset-right))!important;
   }
 }
+
+/* DI'ART 2.8.4 — normalize stage arrows and move transition badge high-right */
+.stage-nav.compact-stage-nav .stage-prev-btn,
+.stage-nav.compact-stage-nav .stage-next-btn{
+  width:64px!important;
+  min-width:64px!important;
+  height:48px!important;
+  min-height:48px!important;
+  border-radius:14px!important;
+  padding:0!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+.stage-nav.compact-stage-nav .stage-prev-btn svg,
+.stage-nav.compact-stage-nav .stage-next-btn svg{
+  width:28px!important;
+  height:28px!important;
+}
+.stage-nav.compact-stage-nav .stage-transition-top-right{
+  position:fixed!important;
+  top:max(92px,calc(env(safe-area-inset-top) + 76px))!important;
+  right:max(14px,env(safe-area-inset-right))!important;
+  left:auto!important;
+  bottom:auto!important;
+  z-index:50!important;
+  pointer-events:auto!important;
+  display:grid!important;
+  place-items:center!important;
+  width:44px!important;
+  min-width:44px!important;
+  height:34px!important;
+  min-height:34px!important;
+  padding:0!important;
+  margin:0!important;
+  border-radius:999px!important;
+  font-size:15px!important;
+  font-weight:900!important;
+  line-height:1!important;
+  cursor:pointer!important;
+  touch-action:manipulation!important;
+  transform:none!important;
+}
+.stage-nav.compact-stage-nav .stage-transition-top-right:hover{
+  transform:scale(1.05)!important;
+}
+.stage-nav.compact-stage-nav .stage-transition-top-right:active{
+  transform:scale(.96)!important;
+}
+@media(min-width:761px){
+  .stage-nav.compact-stage-nav .stage-transition-top-right{
+    top:max(98px,calc(env(safe-area-inset-top) + 82px))!important;
+    right:max(20px,env(safe-area-inset-right))!important;
+  }
+}
+@media(max-width:760px){
+  .stage-nav.compact-stage-nav .stage-transition-top-right{
+    top:max(86px,calc(env(safe-area-inset-top) + 70px))!important;
+    right:max(12px,env(safe-area-inset-right))!important;
+    width:46px!important;
+    min-width:46px!important;
+    height:36px!important;
+    min-height:36px!important;
+    font-size:16px!important;
+  }
+}
