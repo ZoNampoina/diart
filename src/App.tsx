@@ -1437,7 +1437,7 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
   const bpmSongs=listSongs.filter(s=>s.bpm!==null)
   const avgBpm=bpmSongs.length?Math.round(bpmSongs.reduce((n,s)=>n+(s.bpm??0),0)/bpmSongs.length):null
   const lyricsCount=listSongs.filter(s=>Boolean(s.lyrics)).length
-  const configuredTransitions=useMemo(()=>listSongs.slice(0,-1).flatMap((from,i)=>{const to=listSongs[i+1];const transition=list.transitions?.[transitionKey(from.id,to.id)];return transitionHasContent(transition)?[{from,to,transition}]:[]}),[listSongs,list.transitions])
+  const configuredTransitions=useMemo(()=>listSongs.slice(0,-1).flatMap((from,i)=>{const to=listSongs[i+1];const transition=list.transitions?.[transitionKey(from.id,to.id)];if(!transition||!transitionHasContent(transition))return [];return [{from,to,transition}]}),[listSongs,list.transitions])
 
   const persistOrder=async(ids:string[])=>{setOrderIds(ids);orderRef.current=ids;await updateSetlist(list.id,{songIds:ids});void refresh()}
   const add=async(songId:string)=>{if(!songId||orderRef.current.includes(songId))return;await persistOrder([...orderRef.current,songId]);toast('Morceau ajouté à la setlist.')}
