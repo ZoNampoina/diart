@@ -44,7 +44,6 @@ export function catalogRecordingToDraft(item:CatalogRecording):SongDraft{
   return draft
 }
 
-
 export interface TononkiraReference {
   title:string
   artist:string
@@ -60,7 +59,6 @@ export async function fetchTononkiraReference(url:string):Promise<TononkiraRefer
   return data as TononkiraReference
 }
 
-
 export interface TononkiraSearchResult {
   title:string
   artist:string
@@ -75,8 +73,7 @@ export async function searchTononkira(title:string,artist=''):Promise<TononkiraS
   return Array.isArray(data?.results)?data.results:[]
 }
 
-
-export type ExternalRecueilSource = 'ultimate-guitar' | 'chordify'
+export type ExternalRecueilSource = 'ultimate-guitar' | 'chordify' | 'acoustic-gasy'
 
 export interface ExternalRecueilResult {
   title:string
