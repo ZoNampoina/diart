@@ -7644,3 +7644,43 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
 .sync-conflict-diff-row.selectable>button i{width:18px;height:18px;border:1px solid var(--border);border-radius:50%;display:grid;place-items:center;flex:0 0 18px;font-style:normal}.sync-conflict-diff-row.selectable>button.selected i{background:var(--accent);color:white;border-color:var(--accent)}.sync-conflict-diff-row.selectable>button i svg{width:12px;height:12px}.sync-conflict-diff-row.selectable>button em{font-style:normal;white-space:pre-wrap;overflow-wrap:anywhere}
 .sync-conflict-actions.enhanced{display:grid;grid-template-columns:auto auto minmax(180px,1fr);gap:8px}.sync-conflict-actions.enhanced .primary{justify-self:end}
 @media(max-width:760px){.sync-conflict-times{grid-template-columns:1fr}.sync-conflict-diff-row.selectable{grid-template-columns:1fr!important}.sync-conflict-diff-row.selectable>span{font-weight:800;margin-top:8px}.sync-conflict-actions.enhanced{grid-template-columns:1fr 1fr}.sync-conflict-actions.enhanced .primary{grid-column:1/-1;width:100%;justify-self:stretch}}
+
+/* DI'ART 2.8.1 — restore viewport-edge arrows; transition trigger is independent */
+.stage-nav.compact-stage-nav .stage-transition-fixed-trigger{
+  position:fixed!important;
+  top:calc(50% + 24px)!important;
+  right:75px!important;
+  left:auto!important;
+  z-index:40!important;
+  width:30px!important;
+  height:24px!important;
+  min-width:30px!important;
+  min-height:24px!important;
+  padding:0!important;
+  margin:0!important;
+  display:grid!important;
+  place-items:center!important;
+  transform:none!important;
+  pointer-events:auto!important;
+  cursor:pointer!important;
+  touch-action:manipulation!important;
+  border-radius:999px!important;
+}
+.stage-nav.compact-stage-nav .stage-transition-fixed-trigger:hover{
+  transform:scale(1.06)!important;
+}
+.stage-nav.compact-stage-nav .stage-transition-fixed-trigger:active{
+  transform:scale(.94)!important;
+}
+@media(min-width:761px) and (max-width:1100px){
+  .stage-nav.compact-stage-nav .stage-transition-fixed-trigger{
+    top:calc(50% + 27px)!important;
+    right:65px!important;
+  }
+}
+@media(max-width:760px){
+  .stage-nav.compact-stage-nav .stage-transition-fixed-trigger{
+    top:calc(50% + 30px)!important;
+    right:17px!important;
+  }
+}
