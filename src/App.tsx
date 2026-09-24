@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.8.4'
+const APP_VERSION='2.8.5'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
