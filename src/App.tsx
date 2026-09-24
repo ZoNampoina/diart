@@ -618,6 +618,7 @@ function LibraryPage({songs,setlists,refreshSetlists,toast,searchRef,restoreY,on
   const [confirmDelete,setConfirmDelete]=useState(false)
   const [mergeOpen,setMergeOpen]=useState(false)
   const deferredQ=useDeferredValue(q)
+  useEffect(()=>{const id=requestAnimationFrame(()=>window.scrollTo({top:restoreY,behavior:'auto'}));return()=>cancelAnimationFrame(id)},[])
   const keys=[...new Set(songs.map(s=>s.originalKey).filter(Boolean))].sort()
   const sigs=[...new Set(songs.map(s=>s.timeSignature).filter(Boolean))].sort()
   const styles=[...new Set(songs.map(s=>s.style).filter(Boolean))].sort()
