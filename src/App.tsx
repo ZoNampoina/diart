@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.6'
+const APP_VERSION='2.9.7'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -253,6 +253,8 @@ function App() {
   const [selectedAuthor,setSelectedAuthor]=useState('')
   const [artistsScrollY,setArtistsScrollY]=useState(0)
   const [authorsScrollY,setAuthorsScrollY]=useState(0)
+  const [libraryScrollY,setLibraryScrollY]=useState(0)
+  const [showScrollTop,setShowScrollTop]=useState(false)
   const [selectedSetlistId,setSelectedSetlistId]=useState('')
   const [setlistSongKeyDraft,setSetlistSongKeyDraft]=useState<{listId:string;songId:string;key:string}|null>(null)
   const [presetArtist,setPresetArtist]=useState('')
@@ -416,6 +418,12 @@ function App() {
     return()=>{removeEventListener('online',on);removeEventListener('offline',off)}
   },[])
   useEffect(()=>{
+    const onScroll=()=>setShowScrollTop(window.scrollY>420)
+    onScroll()
+    window.addEventListener('scroll',onScroll,{passive:true})
+    return()=>window.removeEventListener('scroll',onScroll)
+  },[page])
+  useEffect(()=>{
     const handler=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();setCommandOpen(true)}}
     addEventListener('keydown',handler); return()=>removeEventListener('keydown',handler)
   },[])
@@ -458,6 +466,7 @@ function App() {
     const next={...s,lastViewedAt}
     const fallback:Record<string,string>={dashboard:'Accueil',library:'Bibliothèque',artist:selectedArtist||'Artiste',artists:'Artistes',favorites:'Favoris',recent:'Récents',setlist:currentSetlist?.name||'Setlist',setlists:'Setlists',author:selectedAuthor||'Auteur',authors:'Auteurs'}
     const resolvedOrigin=origin??{page,label:fallback[page]||'Retour'}
+    if(resolvedOrigin.page==='library')setLibraryScrollY(currentScrollY())
     setSongBack(resolvedOrigin)
     if(resolvedOrigin.page==='setlist'&&currentSetlist){
       setSetlistSongKeyDraft({listId:currentSetlist.id,songId:s.id,key:setlistSongDisplayKey(currentSetlist,s)||s.originalKey||s.personalKey||''})
@@ -545,12 +554,12 @@ function App() {
       </header>
       <div className={`content page-transition-surface page-${page}`} key={page+':'+selectedArtist+':'+selectedAuthor+':'+selectedSetlistId+':'+(selected?.id??'')}>
         {page==='dashboard'&&<Dashboard songs={songs} artists={artists} authors={authors} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={s=>openSong(s,{page:'dashboard',label:'Accueil'})} onGo={go} onFav={fav} onRecueilSearch={query=>openRecueilSearch({title:query})}/>} 
-        {page==='library'&&<LibraryPage songs={songs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} searchRef={searchRef} onOpen={s=>openSong(s,{page:'library',label:'Bibliothèque'})} onFav={fav} onDeleteMany={deleteSongs} onMerge={mergeSongs} onRecueilSearch={query=>openRecueilSearch({title:query})}/>} 
+        {page==='library'&&<LibraryPage songs={songs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} searchRef={searchRef} restoreY={libraryScrollY} onOpen={s=>openSong(s,{page:'library',label:'Bibliothèque'})} onFav={fav} onDeleteMany={deleteSongs} onMerge={mergeSongs} onRecueilSearch={query=>openRecueilSearch({title:query})}/>} 
         {page==='artists'&&<ArtistsPage items={artistGroups} restoreY={artistsScrollY} onArtist={openArtist} onRecueilSearch={query=>openRecueilSearch({artist:query})}/>} 
         {page==='artist'&&selectedArtist&&<ArtistDetailPage artist={selectedArtist} songs={songs.filter(s=>s.artist.trim()===selectedArtist)} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go('artists')} onOpen={s=>openSong(s,{page:'artist',label:selectedArtist})} onFav={fav} onAdd={()=>startNewSong(selectedArtist)}/>}
         {page==='authors'&&<AuthorsPage items={authorGroups} restoreY={authorsScrollY} onAuthor={openAuthor}/>}
         {page==='author'&&selectedAuthor&&<AuthorDetailPage author={selectedAuthor} songs={songs.filter(s=>s.authorComposer.trim()===selectedAuthor)} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go('authors')} onOpen={s=>openSong(s,{page:'author',label:selectedAuthor})} onFav={fav} onAdd={()=>startNewSong('',selectedAuthor)}/>} 
-        {page==='favorites'&&<SimpleSongs title="Favoris" songs={favoriteSongs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={s=>openSong(s,{page:'favorites',label:'Favoris'})} onFav={fav}/>} 
+        {page==='favorites'&&<FavoritesPage songs={favoriteSongs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={s=>openSong(s,{page:'favorites',label:'Favoris'})} onFav={fav}/>} 
         {page==='recent'&&<SimpleSongs title="Récents" songs={recentSongs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={s=>openSong(s,{page:'recent',label:'Récents'})} onFav={fav}/>} 
         {page==='setlists'&&<SetlistsPage songs={songs} setlists={setlists} refresh={refreshSetlists} toast={toast} onOpenDetail={openSetlist} onOpenSong={s=>openSong(s,{page:'setlists',label:'Setlists'})}/>} 
         {page==='setlist'&&currentSetlist&&<SetlistDetailPage list={currentSetlist} songs={songs} refresh={refreshSetlists} toast={toast} onBack={()=>go('setlists')} onOpenSong={s=>openSong(s,{page:'setlist',label:currentSetlist.name})}/>} 
@@ -567,6 +576,7 @@ function App() {
         {page==='settings'&&<SettingsPage theme={theme} setTheme={setTheme} songs={songs} refresh={refresh} toast={toast} userEmail={userEmail} localCount={songs.filter(s=>s.source!=='demo').length} cloudStats={cloudStats} lastSyncAt={lastSyncAt} syncing={syncing} syncMode={syncMode} syncIntervalMinutes={syncIntervalMinutes} onSyncMode={changeSyncMode} onSyncInterval={changeSyncInterval} onSync={()=>void doSync()} onPull={()=>void forcePull()} onSignedIn={async()=>{const {data}=await supabase.auth.getUser();const u=data.user;setUserId(u?.id??'');setUserEmail(u?.email??'');if(u){setSyncing(true);try{await pullCloudToLocal(u.id);await syncAll(u.id);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(u.id)]);toast('Cloud DI’ART connecté et récupéré.')}finally{setSyncing(false)}}}}/>}
       </div>
     </main>
+    {showScrollTop&&<button type="button" className="global-scroll-top" aria-label="Retour en haut" title="Retour en haut" onClick={()=>window.scrollTo({top:0,behavior:'smooth'})}><ChevronUp/></button>}
     <nav className="bottom-nav">
       <button onClick={()=>go('dashboard')}><Home/><span>Accueil</span></button>
       <button onClick={()=>go('artists')}><UsersRound/><span>Artistes</span></button>
@@ -586,6 +596,7 @@ function App() {
 function Dashboard({songs,artists,authors,setlists,refreshSetlists,toast,onOpen,onGo,onFav,onRecueilSearch}:{songs:Song[];artists:number;authors:number;setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;onOpen:(s:Song)=>void;onGo:(p:Page)=>void;onFav:(s:Song)=>void;onRecueilSearch:(query:string)=>void}) {
   const [q,setQ]=useState('')
   const deferredQ=useDeferredValue(q)
+  useEffect(()=>{const id=requestAnimationFrame(()=>window.scrollTo({top:restoreY,behavior:'auto'}));return()=>cancelAnimationFrame(id)},[])
   const results=useMemo(()=>deferredQ.trim()?songs.filter(s=>searchSong(s,deferredQ)).slice(0,12):[],[songs,deferredQ])
   const recent=[...songs].sort((a,b)=>(b.lastViewedAt||'').localeCompare(a.lastViewedAt||'')).filter(s=>s.lastViewedAt).slice(0,3)
   const added=[...songs].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,3)
@@ -598,7 +609,7 @@ function Dashboard({songs,artists,authors,setlists,refreshSetlists,toast,onOpen,
   </>
 }
 
-function LibraryPage({songs,setlists,refreshSetlists,toast,searchRef,onOpen,onFav,onDeleteMany,onMerge,onRecueilSearch}:{songs:Song[];setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;searchRef:RefObject<HTMLInputElement>;onOpen:(s:Song)=>void;onFav:(s:Song)=>void;onDeleteMany:(songs:Song[])=>Promise<void>;onMerge:(primary:Song,secondary:Song,draft?:SongDraft)=>Promise<void>;onRecueilSearch:(query:string)=>void}) {
+function LibraryPage({songs,setlists,refreshSetlists,toast,searchRef,restoreY,onOpen,onFav,onDeleteMany,onMerge,onRecueilSearch}:{songs:Song[];setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;searchRef:RefObject<HTMLInputElement>;restoreY:number;onOpen:(s:Song)=>void;onFav:(s:Song)=>void;onDeleteMany:(songs:Song[])=>Promise<void>;onMerge:(primary:Song,secondary:Song,draft?:SongDraft)=>Promise<void>;onRecueilSearch:(query:string)=>void}) {
   const [q,setQ]=useState(''),[key,setKey]=useState(''),[sig,setSig]=useState(''),[style,setStyle]=useState(''),[favOnly,setFavOnly]=useState(false),[min,setMin]=useState(''),[max,setMax]=useState(''),[sort,setSort]=useState('title'),[filters,setFilters]=useState(false)
   const [artistFilter,setArtistFilter]=useState(''),[authorFilter,setAuthorFilter]=useState(''),[tagFilter,setTagFilter]=useState(''),[favoriteStatusFilter,setFavoriteStatusFilter]=useState(''),[hasLyrics,setHasLyrics]=useState(false),[hasChords,setHasChords]=useState(false)
   const [manage,setManage]=useState(false)
@@ -747,7 +758,7 @@ function AuthorDetailPage({author,songs,setlists,refreshSetlists,toast,onBack,on
   const [q,setQ]=useState('')
   const deferredQ=useDeferredValue(q)
   const filtered=useMemo(()=>songs.filter(s=>searchSong(s,deferredQ)),[songs,deferredQ])
-  return <><div className="entity-detail-heading artist-header"><h1>{author}</h1><p>{songs.length} morceau{songs.length>1?'x':''}</p></div>{songs.length>8&&<div className="artist-search searchbox"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder={`Rechercher dans ${author}…`}/>{q&&<button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={()=>setQ('')}><X/></button>}</div>}<div className="songs-list artist-song-list">{filtered.length?filtered.map(s=><div className="library-result-wrap" key={s.id}><SongRow song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)}/><div className="library-setlist-action"><QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/></div></div>):<Empty text="Aucun morceau."/>}</div></>
+  return <><div className="entity-detail-heading artist-header"><h1>{author}</h1><p>{songs.length} morceau{songs.length>1?'x':''}</p></div>{songs.length>8&&<div className="artist-search searchbox"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder={`Rechercher dans ${author}…`}/>{q&&<button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={()=>setQ('')}><X/></button>}</div>}<div className="songs-list artist-song-list">{filtered.length?filtered.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)} action={<QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/>}/>):<Empty text="Aucun morceau."/>}</div></>
 }
 
 function PeoplePage({title,items,onOpen}:{title:string;items:[string,Song[]][];onOpen:(s:Song)=>void}) {
@@ -756,6 +767,16 @@ function PeoplePage({title,items,onOpen}:{title:string;items:[string,Song[]][];o
   const deferredQ=useDeferredValue(q)
   const filtered=useMemo(()=>items.filter(([name,list])=>!deferredQ.trim()||name.toLowerCase().includes(deferredQ.toLowerCase())||list.some(s=>searchSong(s,deferredQ))),[items,deferredQ])
   return <><div className="page-head compact"><div><p className="eyebrow">Répertoire</p><h1>{title}</h1><p>{filtered.length} entrée{filtered.length>1?'s':''}</p></div></div><div className="artist-search searchbox"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder={title.startsWith('Artistes')?'Rechercher un artiste ou un morceau…':'Rechercher…'}/>{q&&<button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={()=>setQ('')}><X/></button>}</div><div className="people-grid">{filtered.map(([name,list])=><div className="person-card" key={name}><button onClick={()=>setOpen(open===name?null:name)}><span className="avatar">{name[0]}</span><span><b>{name}</b><small>{list.length} morceau{list.length>1?'x':''}</small></span><ChevronRight/></button>{open===name&&<div>{list.map(s=><button className="person-song" key={s.id} onClick={()=>onOpen(s)}><span className="person-song-title">{s.title}<SongLyricsMark song={s} compact/></span><span>{songListKey(s).value&&<SongListKey song={s}/>} {songListKey(s).value&&s.bpm!==null?' · ':''}{s.bpm!==null?s.bpm+' BPM':''}</span></button>)}</div>}</div>)}</div></>
+}
+
+function FavoritesPage({songs,setlists,refreshSetlists,toast,onOpen,onFav}:{songs:Song[];setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;onOpen:(s:Song)=>void;onFav:(s:Song)=>void}) {
+  const [lyricsFilter,setLyricsFilter]=useState<'all'|'with'|'without'>('all')
+  const [chordsFilter,setChordsFilter]=useState<'all'|'with'|'without'>('all')
+  const filtered=useMemo(()=>songs
+    .filter(s=>lyricsFilter==='all'||(lyricsFilter==='with'?Boolean(s.lyrics?.trim()):!s.lyrics?.trim()))
+    .filter(s=>chordsFilter==='all'||(chordsFilter==='with'?hasMeaningfulChordContent(s.chords??''):!hasMeaningfulChordContent(s.chords??''))),
+  [songs,lyricsFilter,chordsFilter])
+  return <><div className="favorites-head"><div><h1>Favoris</h1><p>{filtered.length} affiché{filtered.length>1?'s':''} sur {songs.length}</p></div><div className="favorites-filter-groups"><div className="favorite-filter-group"><span>Paroles</span>{[['all','Tous'],['with','Avec'],['without','Sans']].map(([v,l])=><button type="button" key={v} className={lyricsFilter===v?'active':''} onClick={()=>setLyricsFilter(v as 'all'|'with'|'without')}>{l}</button>)}</div><div className="favorite-filter-group"><span>Accords</span>{[['all','Tous'],['with','Avec'],['without','Sans']].map(([v,l])=><button type="button" key={v} className={chordsFilter===v?'active':''} onClick={()=>setChordsFilter(v as 'all'|'with'|'without')}>{l}</button>)}</div></div></div><div className="songs-list favorites-song-list">{filtered.length?filtered.map(s=><SongRow key={s.id} song={s} onOpen={()=>onOpen(s)} onFav={()=>onFav(s)} action={<QuickSetlistAdd song={s} setlists={setlists} refresh={refreshSetlists} toast={toast}/>}/>):<Empty text="Aucun favori pour ces filtres."/>}</div></>
 }
 
 function SimpleSongs({title,songs,setlists,refreshSetlists,toast,onOpen,onFav}:{title:string;songs:Song[];setlists:Setlist[];refreshSetlists:()=>Promise<void>;toast:(s:string)=>void;onOpen:(s:Song)=>void;onFav:(s:Song)=>void}) {
@@ -1629,6 +1650,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
   const [scrollSpeed,setScrollSpeed]=useState(()=>prefNumber('diart-stage-scroll-speed',2,0.05,20))
   const [toolsCollapsed,setToolsCollapsed]=useState(()=>prefBool('diart-stage-tools-collapsed',false))
   const [showHeaderIdentity,setShowHeaderIdentity]=useState(false)
+  const [stageCanTop,setStageCanTop]=useState(false)
   const [stageRole,setStageRole]=useState<StageRole>(()=>(localStorage.getItem('diart-stage-role') as StageRole)||'normal')
   const [musicianRole,setMusicianRole]=useState(()=>localStorage.getItem('diart-musician-role')||'Piano')
   const [locked,setLocked]=useState(false)
@@ -1846,6 +1868,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     const head=songHeadRef.current
     if(!scroller||!head)return
     const threshold=Math.max(36,head.offsetHeight-18)
+    setStageCanTop(scroller.scrollTop>260)
     setShowHeaderIdentity(prev=>{
       const showAt=threshold+18
       const hideAt=Math.max(0,threshold-18)
@@ -1930,6 +1953,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
       {mode==='rehearsal'&&!locked&&<section className="rehearsal-edit-panel"><div className="panel-title-row"><div><h3>Répétition · points à résoudre</h3><small>Les points non résolus réapparaîtront à la prochaine répétition de ce morceau.</small></div><button type="button" className="secondary" onClick={()=>void saveSetlistChoices().then(()=>{onClose();onOpenSong(song)})}><Pencil/>Modifier la fiche</button></div><div className="rehearsal-issues">{(localIssues[song.id]??[]).length?<>{(localIssues[song.id]??[]).filter(issue=>!issue.resolvedAt).map(issue=><div className="rehearsal-issue" key={issue.id}><button className="issue-check" title="Marquer comme résolu" onClick={()=>void toggleIssue(issue.id)}><span/></button><span><b>{issue.text}</b><small>Ajouté {new Date(issue.createdAt).toLocaleString()}</small></span><button className="bare-action danger-icon" onClick={()=>void removeIssue(issue.id)}><Trash2/></button></div>)}{(localIssues[song.id]??[]).some(issue=>issue.resolvedAt)&&<details className="resolved-issues"><summary>Points résolus · {(localIssues[song.id]??[]).filter(issue=>issue.resolvedAt).length}</summary>{(localIssues[song.id]??[]).filter(issue=>issue.resolvedAt).map(issue=><div className="rehearsal-issue resolved" key={issue.id}><button className="issue-check" title="Rouvrir" onClick={()=>void toggleIssue(issue.id)}><Check/></button><span><b>{issue.text}</b><small>Résolu {new Date(issue.resolvedAt!).toLocaleString()}</small></span><button className="bare-action danger-icon" onClick={()=>void removeIssue(issue.id)}><Trash2/></button></div>)}</details>}</>:<p className="muted-copy">Aucun point à revoir pour ce morceau.</p>}</div><div className="issue-add-row"><input value={issueDraft} onChange={e=>setIssueDraft(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();void addIssue()}}} placeholder="Ex. Refaire la fin, sax mesure 17, ralentir le refrain…"/><button className="primary" onClick={()=>void addIssue()}><Plus/>Ajouter</button></div><details className="rehearsal-general-notes"><summary>Notes générales de répétition</summary><textarea value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder="Notes libres propres à cette setlist…"/><button type="button" className="secondary" onClick={()=>void saveNote()}><Save/>Enregistrer les notes</button></details></section>}
     </main>
 
+    {stageCanTop&&<button type="button" className="stage-scroll-top" aria-label="Retour en haut" title="Retour en haut" onClick={()=>{setAutoScroll(false);contentRef.current?.scrollTo({top:0,behavior:'smooth'})}}><ChevronUp/></button>}
     <div className="stage-floating-tools">{stageTools}</div>
     {stageFeedback&&<div key={stageFeedback.id} className="stage-feedback" role="status">{stageFeedback.text}</div>}
     {nextSong&&<div className="stage-next-song"><span>SUIVANT</span><b>{nextSong.title}</b><small>{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)}{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)&&nextSong.bpm!==null?' · ':''}{nextSong.bpm!==null?nextSong.bpm+' BPM':''}</small></div>}
