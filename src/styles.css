@@ -8295,3 +8295,183 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
 @media(max-width:600px){
   .identity-compare{grid-template-columns:1fr}
 }
+
+
+/* DI'ART 2.9.7 — favorites, remembered navigation, scroll-to-top, compact setlists */
+.favorites-head{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:18px;
+  margin-bottom:14px;
+}
+.favorites-head h1{
+  margin:0;
+  font-size:clamp(32px,4vw,52px);
+  letter-spacing:-.04em;
+}
+.favorites-head p{
+  margin:4px 0 0;
+  color:var(--muted);
+  font-size:12px;
+}
+.favorites-filter-groups{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.favorite-filter-group{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  padding:4px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:var(--surface);
+}
+.favorite-filter-group>span{
+  padding:0 6px;
+  color:var(--muted);
+  font-size:10px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+}
+.favorite-filter-group button{
+  min-height:32px;
+  padding:0 9px;
+  border:0;
+  border-radius:8px;
+  background:transparent;
+  color:var(--muted);
+  font-size:11px;
+  font-weight:800;
+}
+.favorite-filter-group button.active{
+  background:color-mix(in srgb,var(--accent) 13%,var(--surface2));
+  color:var(--accent2);
+}
+.favorites-song-list{
+  margin-top:4px;
+}
+
+.global-scroll-top{
+  position:fixed;
+  z-index:34;
+  right:24px;
+  bottom:24px;
+  width:42px;
+  height:42px;
+  border:1px solid color-mix(in srgb,var(--accent) 28%,var(--line));
+  border-radius:12px;
+  background:color-mix(in srgb,var(--surface) 94%,transparent);
+  color:var(--accent2);
+  display:grid;
+  place-items:center;
+  box-shadow:0 10px 28px rgba(0,0,0,.14);
+  backdrop-filter:blur(12px);
+}
+.global-scroll-top svg{width:19px;height:19px}
+@media(max-width:820px){
+  .global-scroll-top{
+    right:14px;
+    bottom:84px;
+  }
+  .favorites-head{
+    align-items:stretch;
+    flex-direction:column;
+  }
+  .favorites-filter-groups{
+    justify-content:flex-start;
+  }
+}
+@media(max-width:540px){
+  .favorite-filter-group{
+    flex:1 1 100%;
+  }
+  .favorite-filter-group button{
+    flex:1;
+  }
+}
+
+.stage-scroll-top{
+  position:fixed;
+  z-index:32;
+  right:max(18px,env(safe-area-inset-right));
+  bottom:max(82px,calc(env(safe-area-inset-bottom) + 70px));
+  width:42px;
+  height:42px;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(112,183,194,.28);
+  border-radius:12px;
+  background:rgba(5,23,28,.88);
+  color:#dff5f7;
+  box-shadow:0 10px 28px rgba(0,0,0,.24);
+  backdrop-filter:blur(10px);
+}
+.stage-theme-light .stage-scroll-top{
+  background:rgba(255,255,255,.94);
+  color:var(--stage-accent);
+  border-color:var(--stage-line);
+}
+.stage-scroll-top svg{width:20px;height:20px}
+
+/* Keep every desktop setlist row on a single compact baseline. */
+@media(min-width:1025px){
+  .setlist-detail-songs{
+    gap:8px!important;
+  }
+  .setlist-detail-song{
+    grid-template-columns:34px minmax(0,1fr) 72px 40px 40px 40px!important;
+    grid-template-rows:64px!important;
+    min-height:64px!important;
+    height:64px!important;
+    padding:0 10px!important;
+    overflow:hidden!important;
+  }
+  .setlist-detail-song>.setlist-number{grid-column:1!important}
+  .setlist-detail-song>.setlist-song-main{grid-column:2!important}
+  .setlist-detail-song>.setlist-song-key{grid-column:3!important}
+  .setlist-detail-song>.setlist-song-flags{
+    display:none!important;
+  }
+  .setlist-detail-song>.setlist-move-btn:nth-last-child(3){
+    grid-column:4!important;
+  }
+  .setlist-detail-song>.setlist-move-btn:nth-last-child(2){
+    grid-column:5!important;
+  }
+  .setlist-detail-song>.setlist-remove-btn{
+    grid-column:6!important;
+  }
+  .setlist-detail-song>.setlist-number,
+  .setlist-detail-song>.setlist-song-main,
+  .setlist-detail-song>.setlist-song-key,
+  .setlist-detail-song>.setlist-move-btn,
+  .setlist-detail-song>.setlist-remove-btn{
+    grid-row:1!important;
+    align-self:center!important;
+  }
+  .setlist-song-main{
+    height:100%!important;
+    display:flex!important;
+    flex-direction:column!important;
+    justify-content:center!important;
+  }
+  .setlist-song-key{
+    width:72px!important;
+    min-width:72px!important;
+    justify-self:center!important;
+  }
+  .setlist-song-key.empty{
+    visibility:hidden!important;
+  }
+}
+
+/* Author detail must follow the exact same row system as artist detail. */
+.page-author .artist-song-list .song-row{
+  width:100%;
+}
