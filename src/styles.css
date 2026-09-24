@@ -8475,3 +8475,48 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
 .page-author .artist-song-list .song-row{
   width:100%;
 }
+
+
+/* DI'ART 2.9.8 — tri-state advanced filters */
+.advanced-filter-choice{
+  min-height:62px;
+  padding:7px 9px!important;
+  display:flex!important;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--surface2);
+}
+.advanced-filter-choice>span{
+  color:var(--muted);
+  font-size:11px;
+  font-weight:800;
+}
+.advanced-filter-choice>div{
+  display:flex;
+  gap:3px;
+}
+.advanced-filter-choice button{
+  min-height:34px;
+  padding:0 9px;
+  border:0;
+  border-radius:8px;
+  background:transparent;
+  color:var(--muted);
+  font-size:10px;
+  font-weight:800;
+}
+.advanced-filter-choice button.active{
+  background:var(--accent);
+  color:#fff;
+}
+@media(max-width:600px){
+  .advanced-filter-choice{
+    align-items:stretch;
+    flex-direction:column;
+  }
+  .advanced-filter-choice>div{width:100%}
+  .advanced-filter-choice button{flex:1}
+}
