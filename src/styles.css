@@ -7703,3 +7703,46 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
     right:max(14px,env(safe-area-inset-right))!important;
   }
 }
+
+/* DI'ART 2.8.3 — explicit stage anchors + high transition badge */
+.stage-nav.compact-stage-nav .stage-prev-btn{
+  position:fixed!important;
+  left:0!important;
+  right:auto!important;
+  top:50%!important;
+  transform:translateY(-50%)!important;
+  z-index:20!important;
+  pointer-events:auto!important;
+}
+.stage-nav.compact-stage-nav .stage-next-btn{
+  position:fixed!important;
+  right:0!important;
+  left:auto!important;
+  top:50%!important;
+  transform:translateY(-50%)!important;
+  z-index:20!important;
+  pointer-events:auto!important;
+}
+.stage-nav.compact-stage-nav .stage-prev-btn:not(:disabled):hover,
+.stage-nav.compact-stage-nav .stage-next-btn:not(:disabled):hover{
+  transform:translateY(-50%) scale(1.07)!important;
+}
+.stage-nav.compact-stage-nav .stage-prev-btn:not(:disabled):active,
+.stage-nav.compact-stage-nav .stage-next-btn:not(:disabled):active{
+  transform:translateY(-50%) scale(.94)!important;
+}
+.stage-nav.compact-stage-nav .stage-transition-fixed-trigger{
+  position:fixed!important;
+  top:max(108px,calc(env(safe-area-inset-top) + 92px))!important;
+  right:max(14px,env(safe-area-inset-right))!important;
+  left:auto!important;
+  z-index:45!important;
+  pointer-events:auto!important;
+  transform:none!important;
+}
+@media(min-width:761px){
+  .stage-nav.compact-stage-nav .stage-transition-fixed-trigger{
+    top:max(104px,calc(env(safe-area-inset-top) + 88px))!important;
+    right:max(20px,env(safe-area-inset-right))!important;
+  }
+}
