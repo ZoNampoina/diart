@@ -2,6 +2,23 @@ import { supabase } from './cloud'
 import { emptySongDraft } from './music'
 import type { SongDraft } from './types'
 
+const RECUEIL_SEARCH_TIMEOUT_MS=12000
+const RECUEIL_IMPORT_TIMEOUT_MS=18000
+
+async function withTimeout<T>(work:Promise<T>,ms:number,label:string):Promise<T>{
+  let timer:ReturnType<typeof setTimeout>|undefined
+  try{
+    return await Promise.race([
+      work,
+      new Promise<T>((_,reject)=>{
+        timer=setTimeout(()=>reject(new Error(`${label} n'a pas répondu dans les délais. Réessayez.`)),ms)
+      })
+    ])
+  }finally{
+    if(timer)clearTimeout(timer)
+  }
+}
+
 export interface CatalogRecording {
   id:string
   title:string
@@ -53,7 +70,11 @@ export interface TononkiraReference {
 }
 
 export async function fetchTononkiraReference(url:string):Promise<TononkiraReference>{
-  const {data,error}=await supabase.functions.invoke('diart-tononkira-reference',{body:{url:url.trim()}})
+  const {data,error}=await withTimeout(
+    supabase.functions.invoke('diart-tononkira-reference',{body:{url:url.trim()}}),
+    RECUEIL_IMPORT_TIMEOUT_MS,
+    'Tononkira'
+  )
   if(error) throw error
   if(data?.error) throw new Error(String(data.error))
   return data as TononkiraReference
@@ -67,7 +88,13 @@ export interface TononkiraSearchResult {
 }
 
 export async function searchTononkira(title:string,artist=''):Promise<TononkiraSearchResult[]>{
-  const {data,error}=await supabase.functions.invoke('diart-tononkira-search',{body:{title:title.trim(),artist:artist.trim()}})
+  const cleanTitle=title.trim()
+  if(cleanTitle.length<2)return []
+  const {data,error}=await withTimeout(
+    supabase.functions.invoke('diart-tononkira-search',{body:{title:cleanTitle,artist:artist.trim()}}),
+    RECUEIL_SEARCH_TIMEOUT_MS,
+    'Tononkira'
+  )
   if(error) throw error
   if(data?.error) throw new Error(String(data.error))
   return Array.isArray(data?.results)?data.results:[]
@@ -94,15 +121,33 @@ export interface ExternalRecueilImport {
   bpm?:number|null
 }
 
+function sourceLabel(source:ExternalRecueilSource){
+  if(source==='ultimate-guitar')return 'Ultimate Guitar'
+  if(source==='chordify')return 'Chordify'
+  return 'Acoustic Gasy'
+}
+
 export async function searchExternalRecueil(source:ExternalRecueilSource,title:string,artist=''):Promise<ExternalRecueilResult[]>{
-  const {data,error}=await supabase.functions.invoke('diart-external-recueil',{body:{action:'search',source,title:title.trim(),artist:artist.trim()}})
+  const cleanTitle=title.trim()
+  if(cleanTitle.length<2)return []
+  const {data,error}=await withTimeout(
+    supabase.functions.invoke('diart-external-recueil',{body:{action:'search',source,title:cleanTitle,artist:artist.trim()}}),
+    RECUEIL_SEARCH_TIMEOUT_MS,
+    sourceLabel(source)
+  )
   if(error) throw error
   if(data?.error) throw new Error(String(data.error))
   return Array.isArray(data?.results)?data.results:[]
 }
 
 export async function importExternalRecueil(source:ExternalRecueilSource,url:string):Promise<ExternalRecueilImport>{
-  const {data,error}=await supabase.functions.invoke('diart-external-recueil',{body:{action:'import',source,url}})
+  const cleanUrl=url.trim()
+  if(!cleanUrl)throw new Error('Lien de source manquant.')
+  const {data,error}=await withTimeout(
+    supabase.functions.invoke('diart-external-recueil',{body:{action:'import',source,url:cleanUrl}}),
+    RECUEIL_IMPORT_TIMEOUT_MS,
+    sourceLabel(source)
+  )
   if(error) throw error
   if(data?.error) throw new Error(String(data.error))
   return data as ExternalRecueilImport
