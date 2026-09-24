@@ -7812,3 +7812,68 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
     font-size:16px!important;
   }
 }
+
+/* DI'ART 2.8.5 — compact stage arrows; transition badge under header line */
+.stage-nav.compact-stage-nav .stage-prev-btn,
+.stage-nav.compact-stage-nav .stage-next-btn{
+  width:52px!important;
+  min-width:52px!important;
+  height:42px!important;
+  min-height:42px!important;
+  border-radius:12px!important;
+  padding:0!important;
+}
+.stage-nav.compact-stage-nav .stage-prev-btn svg,
+.stage-nav.compact-stage-nav .stage-next-btn svg{
+  width:24px!important;
+  height:24px!important;
+}
+
+/* Keep NEXT exactly the same whether T exists or not */
+.stage-nav.compact-stage-nav .stage-next-btn{
+  right:0!important;
+  left:auto!important;
+  top:50%!important;
+  transform:translateY(-50%)!important;
+  position:fixed!important;
+}
+
+/* T placed near upper-right content corner, just below the header separator */
+.stage-nav.compact-stage-nav .stage-transition-top-right{
+  position:fixed!important;
+  top:calc(env(safe-area-inset-top) + 112px)!important;
+  right:max(22px,env(safe-area-inset-right))!important;
+  left:auto!important;
+  bottom:auto!important;
+  width:42px!important;
+  min-width:42px!important;
+  height:32px!important;
+  min-height:32px!important;
+  font-size:15px!important;
+  z-index:60!important;
+  transform:none!important;
+}
+
+@media(max-width:760px){
+  .stage-nav.compact-stage-nav .stage-prev-btn,
+  .stage-nav.compact-stage-nav .stage-next-btn{
+    width:48px!important;
+    min-width:48px!important;
+    height:40px!important;
+    min-height:40px!important;
+    border-radius:11px!important;
+  }
+  .stage-nav.compact-stage-nav .stage-prev-btn svg,
+  .stage-nav.compact-stage-nav .stage-next-btn svg{
+    width:23px!important;
+    height:23px!important;
+  }
+  .stage-nav.compact-stage-nav .stage-transition-top-right{
+    top:calc(env(safe-area-inset-top) + 108px)!important;
+    right:max(18px,env(safe-area-inset-right))!important;
+    width:42px!important;
+    min-width:42px!important;
+    height:32px!important;
+    min-height:32px!important;
+  }
+}
