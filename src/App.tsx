@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.7.3'
+const APP_VERSION='2.7.4'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1754,7 +1754,7 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
     {!standalone&&<nav className="stage-nav compact-stage-nav" aria-label="Navigation entre morceaux"><div className="stage-nav-inner">
       <button type="button" className="stage-nav-btn secondary" aria-label="Morceau précédent" title="Précédent" disabled={index===0} onClick={()=>go(-1)}><ChevronLeft/></button>
       <span/>
-      <div className="stage-next-nav-stack"><button type="button" className="stage-nav-btn primary" aria-label="Morceau suivant" title="Suivant" disabled={index===orderedSongs.length-1} onClick={()=>go(1)}><ChevronRight/></button>{currentTransition&&<button type="button" className="stage-transition-trigger" aria-label="Afficher la transition vers le morceau suivant" title="Transition" onClick={()=>setShowTransitionDetail(true)}>T</button>}</div>
+      <div className="stage-next-nav-slot"><button type="button" className="stage-nav-btn primary" aria-label="Morceau suivant" title="Suivant" disabled={index===orderedSongs.length-1} onClick={()=>go(1)}><ChevronRight/></button>{currentTransition&&<button type="button" className="stage-transition-trigger" aria-label="Afficher la transition vers le morceau suivant" title="Afficher la transition" onClick={(e)=>{e.preventDefault();e.stopPropagation();setShowTransitionDetail(true)}}>T</button>}</div>
     </div></nav>}
   </div>,document.body)
 }
