@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.7.1'
+const APP_VERSION='2.7.2'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1747,14 +1747,14 @@ function SetlistStage({mode,list,songs,refresh,toast,onClose,onOpenSong,standalo
 
     <div className="stage-floating-tools">{stageTools}</div>
     {stageFeedback&&<div key={stageFeedback.id} className="stage-feedback" role="status">{stageFeedback.text}</div>}
-    {nextSong&&(currentTransition?<button type="button" className="stage-next-song has-transition" onClick={()=>setShowTransitionDetail(true)} aria-label={'Morceau suivant : '+nextSong.title+'. Afficher la transition'}><span>SUIVANT <i className="stage-transition-indicator" title="Transition configurée">T</i></span><b>{nextSong.title}</b><small>{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)}{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)&&nextSong.bpm!==null?' · ':''}{nextSong.bpm!==null?nextSong.bpm+' BPM':''}</small></button>:<div className="stage-next-song"><span>SUIVANT</span><b>{nextSong.title}</b><small>{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)}{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)&&nextSong.bpm!==null?' · ':''}{nextSong.bpm!==null?nextSong.bpm+' BPM':''}</small></div>)}
+    {nextSong&&<div className="stage-next-song"><span>SUIVANT</span><b>{nextSong.title}</b><small>{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)}{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)&&nextSong.bpm!==null?' · ':''}{nextSong.bpm!==null?nextSong.bpm+' BPM':''}</small></div>}
     {showTransitionDetail&&nextSong&&currentTransition&&<div className="stage-transition-popup-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setShowTransitionDetail(false)}}><section className="stage-transition-popup" role="dialog" aria-modal="true" aria-label="Transition vers le morceau suivant"><div className="stage-transition-popup-head"><div><span>TRANSITION</span><b>{song.title} <ChevronRight/> {nextSong.title}</b></div><button type="button" onClick={()=>setShowTransitionDetail(false)} aria-label="Fermer"><X/></button></div><div className="stage-transition-popup-body">{currentTransition.bars&&<div><span>Mesures</span><strong>{currentTransition.bars}</strong></div>}{currentTransition.chords&&<div className="wide"><span>Accords / progression</span><strong>{currentTransition.chords}</strong></div>}{currentTransition.notes&&<div className="wide"><span>Consigne</span><p>{currentTransition.notes}</p></div>}</div></section></div>}
     <div className="stage-floating-count" aria-label="Position dans la setlist">{index+1} / {orderedSongs.length}</div>
     {resumeIndex!==null&&<div className="stage-resume-overlay"><div className="stage-resume-card"><RefreshCw/><div><b>Reprendre la session ?</b><span>{list.name} · morceau {resumeIndex+1}/{orderedSongs.length}</span></div><button className="secondary" onClick={()=>{setResumeIndex(null);setIndex(0)}}>Recommencer</button><button className="primary" onClick={()=>{setIndex(resumeIndex);setResumeIndex(null)}}>Reprendre</button></div></div>}
     {!standalone&&<nav className="stage-nav compact-stage-nav" aria-label="Navigation entre morceaux"><div className="stage-nav-inner">
       <button type="button" className="stage-nav-btn secondary" aria-label="Morceau précédent" title="Précédent" disabled={index===0} onClick={()=>go(-1)}><ChevronLeft/></button>
       <span/>
-      <button type="button" className="stage-nav-btn primary" aria-label="Morceau suivant" title="Suivant" disabled={index===orderedSongs.length-1} onClick={()=>go(1)}><ChevronRight/></button>
+      <div className="stage-next-nav-stack"><button type="button" className="stage-nav-btn primary" aria-label="Morceau suivant" title="Suivant" disabled={index===orderedSongs.length-1} onClick={()=>go(1)}><ChevronRight/></button>{currentTransition&&<button type="button" className="stage-transition-trigger" aria-label="Afficher la transition vers le morceau suivant" title="Transition" onClick={()=>setShowTransitionDetail(true)}>T</button>}</div>
     </div></nav>}
   </div>,document.body)
 }
