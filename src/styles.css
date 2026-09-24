@@ -8076,3 +8076,77 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
     display:none;
   }
 }
+
+
+/* DI'ART 2.9.5 — compact lyrics marker + Tononkira flow */
+.song-lyrics-mark,
+.song-lyrics-mark.compact{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:auto;
+  height:auto;
+  padding:0;
+  margin-left:2px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:var(--accent2);
+  line-height:1;
+  flex:0 0 auto;
+}
+.song-lyrics-mark svg{
+  width:13px;
+  height:13px;
+}
+.tononkira-ready-modal{
+  width:min(680px,100%);
+  max-height:min(82vh,760px);
+  overflow:auto;
+}
+.tononkira-ready-summary{
+  display:grid;
+  grid-template-columns:34px minmax(0,1fr);
+  gap:10px;
+  align-items:center;
+  padding:14px;
+  margin-top:8px;
+  border-radius:14px;
+  background:color-mix(in srgb,var(--accent) 7%,var(--surface2));
+}
+.tononkira-ready-summary>svg{color:var(--accent2)}
+.tononkira-ready-summary b,
+.tononkira-ready-summary small{display:block}
+.tononkira-ready-summary small{margin-top:4px;color:var(--muted)}
+.tononkira-verify-content{margin-top:14px}
+.tononkira-ready-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  margin-top:14px;
+}
+.tononkira-ready-actions .icon-btn,
+.post-import-actions.icon-only .icon-btn{
+  width:44px;
+  min-width:44px;
+  height:44px;
+  padding:0;
+  display:grid;
+  place-items:center;
+}
+.tononkira-ready-actions .icon-btn svg,
+.post-import-actions.icon-only .icon-btn svg{
+  width:19px;
+  height:19px;
+}
+.post-import-actions.icon-only{
+  grid-template-columns:repeat(4,44px);
+  justify-content:center;
+}
+@media(max-width:760px){
+  .post-import-actions.icon-only{
+    grid-template-columns:repeat(4,44px);
+    justify-content:center;
+  }
+}
