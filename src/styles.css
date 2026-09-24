@@ -8520,3 +8520,87 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
   .advanced-filter-choice>div{width:100%}
   .advanced-filter-choice button{flex:1}
 }
+
+
+/* DI'ART 2.9.9 — compact setlist rows on tablet / Android */
+@media(max-width:1024px){
+  .setlist-detail-songs{
+    gap:7px!important;
+  }
+  .setlist-detail-song{
+    min-height:62px!important;
+    height:auto!important;
+    padding:8px 9px!important;
+    grid-template-columns:30px minmax(0,1fr) 52px 34px 34px 34px!important;
+    grid-template-rows:minmax(46px,auto)!important;
+    column-gap:5px!important;
+    border-radius:12px!important;
+  }
+  .setlist-detail-song>.setlist-number{
+    grid-column:1!important;
+    grid-row:1!important;
+    width:30px!important;
+    height:30px!important;
+    font-size:13px!important;
+    align-self:center!important;
+  }
+  .setlist-detail-song>.setlist-song-main{
+    grid-column:2!important;
+    grid-row:1!important;
+    min-width:0!important;
+    align-self:center!important;
+  }
+  .setlist-detail-song>.setlist-song-main b{
+    font-size:14px!important;
+    line-height:1.15!important;
+  }
+  .setlist-detail-song>.setlist-song-main small{
+    margin-top:3px!important;
+    font-size:10px!important;
+    line-height:1.15!important;
+  }
+  .setlist-detail-song>.setlist-song-key{
+    grid-column:3!important;
+    grid-row:1!important;
+    width:52px!important;
+    min-width:52px!important;
+    font-size:22px!important;
+    justify-self:center!important;
+    align-self:center!important;
+  }
+  .setlist-detail-song>.setlist-song-flags{display:none!important}
+  .setlist-detail-song>.setlist-move-btn:nth-last-child(3){
+    grid-column:4!important;grid-row:1!important;
+  }
+  .setlist-detail-song>.setlist-move-btn:nth-last-child(2){
+    grid-column:5!important;grid-row:1!important;
+  }
+  .setlist-detail-song>.setlist-remove-btn{
+    grid-column:6!important;grid-row:1!important;
+  }
+  .setlist-detail-song>.setlist-move-btn,
+  .setlist-detail-song>.setlist-remove-btn{
+    width:32px!important;
+    height:32px!important;
+    min-width:32px!important;
+    padding:0!important;
+    align-self:center!important;
+  }
+}
+@media(max-width:560px){
+  .setlist-detail-song{
+    grid-template-columns:28px minmax(0,1fr) 42px 30px 30px 30px!important;
+    padding:7px 6px!important;
+    column-gap:3px!important;
+    min-height:58px!important;
+  }
+  .setlist-detail-song>.setlist-song-key{
+    width:42px!important;
+    min-width:42px!important;
+    font-size:19px!important;
+  }
+  .setlist-detail-song>.setlist-move-btn,
+  .setlist-detail-song>.setlist-remove-btn{
+    width:29px!important;height:29px!important;min-width:29px!important;
+  }
+}
