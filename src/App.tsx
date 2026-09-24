@@ -13,11 +13,11 @@ import type { ActivityEntry, ActivityKind, FavoriteStatus, ImportField, ImportMa
 import { duplicateKey, emptySongDraft, formatDuration, normalizeIdentity, normalizeKey, parseBpm, parseDuration, searchSong, transposeKey, transposeChordText, formatSemitoneOffset } from './music'
 import { parseWorkbook, rowsToPreview, suggestMapping, type ParsedWorkbook } from './importer'
 import { exportCsv, exportJson, exportXlsx, restoreJson } from './exporter'
-import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToLocal, resolveSyncConflict, type SyncConflict } from './cloud'
+import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToLocal, resolveSyncConflict, resolveMergedSyncConflict, type SyncConflict } from './cloud'
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.7.5'
+const APP_VERSION='2.8.0'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -253,6 +253,7 @@ function App() {
   const [syncIntervalMinutes,setSyncIntervalMinutes]=useState<SyncInterval>(15)
   const [syncPrefsReady,setSyncPrefsReady]=useState(false)
   const [syncConflicts,setSyncConflicts]=useState<SyncConflict[]>([])
+  const [conflictChoices,setConflictChoices]=useState<Record<string,Record<string,'local'|'remote'>>>({})
   const [commandOpen,setCommandOpen]=useState(false)
   const [shortcuts,setShortcuts]=useState<Record<string,string>>(()=>{try{return {...DEFAULT_SHORTCUTS,...JSON.parse(localStorage.getItem('diart-shortcuts')||'{}')}}catch{return DEFAULT_SHORTCUTS}})
   const [gestures,setGestures]=useState(()=>{try{const saved=JSON.parse(localStorage.getItem('diart-gestures')||'{}');return {...DEFAULT_GESTURES,...saved,doubleTapPlay:saved.doubleTapPlay??saved.doubleTapTools??true}}catch{return DEFAULT_GESTURES}})
@@ -276,13 +277,37 @@ function App() {
     setSyncing(true)
     try{
       const result=await syncAll(userId,lastSyncAt)
-      if(result.conflicts.length)setSyncConflicts(result.conflicts)
+      setSyncConflicts(result.conflicts)
       if(result.pulled>0) await Promise.all([refresh(),refreshSetlists()])
       if(showToast||result.pulled>0||result.pushed>0) await refreshCloudStats(userId)
       if(!result.conflicts.length)markSynced()
       if(showToast)toast(result.conflicts.length?`${result.conflicts.length} conflit(s) à résoudre.`:'Synchronisation cloud terminée.')
     }catch(e){if(showToast)toast(e instanceof Error?e.message:'Synchronisation impossible.')}
     finally{syncLockRef.current=false;setSyncing(false)}
+  }
+  const conflictChoiceKey=(conflict:SyncConflict)=>conflict.kind+':'+conflict.id
+  const chooseConflictField=(conflict:SyncConflict,field:string,choice:'local'|'remote')=>{
+    const key=conflictChoiceKey(conflict)
+    setConflictChoices(prev=>({...prev,[key]:{...(prev[key]??{}),[field]:choice}}))
+  }
+  const finishConflictResolution=async(conflict:SyncConflict,message:string)=>{
+    const remaining=syncConflicts.filter(c=>c!==conflict)
+    setSyncConflicts(remaining)
+    setConflictChoices(prev=>{const next={...prev};delete next[conflictChoiceKey(conflict)];return next})
+    await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(userId)])
+    if(!remaining.length)markSynced()
+    toast(message)
+  }
+  const mergeSyncConflict=async(conflict:SyncConflict)=>{
+    const key=conflictChoiceKey(conflict)
+    const choices=conflictChoices[key]??{}
+    const changes=conflictDiff(conflict)
+    const merged={...(conflict.local as any)}
+    for(const change of changes){
+      if((choices[change.field]??'local')==='remote')merged[change.field]=(conflict.remote as any)[change.field]
+    }
+    await resolveMergedSyncConflict(userId,conflict,merged)
+    await finishConflictResolution(conflict,'Versions fusionnées et synchronisées.')
   }
   const scheduleSync=(delay=250)=>{
     if(syncMode!=='auto')return
@@ -514,7 +539,7 @@ function App() {
     {createMode==='menu'&&<Modal title="Créer" onClose={()=>setCreateMode(null)}><div className="create-choice-grid"><button onClick={()=>startNewSong(page==='artist'?selectedArtist:'',page==='author'?selectedAuthor:'')}><Music2/><span><b>Nouveau morceau</b><small>Créer une nouvelle fiche musicale</small></span></button><button onClick={()=>{setCreateMode('artist');setCreateName('')}}><UsersRound/><span><b>Nouvel artiste</b><small>Créer son premier morceau</small></span></button><button onClick={()=>{setCreateMode('setlist');setCreateName('')}}><ListMusic/><span><b>Nouvelle setlist</b><small>Créer une liste vide</small></span></button><button onClick={()=>{setCreateMode(null);go('import')}}><Import/><span><b>Nouvel import</b><small>Importer Excel ou CSV</small></span></button><button onClick={()=>{setCreateMode(null);setRecueilEntry(null);setRecueilPrefill(null);setPage('recueils')}}><BookMarked/><span><b>Importer depuis recueil</b><small>Choisir Tononkira, Ultimate Guitar, Chordify ou ChordPro</small></span></button></div></Modal>}
     {createMode==='artist'&&<Modal title="Nouvel artiste" onClose={()=>setCreateMode(null)}><div className="create-name-form"><label>Nom de l’artiste<input autoFocus value={createName} onChange={e=>setCreateName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')createNamedArtist()}}/></label><div className="modal-actions"><button className="secondary" onClick={()=>setCreateMode('menu')}>Retour</button><button className="primary" disabled={!createName.trim()} onClick={createNamedArtist}><Plus/>Continuer</button></div></div></Modal>}
     {createMode==='setlist'&&<Modal title="Nouvelle setlist" onClose={()=>setCreateMode(null)}><div className="create-name-form"><label>Nom de la setlist<input className="new-setlist-name-input" autoFocus value={createName} onChange={e=>setCreateName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createNamedSetlist()}}/></label><div className="modal-actions"><button className="secondary" onClick={()=>setCreateMode('menu')}>Retour</button><button className="primary" disabled={!createName.trim()} onClick={()=>void createNamedSetlist()}><Plus/>Créer</button></div></div></Modal>}
-    {syncConflicts.length>0&&<Modal className="sync-conflict-modal sync-conflict-detail-modal" title="Conflits de synchronisation" onClose={()=>setSyncConflicts([])}><p className="muted-copy">Comparez les modifications avant de choisir. Seuls les champs réellement différents sont affichés.</p><div className="sync-conflict-list">{syncConflicts.map(conflict=>{const changes=conflictDiff(conflict);return <article className="sync-conflict-card" key={conflict.kind+conflict.id}><div className="sync-conflict-head"><div><b>{conflict.kind==='song'?(conflict.local as Song).title:(conflict.local as Setlist).name}</b><small>{changes.length} modification{changes.length>1?'s':''} · Local {new Date(conflict.localUpdatedAt).toLocaleString()} · Cloud {new Date(conflict.remoteUpdatedAt).toLocaleString()}</small></div><span>{conflict.kind==='song'?'Morceau':'Setlist'}</span></div><div className="sync-conflict-diff"><div className="sync-conflict-diff-head"><span>Champ</span><b>Local</b><b>Cloud</b></div>{changes.length?changes.map(change=><div className="sync-conflict-diff-row" key={change.field}><span>{change.label}</span><div>{change.local}</div><div>{change.remote}</div></div>):<p className="muted-copy">Aucune différence de contenu détectée.</p>}</div><div className="sync-conflict-actions"><button className="secondary" onClick={()=>void resolveSyncConflict(userId,conflict,'remote').then(async()=>{setSyncConflicts(x=>x.filter(c=>c!==conflict));await Promise.all([refresh(),refreshSetlists()]);toast('Version cloud conservée.')})}>Garder Cloud</button><button className="primary" onClick={()=>void resolveSyncConflict(userId,conflict,'local').then(()=>{setSyncConflicts(x=>x.filter(c=>c!==conflict));toast('Version locale conservée.')})}>Garder Local</button></div></article>})}</div></Modal>}
+    {syncConflicts.length>0&&<Modal className="sync-conflict-modal sync-conflict-detail-modal" title="Conflits de synchronisation" onClose={()=>setSyncConflicts([])}><div className="sync-conflict-intro"><AlertTriangle/><div><b>{syncConflicts.length} conflit{syncConflicts.length>1?'s':''} réel{syncConflicts.length>1?'s':''} à résoudre</b><p className="muted-copy">Choisissez Local ou Cloud pour chaque champ différent, puis fusionnez. Les champs identiques sont conservés automatiquement.</p></div></div><div className="sync-conflict-list">{syncConflicts.map(conflict=>{const changes=conflictDiff(conflict);const key=conflictChoiceKey(conflict);const localNewer=conflict.localUpdatedAt>=conflict.remoteUpdatedAt;return <article className="sync-conflict-card" key={key}><div className="sync-conflict-head"><div><b>{conflict.kind==='song'?(conflict.local as Song).title:(conflict.local as Setlist).name}</b><small>{changes.length} champ{changes.length>1?'s':''} différent{changes.length>1?'s':''}</small></div><span>{conflict.kind==='song'?'Morceau':'Setlist'}</span></div><div className="sync-conflict-times"><div className={localNewer?'newer':''}><span>LOCAL</span><b>{new Date(conflict.localUpdatedAt).toLocaleString()}</b>{localNewer&&<small>Plus récent</small>}</div><div className={!localNewer?'newer':''}><span>CLOUD</span><b>{new Date(conflict.remoteUpdatedAt).toLocaleString()}</b>{!localNewer&&<small>Plus récent</small>}</div></div><div className="sync-conflict-diff"><div className="sync-conflict-diff-head"><span>Champ</span><b>Local</b><b>Cloud</b></div>{changes.map(change=>{const choice=conflictChoices[key]?.[change.field]??'local';return <div className="sync-conflict-diff-row selectable" key={change.field}><span>{change.label}</span><button type="button" className={choice==='local'?'selected':''} onClick={()=>chooseConflictField(conflict,change.field,'local')}><i>{choice==='local'&&<Check/>}</i><em>{change.local}</em></button><button type="button" className={choice==='remote'?'selected':''} onClick={()=>chooseConflictField(conflict,change.field,'remote')}><i>{choice==='remote'&&<Check/>}</i><em>{change.remote}</em></button></div>})}</div><div className="sync-conflict-actions enhanced"><button className="secondary" onClick={()=>void resolveSyncConflict(userId,conflict,'remote').then(()=>finishConflictResolution(conflict,'Version cloud conservée.'))}>Tout Cloud</button><button className="secondary" onClick={()=>void resolveSyncConflict(userId,conflict,'local').then(()=>finishConflictResolution(conflict,'Version locale conservée.'))}>Tout Local</button><button className="primary" onClick={()=>void mergeSyncConflict(conflict)}><GitMerge/>Fusionner et synchroniser</button></div></article>})}</div></Modal>}
     <Toasts items={toasts}/>
   </div>
 }
