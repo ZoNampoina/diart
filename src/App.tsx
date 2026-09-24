@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.15'
+const APP_VERSION='2.9.16'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1052,7 +1052,7 @@ function normalizeImportedLyrics(value:string):string{
   text=text.replace(/\s+[|•·]\s+(?=\S)/g,'\n')
   text=text.replace(/\s+\/\s+(?=[A-ZÀ-ÖØ-Þ])/g,'\n')
 
-  const section=/^\s*\[?\s*(couplet|verse|refrain|chorus|pré[- ]?refrain|pre[- ]?chorus|pont|bridge|intro|outro|interlude|prélude|prelude|postlude)(?:\s*\d+)?\s*\]?\s*[:.-]?\s*$/i
+  const section=/^\s*\[?\s*(couplet|verse|refrain|chorus|ref|fiv|pré[- ]?refrain|pre[- ]?chorus|pont|bridge|intro|outro|interlude|prélude|prelude|postlude)(?:\s*\d+)?\s*\]?\s*[:.-]?\s*$/i
   const source=text.split('\n').map(line=>line.replace(/[ \t]+$/,''))
   const out:string[]=[]
   const pushBlank=()=>{if(out.length&&out[out.length-1]!=='')out.push('')}
@@ -1093,7 +1093,15 @@ function looksLikeTononkiraNoiseWord(word:string):boolean{
   const vowels=(clean.match(/[aeiouy]/g)||[]).length
   const consonantRuns=clean.match(/[bcdfghjklmnpqrstvwxz]{4,}/g)||[]
   const rare=(clean.match(/[qxzwkj]/g)||[]).length
-  return clean.length>=5&&vowels/clean.length<=.25&&consonantRuns.length>0&&rare>=1
+  const vowelRatio=vowels/clean.length
+  const alternatingNoise=/^(?:[bcdfghjklmnpqrstvwxz]{2,}[aeiouy]?){2,}$/i.test(clean)
+  const rareDensity=rare/clean.length
+  // Plus sensible qu'avant aux rafales de parasites, tout en exigeant plusieurs indices.
+  return clean.length>=5&&(
+    (vowelRatio<=.30&&consonantRuns.length>0)||
+    (vowelRatio<=.34&&rare>=2&&rareDensity>=.22)||
+    (clean.length>=7&&alternatingNoise&&rare>=1)
+  )
 }
 function cleanTononkiraNoiseWords(value:string):{lyrics:string;removed:RemovedTononkiraNoise[]}{
   const removed:RemovedTononkiraNoise[]=[]
@@ -1117,10 +1125,10 @@ function detectTononkiraStructure(lyrics:string):TononkiraStructureBlock[]{
   const normalized=String(lyrics||'').replace(/\r/g,'').replace(/\u00a0/g,' ').replace(/[ \t]+$/gm,'').trim()
   if(!normalized)return []
   const canonical=(x:string)=>normalizeIdentity(x)
-    .replace(/^\[?\s*(couplet|verse|refrain|chorus|pré[- ]?refrain|pre[- ]?chorus|pont|bridge|intro|outro|interlude)\s*\d*\s*\]?\s*[:.-]?\s*/i,'')
+    .replace(/^\[?\s*(couplet|verse|refrain|chorus|ref|fiv|pré[- ]?refrain|pre[- ]?chorus|pont|bridge|intro|outro|interlude)\s*\d*\s*\]?\s*[:.-]?\s*/i,'')
     .replace(/[^a-z0-9\s]/g,'').replace(/\s+/g,' ').trim()
   const labelKind=(line:string):TononkiraStructureBlock['kind']|null=>{
-    if(/^\[?\s*(refrain|chorus|pré[- ]?refrain|pre[- ]?chorus)\b/i.test(line))return 'refrain'
+    if(/^\[?\s*(?:(?:ref|fiv)(?=\s*(?:\d+)?\s*\]?\s*[:.\-–—]?\s*$)|refrain\b|chorus\b|pré[- ]?refrain\b|pre[- ]?chorus\b)/i.test(line))return 'refrain'
     if(/^\[?\s*(couplet|verse)\b/i.test(line))return 'verse'
     if(/^\[?\s*(pont|bridge|intro|outro|interlude|prélude|prelude|postlude)\b/i.test(line))return 'other'
     return null
