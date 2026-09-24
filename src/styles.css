@@ -8005,3 +8005,37 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
     height:13px;
   }
 }
+
+
+/* DI'ART 2.9.3 — artist lyrics + desktop edit controls */
+.person-song-title{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  min-width:0;
+}
+.person-song .lyrics-available.compact{
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+  flex:0 0 auto;
+  padding:2px 5px;
+  border:1px solid color-mix(in srgb,var(--accent) 20%,var(--line));
+  border-radius:999px;
+  background:color-mix(in srgb,var(--accent) 10%,transparent);
+  color:var(--accent2);
+  font-size:10px;
+  font-style:normal;
+  font-weight:800;
+}
+@media(min-width:900px){
+  .song-form-actions{
+    position:sticky;
+    bottom:0;
+    z-index:12;
+    margin:8px -2px -2px;
+    padding:12px 2px 2px;
+    background:linear-gradient(to bottom,transparent,var(--panel) 28%);
+    backdrop-filter:blur(8px);
+  }
+}
