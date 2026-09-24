@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.13'
+const APP_VERSION='2.9.14'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1134,6 +1134,18 @@ function detectTononkiraStructure(lyrics:string):TononkiraStructureBlock[]{
     }
   }
 
+  // Les marqueurs de répétition (x2, X3, ×2, bis, etc.) appartiennent à ce qui
+  // précède : ils ne doivent jamais créer artificiellement le début d'une nouvelle section.
+  const repeatMarker=/^(?:[x×]\s*\d+|\d+\s*[x×]|bis|ter)(?:\s*[.!:;-]*)$/i
+  for(let i=1;i<blocks.length;i++){
+    const first=blocks[i].split('\n')[0]?.trim()||''
+    if(!repeatMarker.test(first))continue
+    const rest=blocks[i].split('\n').slice(1).join('\n').trim()
+    blocks[i-1]=(blocks[i-1]+'\n'+first).trim()
+    if(rest)blocks[i]=rest
+    else{blocks.splice(i,1);i--}
+  }
+
   // Détection de refrain tolérante : les blocs peuvent différer par ponctuation ou par leur étiquette.
   const similarity=(a:string,b:string)=>{
     const aa=canonical(a).split(' ').filter(Boolean),bb=canonical(b).split(' ').filter(Boolean)
@@ -1251,7 +1263,19 @@ function RecueilsPage({songs,entryMode,prefill,onImport,onComplete,onViewImporte
     setTononkiraStructure(null)
     setTononkiraVerifying(false)
     if(identityDiff&&searchedExisting){setTononkiraIdentityConflict({existing:searchedExisting,draft});return}
-    if(importedExisting){setReview({existing:importedExisting,incoming:draft,source:'Tononkira'});return}
+    if(importedExisting){
+      const sameTitle=normalizeIdentity(importedExisting.title)===normalizeIdentity(draft.title)
+      const sameArtist=!draft.artist||!importedExisting.artist||normalizeIdentity(importedExisting.artist)===normalizeIdentity(draft.artist)
+      if(sameTitle&&sameArtist){
+        const patch:Partial<SongDraft>={lyrics:draft.lyrics,referenceUrl:draft.referenceUrl,source:'import'}
+        await onComplete(importedExisting.id,patch)
+        const updated={...importedExisting,...patch,updatedAt:new Date().toISOString()}
+        toast(draft.title+' mis à jour depuis Tononkira.')
+        setImportedSong(updated)
+        return
+      }
+      setReview({existing:importedExisting,incoming:draft,source:'Tononkira'});return
+    }
     const song=await onImport(draft)
     toast(draft.title+' importé depuis Tononkira.')
     setImportedSong(song)
