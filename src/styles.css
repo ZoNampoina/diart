@@ -7964,3 +7964,7 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
 .stage-theme-light .stage-transition-popup-actions>button{background:#eef6f7;color:#0b6575;border-color:#c8dde0}
 .stage-theme-light .stage-transition-editor input,.stage-theme-light .stage-transition-editor textarea{background:#fff;color:#10272d;border-color:#c8dde0}
 @media(max-width:760px){.stage-transition-editor{grid-template-columns:1fr}.stage-transition-editor label.wide,.stage-transition-editor-actions{grid-column:1}}
+
+
+/* Tononkira · validation de structure */
+.tononkira-structure-modal{max-width:760px}.tononkira-structure-list{display:grid;gap:12px;max-height:58vh;overflow:auto;padding:4px 2px}.tononkira-structure-block{border:1px solid var(--border);border-radius:14px;padding:12px;background:var(--panel-2,rgba(127,127,127,.05))}.tononkira-structure-block-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.tononkira-structure-block-head select{font-weight:700}.tononkira-structure-block-head small{opacity:.65;text-transform:capitalize}.tononkira-structure-block textarea{width:100%;resize:vertical;line-height:1.55}.tononkira-structure-actions{display:flex;justify-content:flex-end;margin-top:6px}.tononkira-structure-actions button{font-size:.82rem}@media(max-width:640px){.tononkira-structure-modal{width:min(96vw,760px)}.tononkira-structure-list{max-height:62vh}}
