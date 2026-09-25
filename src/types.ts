@@ -110,7 +110,7 @@ export interface Setlist {
   rehearsalNotes?: Record<string,string>
   rehearsalIssues?: Record<string,RehearsalIssue[]>
   transitions?: Record<string,SetlistTransition>
-  songOverrides?: Record<string,{key?:string;bpm?:number|null;notes?:string;transpose?:number}>
+  songOverrides?: Record<string,{key?:string;bpm?:number|null;notes?:string;transpose?:number;structure?:string;chords?:string;instrumentNotes?:string;musicianNotes?:Record<string,string>;lyrics?:string}>
   createdAt: string
   updatedAt: string
   deletedAt: string | null
