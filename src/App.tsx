@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.17'
+const APP_VERSION='2.9.18'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1378,6 +1378,7 @@ function RecueilsPage({songs,entryMode,prefill,onImport,onComplete,onViewImporte
 
   <ExternalRecueilSearch prefill={prefill} source="ultimate-guitar" badge="UG" name="Ultimate Guitar" description="Recherchez les grilles publiques. DI’ART tente maintenant d’importer simultanément structure, accords et paroles disponibles sur la page." songs={songs} onImport={onImport} onComplete={onComplete} onImported={setImportedSong} toast={toast}/>
   <ExternalRecueilSearch prefill={prefill} source="chordify" badge="CH" name="Chordify" description="Recherchez les chansons Chordify directement dans DI’ART et récupérez les métadonnées ainsi que les accords détectables." songs={songs} onImport={onImport} onComplete={onComplete} onImported={setImportedSong} toast={toast}/>
+  <ExternalRecueilSearch prefill={prefill} source="acoustic-gasy" badge="AG" name="Acoustic Gasy" description="Recherchez par titre sur Acoustic Gasy, puis diagnostiquez et importez les accords, paroles, tonalité et BPM disponibles." songs={songs} onImport={onImport} onComplete={onComplete} onImported={setImportedSong} toast={toast}/>
 
   <section className="panel recueil-source-card chordpro-direct-card"><div className="recueil-source-head"><span className="recueil-badge">CP</span><div><h2>ChordPro</h2><p>Import direct d’un fichier .pro, .chopro, .cho, .crd ou .txt avec paroles et accords.</p></div></div><div className="recueil-source-actions"><button className="primary recueil-action" onClick={()=>fileRef.current?.click()}><FileUp/>Importer ChordPro</button></div></section>
   <input ref={fileRef} hidden type="file" accept=".pro,.chopro,.cho,.crd,.txt,text/plain" onChange={e=>{const f=e.target.files?.[0];if(f)void readChordPro(f);e.currentTarget.value=''}}/>
