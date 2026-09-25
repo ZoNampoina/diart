@@ -1932,12 +1932,14 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
   const finishDrag=async(e:PointerEvent<HTMLElement>)=>{
     cancelHold()
     setHoldingId(null)
+    const wasDragging=dragIndex.current!==null
+    if(wasDragging&&e.type==='pointerup')processDragPoint(e.clientX,e.clientY)
     if(dragFrame.current!==null){cancelAnimationFrame(dragFrame.current);dragFrame.current=null}
     pendingDragPoint.current=null
-    const wasDragging=dragIndex.current!==null
     releaseHeldPointer(e.pointerId)
     holdStart.current=null
     if(!wasDragging)return
+    document.querySelectorAll<HTMLElement>('[data-setlist-song-id]').forEach(el=>el.getAnimations().forEach(animation=>animation.cancel()))
     const visual=dragVisual.current
     if(visual){
       visual.ghost.remove()
