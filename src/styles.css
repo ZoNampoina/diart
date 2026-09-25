@@ -9281,3 +9281,156 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
     max-height:46dvh;
   }
 }
+
+
+/* DI'ART 2.9.28 — rehearsal inline editing + manual autoscroll handoff */
+.rehearsal-click-edit{
+  cursor:pointer;
+  position:relative;
+  transition:border-color .14s ease,background .14s ease,transform .14s ease;
+}
+.rehearsal-click-edit:hover{
+  border-color:rgba(110,188,199,.58)!important;
+  background:rgba(17,64,74,.18)!important;
+}
+.rehearsal-click-edit:active{
+  transform:scale(.995);
+}
+.rehearsal-click-edit h3{
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.rehearsal-click-edit h3>svg{
+  width:14px;
+  height:14px;
+  color:#6ebcc7;
+  opacity:.8;
+}
+.stage-lyrics.rehearsal-click-edit{
+  border:1px solid transparent;
+  border-radius:14px;
+  padding:12px;
+}
+.stage-rehearsal-editor-backdrop{
+  position:fixed;
+  inset:0;
+  z-index:10090;
+  display:grid;
+  place-items:center;
+  padding:18px;
+  background:rgba(0,0,0,.62);
+  backdrop-filter:blur(7px);
+}
+.stage-rehearsal-editor{
+  width:min(680px,100%);
+  max-height:min(88dvh,760px);
+  overflow:hidden;
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr) auto;
+  border:1px solid #294a53;
+  border-radius:18px;
+  background:#07181e;
+  color:#f2fbfc;
+  box-shadow:0 28px 80px rgba(0,0,0,.5);
+}
+.stage-rehearsal-editor>header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px 16px;
+  border-bottom:1px solid #1d3941;
+  background:linear-gradient(135deg,rgba(13,111,128,.18),rgba(7,24,30,.97));
+}
+.stage-rehearsal-editor>header>div{
+  display:grid;
+  gap:3px;
+}
+.stage-rehearsal-editor>header span{
+  font-size:8px;
+  letter-spacing:.16em;
+  color:#78c6cf;
+  font-weight:900;
+}
+.stage-rehearsal-editor>header b{
+  font-size:15px;
+}
+.stage-rehearsal-editor>header button{
+  width:36px;
+  height:36px;
+  border-radius:50%;
+  border:1px solid #31535c;
+  background:#0c252c;
+  color:#dcebed;
+  display:grid;
+  place-items:center;
+}
+.stage-rehearsal-editor-body{
+  overflow:auto;
+  padding:14px 16px;
+}
+.stage-rehearsal-editor textarea{
+  width:100%;
+  min-height:260px;
+  resize:vertical;
+  background:#0b2026;
+  color:#f2fbfc;
+  border:1px solid #29444c;
+  line-height:1.55;
+}
+.stage-edit-scope{
+  display:grid;
+  gap:8px;
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px solid #1d3941;
+}
+.stage-edit-scope>p{
+  margin:0 0 2px;
+  color:#9fc1c7;
+  font-size:11px;
+  font-weight:800;
+}
+.stage-edit-scope>button{
+  min-height:58px;
+  justify-content:flex-start;
+  text-align:left;
+}
+.stage-edit-scope>button>span{
+  display:grid;
+  gap:2px;
+}
+.stage-edit-scope>button b,
+.stage-edit-scope>button small{
+  display:block;
+}
+.stage-edit-scope>button small{
+  font-size:9px;
+  opacity:.72;
+  font-weight:500;
+}
+.stage-rehearsal-editor>footer{
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+  padding:12px 16px 14px;
+  border-top:1px solid #1d3941;
+}
+@media(max-width:760px){
+  .stage-rehearsal-editor-backdrop{
+    padding:0;
+    align-items:end;
+  }
+  .stage-rehearsal-editor{
+    width:100%;
+    max-height:88dvh;
+    border-radius:20px 20px 0 0;
+  }
+  .stage-rehearsal-editor textarea{
+    min-height:34dvh;
+  }
+  .stage-edit-scope>button{
+    min-height:54px;
+  }
+}
