@@ -9307,6 +9307,41 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
   color:#6ebcc7;
   opacity:.8;
 }
+
+
+/* DI'ART 2.9.29 — safer rehearsal touch editing + add missing key */
+.stage-add-key.secondary{
+  min-height:44px;
+  padding:9px 14px;
+  border-radius:999px;
+  gap:7px;
+  font-weight:850;
+}
+.stage-add-key.secondary svg{width:17px;height:17px}
+.stage-key-editor .stage-rehearsal-editor-body{display:grid;gap:16px}
+.stage-key-options{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:8px;
+}
+.stage-key-options button{
+  min-height:46px;
+  border:1px solid #294a53;
+  border-radius:12px;
+  background:#0a2026;
+  color:#dceef1;
+  font-weight:900;
+  font-size:16px;
+}
+.stage-key-options button.active{
+  border-color:#63c4d0;
+  background:#123741;
+  color:#8de4ec;
+  box-shadow:0 0 0 2px rgba(99,196,208,.12);
+}
+@media(max-width:620px){
+  .stage-key-options{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
 .stage-lyrics.rehearsal-click-edit{
   border:1px solid transparent;
   border-radius:14px;
