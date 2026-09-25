@@ -8769,3 +8769,16 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
 .tononkira-noise-review small{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:10px}
 .tononkira-noise-review small button{border:0;background:var(--surface-2,rgba(127,127,127,.12));color:inherit;border-radius:5px;padding:2px 5px;font:inherit;cursor:pointer;text-decoration:line-through;text-decoration-thickness:1px}
 .tononkira-noise-review>.bare-action{font-size:10px;min-height:0;padding:2px 5px;margin-left:auto}
+
+
+/* DI'ART 2.9.19 — suppression rapide et restauration depuis l’historique */
+.field-delete-action{width:34px;height:34px;min-width:34px;color:var(--muted);opacity:.72}
+.field-delete-action:hover{color:var(--danger);background:color-mix(in srgb,var(--danger) 9%,transparent)}
+.field-delete-action svg{width:16px;height:16px}
+.panel-inline-actions,.lyrics-title-actions{display:flex;align-items:center;gap:6px}
+.hero-metric-with-delete{position:relative;padding-right:34px!important}.hero-metric-with-delete>.field-delete-action{position:absolute;right:2px;top:50%;transform:translateY(-50%)}
+.quick-delete-info>.info-row-with-delete{display:grid;grid-template-columns:minmax(0,1fr) 36px;align-items:center;gap:4px;border-bottom:1px solid var(--line)}
+.quick-delete-info>.info-row-with-delete:last-child{border-bottom:0}.quick-delete-info>.info-row-with-delete>div{display:flex;justify-content:space-between;gap:16px;padding:10px 0}.quick-delete-info>.info-row-with-delete>.info-key-row{border-bottom:0;width:100%}
+.notes-row-with-delete{display:grid;grid-template-columns:minmax(0,1fr) 36px;align-items:start;gap:8px}.notes-row-with-delete+.notes-row-with-delete{margin-top:8px}
+.history-row-tail{display:flex;align-items:flex-end;justify-content:center;gap:7px;flex-direction:column}.history-restore-btn{min-height:34px;padding:6px 9px;font-size:12px}.history-restore-btn svg,.history-restored svg{width:14px;height:14px}.history-restored{display:inline-flex;align-items:center;gap:5px;color:var(--accent2);font-size:11px;font-weight:700}
+@media(max-width:760px){.field-delete-action{opacity:.86}.history-row-tail{align-items:flex-start}.history-restore-btn{min-height:38px}.quick-delete-info>.info-row-with-delete{grid-template-columns:minmax(0,1fr) 40px}}
