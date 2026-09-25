@@ -9079,3 +9079,37 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
     min-height:40px!important;
   }
 }
+
+
+/* DI'ART 2.9.26 — editable setlist position number */
+.setlist-position-button{
+  border:0!important;
+  padding:0!important;
+  cursor:pointer;
+  font:inherit;
+  line-height:1;
+  appearance:none;
+  -webkit-appearance:none;
+  touch-action:manipulation;
+}
+.setlist-position-button:hover,
+.setlist-position-button:focus-visible{
+  outline:2px solid color-mix(in srgb,var(--accent2) 55%,transparent);
+  outline-offset:2px;
+}
+.setlist-position-input{
+  border:1px solid var(--accent2)!important;
+  padding:0 2px!important;
+  text-align:center;
+  font:inherit;
+  font-weight:900;
+  line-height:1;
+  outline:none!important;
+  appearance:textfield;
+  -moz-appearance:textfield;
+}
+.setlist-position-input::-webkit-outer-spin-button,
+.setlist-position-input::-webkit-inner-spin-button{
+  -webkit-appearance:none;
+  margin:0;
+}
