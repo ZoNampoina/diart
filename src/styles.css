@@ -8873,3 +8873,29 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
     animation:none!important;
   }
 }
+
+
+/* DI'ART 2.9.22 — direct finger-follow drag on Android */
+.setlist-detail-song.dragging{
+  transform:translate3d(0,var(--drag-y,0px),0) scale(1.018)!important;
+  transition:none!important;
+  animation:none!important;
+  will-change:transform!important;
+  contain:paint;
+}
+.setlist-detail-song.dragging .setlist-drag-grip{
+  transform:scale(1.08)!important;
+  animation:none!important;
+}
+.setlist-detail-songs.drag-active .setlist-detail-song:not(.dragging){
+  transition:opacity .14s ease,border-color .14s ease,background-color .14s ease!important;
+}
+.setlist-detail-song[data-setlist-song-id]{
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+}
+@media(max-width:760px){
+  .setlist-detail-song.dragging{
+    box-shadow:0 12px 30px color-mix(in srgb,var(--accent) 24%,transparent)!important;
+  }
+}
