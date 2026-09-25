@@ -119,6 +119,13 @@ export interface Setlist {
 
 export type ActivityKind = 'create'|'update'|'import'|'complete'|'delete'|'restore'|'merge'|'export'|'backup_restore'|'play'
 
+export interface ActivityRestoreData {
+  kind:'song_field'
+  field:keyof SongDraft
+  value:unknown
+  label:string
+}
+
 export interface ActivityEntry {
   id:string
   kind:ActivityKind
@@ -130,5 +137,7 @@ export interface ActivityEntry {
   sessionId?:string
   setlistId?:string
   setlistName?:string
+  restoreData?:ActivityRestoreData
+  restoredAt?:string|null
   createdAt:string
 }
