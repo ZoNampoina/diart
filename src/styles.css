@@ -8899,3 +8899,37 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
     box-shadow:0 12px 30px color-mix(in srgb,var(--accent) 24%,transparent)!important;
   }
 }
+
+
+/* DI'ART 2.9.23 — ghost-based Android setlist drag */
+.setlist-detail-song.dragging{
+  transform:none!important;
+  animation:none!important;
+  transition:none!important;
+  opacity:.28!important;
+  border-style:dashed!important;
+  box-shadow:none!important;
+  background:color-mix(in srgb,var(--accent) 8%,var(--surface2))!important;
+}
+.setlist-drag-ghost{
+  position:fixed!important;
+  z-index:9999!important;
+  margin:0!important;
+  pointer-events:none!important;
+  touch-action:none!important;
+  opacity:.97!important;
+  border-color:var(--accent2)!important;
+  background:color-mix(in srgb,var(--accent) 18%,var(--surface2))!important;
+  box-shadow:0 18px 42px color-mix(in srgb,var(--accent) 30%,transparent)!important;
+  transform-origin:top left!important;
+  will-change:transform!important;
+  contain:layout paint style;
+}
+.setlist-drag-ghost .setlist-song-main,
+.setlist-drag-ghost button,
+.setlist-drag-ghost .setlist-drag-grip{
+  pointer-events:none!important;
+}
+.setlist-detail-songs.drag-active .setlist-detail-song:not(.dragging){
+  opacity:1!important;
+}
