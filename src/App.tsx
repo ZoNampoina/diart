@@ -1316,7 +1316,7 @@ function reviewDraftFromExternal(full:{title?:string;artist?:string;sourceUrl?:s
   return draft
 }
 
-function RecueilsPage({songs,setlists,refreshSetlists,entryMode,prefill,onImport,onComplete,onViewImported,onEditImported,toast}:{songs:Song[];setlists:Setlist[];refreshSetlists:()=>Promise<void>;entryMode:'tononkira'|null;prefill:{title?:string;artist?:string}|null;onImport:(draft:SongDraft)=>Promise<Song>;onComplete:(id:string,patch:Partial<SongDraft>)=>Promise<void>;onViewImported:(song:Song)=>void;onEditImported:(song:Song)=>void;toast:(s:string)=>void}) {
+function RecueilsPage({songs,setlists,refreshSetlists,entryMode,prefill,onImport,onComplete,onViewImported,onEditImported,toast}:{songs:Song[];setlists:Setlist[];refreshSetlists:()=>Promise<void>;entryMode:'tononkira'|null;prefill:{title?:string;artist?:string}|null;onImport:(draft:SongDraft)=>Promise<Song>;onComplete:(id:string,patch:Partial<SongDraft>)=>Promise<void>;onViewImported:(song:Song)=>void;onEditImported:(song:Song)=>void;toast:(s:string,action?:Toast['action'])=>void}) {
   const [preview,setPreview]=useState<SongDraft|null>(null)
   const [fileName,setFileName]=useState('')
   const [tononkiraTitle,setTononkiraTitle]=useState('')
