@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.22'
+const APP_VERSION='2.9.23'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1779,7 +1779,8 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
   const holdStart=useRef<{pointerId:number;index:number;x:number;y:number;grip:HTMLElement}|null>(null)
   const dragFrame=useRef<number|null>(null)
   const pendingDragPoint=useRef<{x:number;y:number}|null>(null)
-  const dragVisual=useRef<{id:string;row:HTMLElement;pointerOffsetY:number;translateY:number}|null>(null)
+  const dragVisual=useRef<{id:string;row:HTMLElement;ghost:HTMLElement;pointerOffsetY:number}|null>(null)
+  const suppressSongClickUntil=useRef(0)
   const orderRef=useRef<string[]>(orderIds)
 
   useEffect(()=>{orderRef.current=orderIds},[orderIds])
@@ -1790,7 +1791,7 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
     document.body.style.overscrollBehavior='none'
     return()=>{document.body.style.overscrollBehavior=previous}
   },[draggingId])
-  useEffect(()=>()=>{if(holdTimer.current!==null)window.clearTimeout(holdTimer.current);if(dragFrame.current!==null)cancelAnimationFrame(dragFrame.current)},[])
+  useEffect(()=>()=>{if(holdTimer.current!==null)window.clearTimeout(holdTimer.current);if(dragFrame.current!==null)cancelAnimationFrame(dragFrame.current);dragVisual.current?.ghost.remove()},[])
 
   const listSongs=useMemo(()=>orderIds.map(id=>songs.find(s=>s.id===id)).filter(Boolean) as Song[],[orderIds,songs])
   const available=useMemo(()=>songs.filter(s=>!orderIds.includes(s.id)),[songs,orderIds])
@@ -1824,17 +1825,18 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
         const nextRect=el.getBoundingClientRect()
         const dy=oldRect.top-nextRect.top
         if(Math.abs(dy)<1)return
-        el.animate([{transform:`translate3d(0,${dy}px,0)`},{transform:'translate3d(0,0,0)'}],{duration:170,easing:'cubic-bezier(.2,.8,.2,1)'})
+        const animation=el.animate(
+          [{transform:`translate3d(0,${dy}px,0)`},{transform:'translate3d(0,0,0)'}],
+          {duration:150,easing:'cubic-bezier(.2,.8,.2,1)'}
+        )
+        animation.onfinish=()=>animation.cancel()
       })
-      const visual=dragVisual.current
-      if(visual){
-        const rect=visual.row.getBoundingClientRect()
-        const layoutTop=rect.top-visual.translateY
-        const desiredTop=(pendingDragPoint.current?.y??(rect.top+visual.pointerOffsetY))-visual.pointerOffsetY
-        visual.translateY=desiredTop-layoutTop
-        visual.row.style.setProperty('--drag-y',`${visual.translateY}px`)
-      }
     })
+  }
+  const moveGhost=(y:number)=>{
+    const visual=dragVisual.current
+    if(!visual)return
+    visual.ghost.style.transform=`translate3d(0,${y-visual.pointerOffsetY}px,0)`
   }
   const startHold=(e:PointerEvent<HTMLElement>,index:number)=>{
     if(e.pointerType==='mouse')return
@@ -1854,8 +1856,18 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
       const row=[...document.querySelectorAll<HTMLElement>('[data-setlist-song-id]')].find(el=>el.dataset.setlistSongId===id)
       if(row){
         const rect=row.getBoundingClientRect()
-        dragVisual.current={id,row,pointerOffsetY:start.y-rect.top,translateY:0}
-        row.style.setProperty('--drag-y','0px')
+        const ghost=row.cloneNode(true) as HTMLElement
+        ghost.classList.remove('dragging')
+        ghost.classList.add('setlist-drag-ghost')
+        ghost.style.left=`${rect.left}px`
+        ghost.style.top='0'
+        ghost.style.width=`${rect.width}px`
+        ghost.style.height=`${rect.height}px`
+        ghost.style.transform=`translate3d(0,${rect.top}px,0)`
+        ghost.removeAttribute('data-setlist-index')
+        ghost.removeAttribute('data-setlist-song-id')
+        document.body.appendChild(ghost)
+        dragVisual.current={id,row,ghost,pointerOffsetY:start.y-rect.top}
       }
       setHoldingId(null)
       setDraggingId(id||null)
@@ -1867,11 +1879,7 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
     const visual=dragVisual.current
     if(from===null||!visual)return
 
-    const rect=visual.row.getBoundingClientRect()
-    const layoutTop=rect.top-visual.translateY
-    const desiredTop=y-visual.pointerOffsetY
-    visual.translateY=desiredTop-layoutTop
-    visual.row.style.setProperty('--drag-y',`${visual.translateY}px`)
+    moveGhost(y)
 
     const edge=76
     const vh=window.innerHeight
@@ -1932,9 +1940,10 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
     if(!wasDragging)return
     const visual=dragVisual.current
     if(visual){
-      visual.row.style.removeProperty('--drag-y')
+      visual.ghost.remove()
       dragVisual.current=null
     }
+    suppressSongClickUntil.current=Date.now()+320
     dragIndex.current=null
     dragPointer.current=null
     setDraggingId(null)
@@ -1949,7 +1958,7 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
 
   return <><div className="detail-nav setlist-detail-nav stage-entry-actions"><span/><div className="setlist-mode-actions"><button type="button" className="secondary" disabled={!listSongs.length} onClick={()=>setStage('rehearsal')}><Play/>Répétition</button><button type="button" className="primary" disabled={!listSongs.length} onClick={()=>setStage('live')}><Maximize2/>Live Mode</button></div></div>
   <section className="setlist-detail-hero" style={{minHeight:0}}><div className="setlist-detail-title"><span className="setlist-hero-icon"><ListMusic/></span><p className="eyebrow">Setlist</p><h1>{list.name}</h1><p>{listSongs.length} morceau{listSongs.length>1?'x':''} · {lyricsCount} avec paroles</p></div>{(totalSeconds>0||avgBpm!==null||lyricsCount>0)&&<div className="setlist-detail-metrics" role="list">{totalSeconds>0&&<div role="listitem"><span>Durée</span><b>{formatDuration(totalSeconds)}</b></div>}{avgBpm!==null&&<div role="listitem"><span>BPM moyen</span><b>{avgBpm}</b></div>}{lyricsCount>0&&<div role="listitem"><span>Paroles</span><b>{lyricsCount}/{listSongs.length}</b></div>}</div>}</section>
-  <section className="panel setlist-manager"><div className="panel-title-row setlist-order-head"><h2>Ordre des morceaux</h2><button className="bare-action setlist-add-button" aria-label="Ajouter des morceaux" title="Ajouter des morceaux" onClick={()=>setAddOpen(true)}><ListPlus/></button></div><div className={'setlist-detail-songs '+(draggingId?'drag-active':'')}>{listSongs.length?listSongs.map((s,i)=><div className={'setlist-detail-song '+(draggingId===s.id?'dragging ':'')+(dragShiftId===s.id?'drag-shift drag-shift-'+(dragDirection??'down'):'')} data-setlist-index={i} data-setlist-song-id={s.id} key={s.id}><span className="setlist-number">{i+1}</span><span className={'setlist-drag-grip '+(holdingId===s.id?'holding ':'')+(draggingId===s.id?'active ':'')} aria-label="Maintenir puis déplacer" title="Maintenir puis déplacer" onContextMenu={e=>e.preventDefault()} onPointerDown={e=>startHold(e,i)} onPointerMove={dragMove} onPointerUp={e=>void finishDrag(e)} onPointerCancel={e=>void finishDrag(e)}><GripVertical/></span><button className="setlist-song-main" onClick={()=>{if(!draggingId)onOpenSong(s)}}><b className="song-title-with-mark">{s.title}<SongLyricsMark song={s} compact/></b><small>{s.artist||'Artiste inconnu'}{s.bpm!==null?' · '+s.bpm+' BPM':''}</small></button><strong className={'setlist-song-key '+(!setlistSongDisplayKey(list,s)?'empty':'')} aria-hidden={!setlistSongDisplayKey(list,s)} title={setlistSongDisplayKey(list,s)?(setlistSongSavedTranspose(list,s)?`Transposition setlist ${formatSemitoneOffset(setlistSongSavedTranspose(list,s))}`:'Tonalité du morceau'):''}>{setlistSongDisplayKey(list,s)}{!s.originalKey&&s.personalKey&&setlistSongDisplayKey(list,s)&&<sup className="habitual-key-mark" title="Tonalité habituelle · tonalité originale non renseignée">★</sup>}{Boolean(setlistSongSavedTranspose(list,s))&&<small>{formatSemitoneOffset(setlistSongSavedTranspose(list,s))}</small>}</strong><div className="setlist-song-flags">{list.rehearsalNotes?.[s.id]&&<span>Notes</span>}{(list.rehearsalIssues?.[s.id]??[]).filter(issue=>!issue.resolvedAt).length>0&&<span className="issue-flag">{(list.rehearsalIssues?.[s.id]??[]).filter(issue=>!issue.resolvedAt).length} à revoir</span>}</div><button className="bare-action setlist-move-btn" disabled={i===0} aria-label="Monter" onClick={()=>void move(i,-1)}><ChevronUp/></button><button className="bare-action setlist-move-btn" disabled={i===listSongs.length-1} aria-label="Descendre" onClick={()=>void move(i,1)}><ChevronDown/></button><button className="bare-action danger-icon setlist-remove-btn" aria-label="Retirer" onClick={()=>void remove(s.id)}><X/></button></div>):<Empty text="Cette setlist est vide."/>}</div></section>
+  <section className="panel setlist-manager"><div className="panel-title-row setlist-order-head"><h2>Ordre des morceaux</h2><button className="bare-action setlist-add-button" aria-label="Ajouter des morceaux" title="Ajouter des morceaux" onClick={()=>setAddOpen(true)}><ListPlus/></button></div><div className={'setlist-detail-songs '+(draggingId?'drag-active':'')}>{listSongs.length?listSongs.map((s,i)=><div className={'setlist-detail-song '+(draggingId===s.id?'dragging ':'')+(dragShiftId===s.id?'drag-shift drag-shift-'+(dragDirection??'down'):'')} data-setlist-index={i} data-setlist-song-id={s.id} key={s.id}><span className="setlist-number">{i+1}</span><span className={'setlist-drag-grip '+(holdingId===s.id?'holding ':'')+(draggingId===s.id?'active ':'')} aria-label="Maintenir puis déplacer" title="Maintenir puis déplacer" onContextMenu={e=>e.preventDefault()} onPointerDown={e=>startHold(e,i)} onPointerMove={dragMove} onPointerUp={e=>void finishDrag(e)} onPointerCancel={e=>void finishDrag(e)}><GripVertical/></span><button className="setlist-song-main" onClick={e=>{if(draggingId||Date.now()<suppressSongClickUntil.current){e.preventDefault();e.stopPropagation();return}onOpenSong(s)}}><b className="song-title-with-mark">{s.title}<SongLyricsMark song={s} compact/></b><small>{s.artist||'Artiste inconnu'}{s.bpm!==null?' · '+s.bpm+' BPM':''}</small></button><strong className={'setlist-song-key '+(!setlistSongDisplayKey(list,s)?'empty':'')} aria-hidden={!setlistSongDisplayKey(list,s)} title={setlistSongDisplayKey(list,s)?(setlistSongSavedTranspose(list,s)?`Transposition setlist ${formatSemitoneOffset(setlistSongSavedTranspose(list,s))}`:'Tonalité du morceau'):''}>{setlistSongDisplayKey(list,s)}{!s.originalKey&&s.personalKey&&setlistSongDisplayKey(list,s)&&<sup className="habitual-key-mark" title="Tonalité habituelle · tonalité originale non renseignée">★</sup>}{Boolean(setlistSongSavedTranspose(list,s))&&<small>{formatSemitoneOffset(setlistSongSavedTranspose(list,s))}</small>}</strong><div className="setlist-song-flags">{list.rehearsalNotes?.[s.id]&&<span>Notes</span>}{(list.rehearsalIssues?.[s.id]??[]).filter(issue=>!issue.resolvedAt).length>0&&<span className="issue-flag">{(list.rehearsalIssues?.[s.id]??[]).filter(issue=>!issue.resolvedAt).length} à revoir</span>}</div><button className="bare-action setlist-move-btn" disabled={i===0} aria-label="Monter" onClick={()=>void move(i,-1)}><ChevronUp/></button><button className="bare-action setlist-move-btn" disabled={i===listSongs.length-1} aria-label="Descendre" onClick={()=>void move(i,1)}><ChevronDown/></button><button className="bare-action danger-icon setlist-remove-btn" aria-label="Retirer" onClick={()=>void remove(s.id)}><X/></button></div>):<Empty text="Cette setlist est vide."/>}</div></section>
   {configuredTransitions.length>0&&<section className="panel setlist-transitions"><div className="panel-title-row"><div><h2>Transitions</h2><small>Repères configurés entre les morceaux.</small></div></div><div className="transition-list">{configuredTransitions.map(({from,to,transition})=><button key={from.id+'-'+to.id} className="configured" onClick={()=>openTransition(from,to)}><span className="transition-route"><b>{from.title}</b><ChevronRight/><b>{to.title}</b></span><small>{transition.bars?transition.bars+' mesure'+(transition.bars>1?'s':'')+' · ':''}{transition.chords||transition.notes||'Transition configurée'}</small><Pencil/></button>)}</div></section>}
   {transitionPair&&<Modal className="transition-modal" title="Transition entre morceaux" onClose={()=>setTransitionPair(null)}><div className="transition-heading"><b>{transitionPair.from.title}</b><ChevronRight/><b>{transitionPair.to.title}</b></div><div className="transition-form"><label>Nombre de mesures<input type="number" min="1" value={transitionBars} onChange={e=>setTransitionBars(e.target.value)} placeholder="Ex. 4"/></label><label>Accords / progression<input value={transitionChords} onChange={e=>setTransitionChords(e.target.value)} placeholder="Ex. G → D/F# → Em"/></label><label className="span2">Consigne<textarea rows={4} value={transitionNotes} onChange={e=>setTransitionNotes(e.target.value)} placeholder="Ex. Pad seul, compter 4 mesures, sax entre sur Em…"/></label></div><div className="modal-actions"><button className="secondary" onClick={()=>setTransitionPair(null)}>Annuler</button><button className="primary" onClick={()=>void saveTransition()}><Save/>Enregistrer</button></div></Modal>}
   {addOpen&&<Modal className="setlist-add-modal" title="Ajouter des morceaux" onClose={closeAdd}><div className="setlist-add-mode"><button className={addMode==='song'?'active':''} onClick={()=>{setAddMode('song');setArtistPick('');setAddQuery('')}}><Search/>Rechercher un morceau</button><button className={addMode==='artist'?'active':''} onClick={()=>{setAddMode('artist');setArtistPick('');setAddQuery('')}}><UsersRound/>Rechercher un artiste</button></div><div className="setlist-add-search"><Search/><input value={addQuery} onChange={e=>setAddQuery(e.target.value)} placeholder={addMode==='song'?'Titre, artiste, tonalité, BPM…':'Nom de l’artiste…'}/>{addQuery&&<button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={()=>setAddQuery('')}><X/></button>}</div>{addMode==='song'?<div className="setlist-add-results">{songMatches.length?songMatches.map(s=><button key={s.id} onClick={()=>void addAndStay(s.id)}><span><b className="song-title-with-mark">{s.title}<SongLyricsMark song={s} compact/></b><small>{s.artist||'Artiste inconnu'}</small></span><span>{setlistSongDisplayKey(list,s)}{!s.originalKey&&s.personalKey&&setlistSongDisplayKey(list,s)&&<sup className="habitual-key-mark" title="Tonalité habituelle · tonalité originale non renseignée">★</sup>}{setlistSongDisplayKey(list,s)&&s.bpm!==null?' · ':''}{s.bpm!==null?s.bpm+' BPM':''}</span><Plus/></button>):<p className="muted-copy">Aucun morceau disponible.</p>}</div>:artistPick?<><button className="ghost setlist-artist-back" onClick={()=>setArtistPick('')}><ChevronLeft/>Artistes</button><div className="setlist-add-results">{artistSongs.map(s=><button key={s.id} onClick={()=>void addAndStay(s.id)}><span><b className="song-title-with-mark">{s.title}<SongLyricsMark song={s} compact/></b><small>{s.artist}</small></span><span>{setlistSongDisplayKey(list,s)}{!s.originalKey&&s.personalKey&&setlistSongDisplayKey(list,s)&&<sup className="habitual-key-mark" title="Tonalité habituelle · tonalité originale non renseignée">★</sup>}{setlistSongDisplayKey(list,s)&&s.bpm!==null?' · ':''}{s.bpm!==null?s.bpm+' BPM':''}</span><Plus/></button>)}</div></>:<div className="setlist-artist-results">{artistMatches.map(a=><button key={a} onClick={()=>setArtistPick(a)}><span className="avatar">{a[0]}</span><span><b>{a}</b><small>{available.filter(s=>s.artist.trim()===a).length} morceau(x) disponible(s)</small></span><ChevronRight/></button>)}</div>}</Modal>}
