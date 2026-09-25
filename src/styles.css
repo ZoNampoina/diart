@@ -9379,6 +9379,10 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
   border:1px solid #29444c;
   line-height:1.55;
 }
+.stage-rehearsal-editor textarea:focus{
+  border-color:#4f9ead;
+  box-shadow:0 0 0 2px rgba(79,158,173,.12);
+}
 .stage-edit-scope{
   display:grid;
   gap:8px;
