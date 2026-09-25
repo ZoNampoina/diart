@@ -165,25 +165,28 @@ function keyOffsetFromOriginal(original:string,target:string):number{
   return best
 }
 function setlistSongSavedTranspose(list:Setlist,song:Song):number{
-  const reference=song.originalKey
-  if(!reference)return 0
   const override=list.songOverrides?.[song.id]
   if(!override)return 0
-  if(override.key)return keyOffsetFromOriginal(reference,override.key)
-  if(Object.prototype.hasOwnProperty.call(override,'transpose')){
-    // Legacy overrides were calculated from the habitual key when present.
-    const legacyBase=song.personalKey||song.originalKey
-    const legacyKey=transposeKey(legacyBase,override.transpose??0)
-    return keyOffsetFromOriginal(reference,legacyKey)
+  const reference=normalizeKey(song.originalKey||song.personalKey)
+  if(override.key&&reference)return keyOffsetFromOriginal(reference,override.key)
+  if(!reference&&Object.prototype.hasOwnProperty.call(override,'transpose'))return override.transpose??0
+  if(reference&&Object.prototype.hasOwnProperty.call(override,'transpose')){
+    // Legacy overrides may have been calculated from the habitual key.
+    if(song.originalKey&&song.personalKey){
+      const legacyKey=transposeKey(song.personalKey,override.transpose??0)
+      return keyOffsetFromOriginal(song.originalKey,legacyKey)
+    }
+    return override.transpose??0
   }
   return 0
 }
 function setlistSongDisplayKey(list:Setlist,song:Song):string{
   const override=list.songOverrides?.[song.id]
   if(override?.key)return normalizeKey(override.key)
-  if(!song.originalKey)return normalizeKey(song.personalKey)
+  const reference=normalizeKey(song.originalKey||song.personalKey)
+  if(!reference)return ''
   const shift=setlistSongSavedTranspose(list,song)
-  return shift?transposeKey(song.originalKey,shift):song.originalKey
+  return shift?transposeKey(reference,shift):reference
 }
 
 function transitionKey(fromSongId:string,toSongId:string){return fromSongId+'::'+toSongId}
@@ -2146,11 +2149,14 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
   }
   const persistTranspose=(next:number)=>{
     setTranspose(next)
-    if(standalone||!song)return
-    const reference=song.originalKey
-    const selectedKey=reference?transposeKey(reference,next):''
+    if(!song)return
+    if(standalone)return
     const current=localOverridesRef.current
-    const nextOverrides={...current,[song.id]:{...(current[song.id]??{}),transpose:next,key:selectedKey}}
+    const override=current[song.id]??{}
+    const songReference=normalizeKey(song.originalKey||song.personalKey)
+    const reference=songReference||(override.key?transposeKey(override.key,-transpose):'')
+    const selectedKey=reference?transposeKey(reference,next):normalizeKey(override.key||'')
+    const nextOverrides={...current,[song.id]:{...override,transpose:next,key:selectedKey}}
     localOverridesRef.current=nextOverrides
     setLocalOverrides(nextOverrides)
     if(transposeSaveTimerRef.current!==null)window.clearTimeout(transposeSaveTimerRef.current)
@@ -2186,10 +2192,12 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
     await refresh()
   }
   const closeToSetlist=async()=>{await saveSetlistChoices();onClose()}
-  const baseKey=song.originalKey
-  const habitualOffset=baseKey&&song.personalKey&&normalizeKey(song.personalKey)!==normalizeKey(baseKey)?keyOffsetFromOriginal(baseKey,song.personalKey):null
+  const baseKey=normalizeKey(song.originalKey||song.personalKey)
+  const habitualOffset=song.originalKey&&song.personalKey&&normalizeKey(song.personalKey)!==normalizeKey(song.originalKey)?keyOffsetFromOriginal(song.originalKey,song.personalKey):null
   const stageList={...list,songOverrides:localOverrides}
-  const displayKey=setlistSongDisplayKey(stageList,song)
+  const overrideKey=normalizeKey(currentOverride.key||'')
+  const stageReferenceKey=baseKey||(overrideKey?transposeKey(overrideKey,-setlistSongSavedTranspose(stageList,song)):'')
+  const displayKey=stageReferenceKey?transposeKey(stageReferenceKey,transpose):overrideKey
   const displayChords=transposeChordText(effectiveChords,transpose)
   const chordSections=chordGuideSections(displayChords)
   const [transitionTop,setTransitionTop]=useState(112)
