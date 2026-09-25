@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.21'
+const APP_VERSION='2.9.22'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1779,6 +1779,7 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
   const holdStart=useRef<{pointerId:number;index:number;x:number;y:number;grip:HTMLElement}|null>(null)
   const dragFrame=useRef<number|null>(null)
   const pendingDragPoint=useRef<{x:number;y:number}|null>(null)
+  const dragVisual=useRef<{id:string;row:HTMLElement;pointerOffsetY:number;translateY:number}|null>(null)
   const orderRef=useRef<string[]>(orderIds)
 
   useEffect(()=>{orderRef.current=orderIds},[orderIds])
@@ -1823,8 +1824,16 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
         const nextRect=el.getBoundingClientRect()
         const dy=oldRect.top-nextRect.top
         if(Math.abs(dy)<1)return
-        el.animate([{transform:`translateY(${dy}px)`},{transform:'translateY(0)'}],{duration:180,easing:'cubic-bezier(.2,.8,.2,1)'})
+        el.animate([{transform:`translate3d(0,${dy}px,0)`},{transform:'translate3d(0,0,0)'}],{duration:170,easing:'cubic-bezier(.2,.8,.2,1)'})
       })
+      const visual=dragVisual.current
+      if(visual){
+        const rect=visual.row.getBoundingClientRect()
+        const layoutTop=rect.top-visual.translateY
+        const desiredTop=(pendingDragPoint.current?.y??(rect.top+visual.pointerOffsetY))-visual.pointerOffsetY
+        visual.translateY=desiredTop-layoutTop
+        visual.row.style.setProperty('--drag-y',`${visual.translateY}px`)
+      }
     })
   }
   const startHold=(e:PointerEvent<HTMLElement>,index:number)=>{
@@ -1841,38 +1850,53 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
       holdTimer.current=null
       dragPointer.current=pointer
       dragIndex.current=start.index
+      const id=orderRef.current[start.index]??''
+      const row=[...document.querySelectorAll<HTMLElement>('[data-setlist-song-id]')].find(el=>el.dataset.setlistSongId===id)
+      if(row){
+        const rect=row.getBoundingClientRect()
+        dragVisual.current={id,row,pointerOffsetY:start.y-rect.top,translateY:0}
+        row.style.setProperty('--drag-y','0px')
+      }
       setHoldingId(null)
-      setDraggingId(orderRef.current[start.index]??null)
+      setDraggingId(id||null)
       try{navigator.vibrate?.(18)}catch{}
     },260)
   }
   const processDragPoint=(x:number,y:number)=>{
     const from=dragIndex.current
-    if(from===null)return
-    const edge=72
+    const visual=dragVisual.current
+    if(from===null||!visual)return
+
+    const rect=visual.row.getBoundingClientRect()
+    const layoutTop=rect.top-visual.translateY
+    const desiredTop=y-visual.pointerOffsetY
+    visual.translateY=desiredTop-layoutTop
+    visual.row.style.setProperty('--drag-y',`${visual.translateY}px`)
+
+    const edge=76
     const vh=window.innerHeight
-    if(y<edge)window.scrollBy(0,-Math.max(3,Math.round((edge-y)/5)))
-    else if(y>vh-edge)window.scrollBy(0,Math.max(3,Math.round((y-(vh-edge))/5)))
-    const target=document.elementFromPoint(x,y)?.closest<HTMLElement>('[data-setlist-index]')
-    const to=target?Number(target.dataset.setlistIndex):-1
+    if(y<edge)window.scrollBy({top:-Math.min(18,Math.max(4,(edge-y)*.22)),behavior:'auto'})
+    else if(y>vh-edge)window.scrollBy({top:Math.min(18,Math.max(4,(y-(vh-edge))*.22)),behavior:'auto'})
+
+    const underneath=document.elementsFromPoint(x,y)
+      .map(el=>el.closest?.('[data-setlist-index]') as HTMLElement|null)
+      .find(el=>el&&el.dataset.setlistSongId!==visual.id)
+    const to=underneath?Number(underneath.dataset.setlistIndex):-1
     if(!Number.isInteger(to)||to<0||to>=orderRef.current.length||to===from)return
-    const rect=target!.getBoundingClientRect()
-    const center=rect.top+rect.height/2
+    const targetRect=underneath!.getBoundingClientRect()
+    const center=targetRect.top+targetRect.height/2
     if(to>from&&y<center)return
     if(to<from&&y>center)return
-    const movedId=orderRef.current[from]
+
     const before=new Map<string,DOMRect>()
     document.querySelectorAll<HTMLElement>('[data-setlist-song-id]').forEach(el=>{const id=el.dataset.setlistSongId;if(id)before.set(id,el.getBoundingClientRect())})
-    setDragShiftId(orderRef.current[to]??null)
-    setDragDirection(to<from?'up':'down')
     const ids=[...orderRef.current]
     const [moved]=ids.splice(from,1)
     ids.splice(to,0,moved)
     dragIndex.current=to
     orderRef.current=ids
     setOrderIds(ids)
-    animateReorder(before,movedId)
-    try{navigator.vibrate?.(6)}catch{}
+    animateReorder(before,visual.id)
   }
   const dragMove=(e:PointerEvent<HTMLElement>)=>{
     const start=holdStart.current
@@ -1906,6 +1930,11 @@ function SetlistDetailPage({list,songs,refresh,toast,onBack,onOpenSong}:{list:Se
     releaseHeldPointer(e.pointerId)
     holdStart.current=null
     if(!wasDragging)return
+    const visual=dragVisual.current
+    if(visual){
+      visual.row.style.removeProperty('--drag-y')
+      dragVisual.current=null
+    }
     dragIndex.current=null
     dragPointer.current=null
     setDraggingId(null)
