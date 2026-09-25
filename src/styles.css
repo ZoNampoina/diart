@@ -8782,3 +8782,94 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
 .notes-row-with-delete{display:grid;grid-template-columns:minmax(0,1fr) 36px;align-items:start;gap:8px}.notes-row-with-delete+.notes-row-with-delete{margin-top:8px}
 .history-row-tail{display:flex;align-items:flex-end;justify-content:center;gap:7px;flex-direction:column}.history-restore-btn{min-height:34px;padding:6px 9px;font-size:12px}.history-restore-btn svg,.history-restored svg{width:14px;height:14px}.history-restored{display:inline-flex;align-items:center;gap:5px;color:var(--accent2);font-size:11px;font-weight:700}
 @media(max-width:760px){.field-delete-action{opacity:.86}.history-row-tail{align-items:flex-start}.history-restore-btn{min-height:38px}.quick-delete-info>.info-row-with-delete{grid-template-columns:minmax(0,1fr) 40px}}
+
+
+/* DI'ART 2.9.21 — Android setlist drag: stable long-press + fluid reordering */
+.setlist-drag-grip{
+  position:relative;
+  isolation:isolate;
+  transition:color .16s ease,transform .18s cubic-bezier(.2,.8,.2,1),background-color .16s ease!important;
+  border-radius:10px;
+  touch-action:none!important;
+  overscroll-behavior:contain;
+}
+.setlist-drag-grip::after{
+  content:"";
+  position:absolute;
+  inset:5px;
+  z-index:-1;
+  border-radius:9px;
+  background:color-mix(in srgb,var(--accent) 14%,transparent);
+  opacity:0;
+  transform:scale(.72);
+  transition:opacity .16s ease,transform .22s cubic-bezier(.2,.8,.2,1);
+}
+.setlist-drag-grip.holding{
+  color:var(--accent2)!important;
+  transform:scale(1.07);
+}
+.setlist-drag-grip.holding::after{
+  opacity:1;
+  transform:scale(1);
+  animation:diartHoldPulse .72s ease-in-out infinite alternate;
+}
+.setlist-drag-grip.active{
+  color:var(--accent2)!important;
+  transform:scale(1.12);
+}
+.setlist-drag-grip.active::after{
+  opacity:1;
+  transform:scale(1.08);
+}
+.setlist-detail-songs.drag-active{
+  touch-action:none;
+  user-select:none;
+  -webkit-user-select:none;
+}
+.setlist-detail-songs.drag-active .setlist-detail-song{
+  transition:border-color .16s ease,background-color .16s ease,box-shadow .18s ease,opacity .16s ease!important;
+}
+.setlist-detail-song.dragging{
+  z-index:8!important;
+  opacity:1!important;
+  border-color:var(--accent2)!important;
+  background:color-mix(in srgb,var(--accent) 18%,var(--surface2))!important;
+  box-shadow:0 18px 42px color-mix(in srgb,var(--accent) 28%,transparent)!important;
+  animation:diartDragLiftSmooth .18s cubic-bezier(.2,.8,.2,1) both!important;
+}
+.setlist-detail-song.drag-shift:not(.dragging){
+  animation:diartDragSettle .18s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes diartHoldPulse{
+  from{opacity:.42;transform:scale(.88)}
+  to{opacity:.92;transform:scale(1.08)}
+}
+@keyframes diartDragLiftSmooth{
+  from{transform:scale(1);filter:saturate(1)}
+  to{transform:scale(1.025);filter:saturate(1.06)}
+}
+@keyframes diartDragSettle{
+  0%{opacity:.78}
+  100%{opacity:1}
+}
+@media(max-width:760px){
+  .setlist-drag-grip{
+    width:30px!important;
+    height:42px!important;
+    margin-left:-2px;
+  }
+  .setlist-drag-grip svg{
+    width:21px!important;
+    height:21px!important;
+  }
+  .setlist-detail-song.dragging{
+    box-shadow:0 14px 34px color-mix(in srgb,var(--accent) 25%,transparent)!important;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .setlist-drag-grip.holding::after,
+  .setlist-detail-song.dragging,
+  .setlist-detail-song.drag-shift:not(.dragging){
+    animation:none!important;
+  }
+}
