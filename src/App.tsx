@@ -1849,6 +1849,8 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
   const [showLiveRehearsalNotes,setShowLiveRehearsalNotes]=useState(false)
   const [stageEdit,setStageEdit]=useState<{field:'structure'|'chords'|'instrumentNotes'|'lyrics'|'musicianNotes';label:string;value:string;role?:string}|null>(null)
   const [stageEditChoosing,setStageEditChoosing]=useState(false)
+  const [stageKeyPickerOpen,setStageKeyPickerOpen]=useState(false)
+  const [stageKeyDraft,setStageKeyDraft]=useState('')
   const sessionId=useRef(crypto.randomUUID())
   const wakeLockRef=useRef<any>(null)
   const lastTapRef=useRef(0)
@@ -1857,6 +1859,8 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
   const contentRef=useRef<HTMLDivElement>(null)
   const songHeadRef=useRef<HTMLDivElement>(null)
   const swipeStart=useRef<{x:number;y:number}|null>(null)
+  const stageTouchMovedRef=useRef(false)
+  const stageLastGestureAtRef=useRef(0)
   const song=orderedSongs[index]??orderedSongs[0]
   const nextSong=orderedSongs[index+1]??null
   const currentOverride:NonNullable<Setlist['songOverrides']>[string]=song?(localOverrides[song.id]??{}):{}
@@ -2030,6 +2034,7 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
   const removeIssue=async(issueId:string)=>{const next={...localIssues,[song.id]:(localIssues[song.id]??[]).filter(issue=>issue.id!==issueId)};await persistIssues(next)}
   const openStageContentEditor=(field:'structure'|'chords'|'instrumentNotes'|'lyrics'|'musicianNotes',label:string,value:string,role?:string)=>{
     if(mode!=='rehearsal'||locked)return
+    if(stageTouchMovedRef.current||Date.now()-stageLastGestureAtRef.current<320)return
     setAutoScroll(false)
     setStageEdit({field,label,value,role})
     setStageEditChoosing(false)
@@ -2080,7 +2085,8 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
     setStageEditChoosing(false)
   }
   const beginSwipe=(e:TouchEvent<HTMLElement>)=>{
-    if(!gesturePrefs.swipeSongs||e.touches.length!==1){swipeStart.current=null;return}
+    stageTouchMovedRef.current=false
+    if(e.touches.length!==1){swipeStart.current=null;return}
     const t=e.touches[0]
     swipeStart.current={x:t.clientX,y:t.clientY}
   }
@@ -2090,6 +2096,10 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
     const t=e.touches[0]
     const dx=t.clientX-start.x
     const dy=t.clientY-start.y
+    if(Math.hypot(dx,dy)>7){
+      stageTouchMovedRef.current=true
+      stageLastGestureAtRef.current=Date.now()
+    }
     if(Math.abs(dy)>14&&Math.abs(dy)>Math.abs(dx)*1.05){
       if(autoScroll){setAutoScroll(false);showStageFeedback('Défilement manuel · pause')}
       swipeStart.current=null
@@ -2097,7 +2107,10 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
   }
   const endSwipe=(e:TouchEvent<HTMLElement>)=>{
     const start=swipeStart.current
+    const moved=stageTouchMovedRef.current
     swipeStart.current=null
+    if(moved)stageLastGestureAtRef.current=Date.now()
+    window.setTimeout(()=>{stageTouchMovedRef.current=false},0)
     if(!start||!gesturePrefs.swipeSongs||e.changedTouches.length!==1)return
     const t=e.changedTouches[0]
     const dx=t.clientX-start.x
@@ -2108,6 +2121,7 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
   const handleTap=(e:any)=>{
     if((e.target as HTMLElement)?.closest?.('button,input,textarea,select,a'))return
     const now=Date.now()
+    if(stageTouchMovedRef.current||now-stageLastGestureAtRef.current<320)return
     if(gesturePrefs.doubleTapPlay&&now-lastTapRef.current<320){
       setAutoScroll(v=>{const next=!v;showStageFeedback(next?'Défilement · Play':'Défilement · Stop');return next})
       lastTapRef.current=0
@@ -2116,6 +2130,7 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
   const beginLongPress=()=>{if(!gesturePrefs.longPressLock)return;if(longPressRef.current!==null)window.clearTimeout(longPressRef.current);longPressRef.current=window.setTimeout(()=>{setLocked(v=>!v);navigator.vibrate?.(25)},650)}
   const cancelLongPress=()=>{if(longPressRef.current!==null){window.clearTimeout(longPressRef.current);longPressRef.current=null}}
   const handleStageScroll=()=>{
+    stageLastGestureAtRef.current=Date.now()
     const scroller=contentRef.current
     const head=songHeadRef.current
     if(!scroller||!head)return
@@ -2143,6 +2158,26 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
       transposeSaveTimerRef.current=null
       void updateSetlist(list.id,{songOverrides:localOverridesRef.current}).then(()=>refresh())
     },180)
+  }
+  const saveStageKey=async(scope:'setlist'|'song')=>{
+    const key=normalizeKey(stageKeyDraft)
+    if(!song||!key)return
+    setTranspose(0)
+    if(scope==='setlist'&&!standalone){
+      const current=localOverridesRef.current
+      const nextOverrides={...current,[song.id]:{...(current[song.id]??{}),key,transpose:0}}
+      localOverridesRef.current=nextOverrides
+      setLocalOverrides(nextOverrides)
+      await updateSetlist(list.id,{songOverrides:nextOverrides})
+      await refresh()
+      toast('Tonalité ajoutée pour cette setlist.')
+    }else{
+      await updateSong(song.id,{originalKey:key})
+      await (refreshSongs?.()??Promise.resolve())
+      toast('Tonalité ajoutée à la fiche du morceau.')
+    }
+    setStageKeyDraft('')
+    setStageKeyPickerOpen(false)
   }
   const saveSetlistChoices=async()=>{
     if(standalone)return
@@ -2193,7 +2228,7 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
     </header>
 
     <main key={song.id} ref={contentRef} className={'stage-content stage-song-motion '+(navDirection>0?'motion-next':'motion-prev')} onScroll={handleStageScroll} onWheel={()=>{if(autoScroll){setAutoScroll(false);showStageFeedback('Défilement manuel · pause')}}} onClick={handleTap} onTouchStart={e=>{beginSwipe(e);beginLongPress()}} onTouchMove={e=>{moveSwipe(e);cancelLongPress()}} onTouchEnd={e=>{endSwipe(e);cancelLongPress()}} onTouchCancel={cancelLongPress} style={{minHeight:0,height:'100%',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',touchAction:'pan-y'}}>
-      <div ref={songHeadRef} className={'stage-song-head '+(showHeaderIdentity?'handoff':'')}><p>{song.artist||'Artiste inconnu'}</p><h1>{song.title}</h1><div className="stage-metrics">{displayKey&&<strong>{displayKey}</strong>}{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div></div>
+      <div ref={songHeadRef} className={'stage-song-head '+(showHeaderIdentity?'handoff':'')}><p>{song.artist||'Artiste inconnu'}</p><h1>{song.title}</h1><div className="stage-metrics">{displayKey?<strong>{displayKey}</strong>:mode==='rehearsal'&&!locked?<button type="button" className="stage-add-key secondary" onClick={e=>{e.preventDefault();e.stopPropagation();setStageKeyDraft('');setStageKeyPickerOpen(true)}}><Plus/>Tonalité</button>:null}{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div></div>
 
       {view==='lyrics'&&effectiveLyrics
         ?<pre className={'stage-lyrics '+(mode==='rehearsal'&&!locked?'rehearsal-click-edit':'')} style={{fontSize:lyricsFontSize}} onClick={e=>{if(mode==='rehearsal'&&!locked){e.stopPropagation();openStageContentEditor('lyrics','Paroles',effectiveLyrics)}}}>{effectiveLyrics}</pre>
@@ -2210,6 +2245,7 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
     <div className="stage-floating-tools">{stageTools}</div>
     {stageFeedback&&<div key={stageFeedback.id} className="stage-feedback" role="status">{stageFeedback.text}</div>}
     {stageEdit&&<div className="stage-rehearsal-editor-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget){setStageEdit(null);setStageEditChoosing(false)}}}><section className="stage-rehearsal-editor" role="dialog" aria-modal="true" aria-label={'Modifier '+stageEdit.label}><header><div><span>RÉPÉTITION</span><b>{stageEdit.label}</b></div><button type="button" aria-label="Fermer" onClick={()=>{setStageEdit(null);setStageEditChoosing(false)}}><X/></button></header><div className="stage-rehearsal-editor-body"><textarea autoFocus rows={12} value={stageEdit.value} onChange={e=>{setStageEdit({...stageEdit,value:e.target.value});setStageEditChoosing(false)}}/>{stageEditChoosing&&<div className="stage-edit-scope"><p>Où conserver cette modification ?</p><button type="button" className="secondary" onClick={()=>void saveStageContentEdit('setlist')}><ListMusic/><span><b>Cette setlist uniquement</b><small>Le morceau original reste inchangé.</small></span></button><button type="button" className="primary" onClick={()=>void saveStageContentEdit('song')}><Music2/><span><b>Fiche du morceau</b><small>La modification devient la version générale.</small></span></button></div>}</div><footer>{stageEditChoosing?<button type="button" className="secondary" onClick={()=>setStageEditChoosing(false)}><ChevronLeft/>Retour</button>:<><button type="button" className="secondary" onClick={()=>setStageEdit(null)}>Annuler</button><button type="button" className="primary" onClick={()=>setStageEditChoosing(true)}><Save/>Continuer</button></>}</footer></section></div>}
+    {stageKeyPickerOpen&&<div className="stage-rehearsal-editor-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget){setStageKeyPickerOpen(false);setStageKeyDraft('')}}}><section className="stage-rehearsal-editor stage-key-editor" role="dialog" aria-modal="true" aria-label="Ajouter une tonalité"><header><div><span>RÉPÉTITION</span><b>Ajouter une tonalité</b></div><button type="button" aria-label="Fermer" onClick={()=>{setStageKeyPickerOpen(false);setStageKeyDraft('')}}><X/></button></header><div className="stage-rehearsal-editor-body"><div className="stage-key-options">{KEY_OPTIONS.map(key=><button type="button" key={key} className={stageKeyDraft===key?'active':''} onClick={()=>setStageKeyDraft(key)}>{key}</button>)}</div><div className="stage-edit-scope"><p>{stageKeyDraft?'Tonalité choisie : '+stageKeyDraft:'Choisissez d’abord une tonalité.'}</p><button type="button" className="secondary" disabled={!stageKeyDraft} onClick={()=>void saveStageKey('setlist')}><ListMusic/><span><b>Cette setlist uniquement</b><small>La fiche générale du morceau reste inchangée.</small></span></button><button type="button" className="primary" disabled={!stageKeyDraft} onClick={()=>void saveStageKey('song')}><Music2/><span><b>Fiche du morceau</b><small>La tonalité devient la tonalité originale du morceau.</small></span></button></div></div><footer><button type="button" className="secondary" onClick={()=>{setStageKeyPickerOpen(false);setStageKeyDraft('')}}>Annuler</button></footer></section></div>}
     {nextSong&&<div className="stage-next-song"><span>SUIVANT</span><b>{nextSong.title}</b><small>{setlistSongDisplayKey(stageList,nextSong)}{setlistSongDisplayKey({...list,songOverrides:localOverrides},nextSong)&&nextSong.bpm!==null?' · ':''}{nextSong.bpm!==null?nextSong.bpm+' BPM':''}</small></div>}
     {showTransitionDetail&&nextSong&&<div className="stage-transition-popup-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget){setShowTransitionDetail(false);setTransitionEditing(false)}}}><section className="stage-transition-popup" role="dialog" aria-modal="true" aria-label="Transition vers le morceau suivant"><div className="stage-transition-popup-head"><div><span>TRANSITION</span><b>{song.title} <ChevronRight/> {nextSong.title}</b></div><div className="stage-transition-popup-actions">{!transitionEditing&&hasCurrentTransition&&<button type="button" onClick={()=>{loadStageTransitionDraft();setTransitionEditing(true)}} aria-label="Modifier la transition" title="Modifier"><Pencil/></button>}<button type="button" onClick={()=>{setShowTransitionDetail(false);setTransitionEditing(false)}} aria-label="Fermer"><X/></button></div></div>{transitionEditing?<div className="stage-transition-editor"><label>Nombre de mesures<input type="number" min="1" value={stageTransitionBars} onChange={e=>setStageTransitionBars(e.target.value)} placeholder="Ex. 4"/></label><label>Accords / progression<input value={stageTransitionChords} onChange={e=>setStageTransitionChords(e.target.value)} placeholder="Ex. G → D/F# → Em"/></label><label className="wide">Consigne<textarea rows={4} value={stageTransitionNotes} onChange={e=>setStageTransitionNotes(e.target.value)} placeholder="Ex. Pad seul, compter 4 mesures…"/></label><div className="stage-transition-editor-actions"><button className="secondary" onClick={()=>{if(hasCurrentTransition)setTransitionEditing(false);else setShowTransitionDetail(false)}}>Annuler</button><button className="primary" onClick={()=>void saveStageTransition()}><Save/>Enregistrer</button></div></div>:hasCurrentTransition&&<div className="stage-transition-popup-body">{currentTransition?.bars&&<div><span>Mesures</span><strong>{currentTransition.bars}</strong></div>}{currentTransition?.chords&&<div className="wide"><span>Accords / progression</span><strong>{currentTransition.chords}</strong></div>}{currentTransition?.notes&&<div className="wide"><span>Consigne</span><p>{currentTransition.notes}</p></div>}</div>}</section></div>}
     <div className="stage-floating-count" aria-label="Position dans la setlist">{index+1} / {orderedSongs.length}</div>
