@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.34'
+const APP_VERSION='2.9.35'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -296,6 +296,7 @@ function App() {
   const syncLockRef=useRef(false)
   const syncTimerRef=useRef<number|null>(null)
   const searchRef=useRef<HTMLInputElement>(null)
+  const sidebarSwipeRef=useRef<{x:number;y:number;active:boolean}|null>(null)
 
   const refreshSetlists=async()=>setSetlists((await db.setlists.toArray()).filter(x=>!x.deletedAt))
 
@@ -625,7 +626,34 @@ function App() {
     return()=>window.removeEventListener('keydown',onEscape)
   },[sectionMeta.back,sidebar])
 
-  return <div className="app-shell">
+  const beginSidebarSwipe=(e:TouchEvent<HTMLDivElement>)=>{
+    if(sidebar||e.touches.length!==1)return
+    if(!window.matchMedia('(max-width:1024px), (pointer:coarse)').matches)return
+    if(document.querySelector('.modal-backdrop,.stage-mode'))return
+    const touch=e.touches[0]
+    if(touch.clientX>48){sidebarSwipeRef.current=null;return}
+    sidebarSwipeRef.current={x:touch.clientX,y:touch.clientY,active:true}
+  }
+  const moveSidebarSwipe=(e:TouchEvent<HTMLDivElement>)=>{
+    const start=sidebarSwipeRef.current
+    if(!start?.active||e.touches.length!==1)return
+    const touch=e.touches[0]
+    const dx=touch.clientX-start.x
+    const dy=Math.abs(touch.clientY-start.y)
+    if(dy>18&&dy>Math.abs(dx)*1.15)sidebarSwipeRef.current={...start,active:false}
+  }
+  const endSidebarSwipe=(e:TouchEvent<HTMLDivElement>)=>{
+    const start=sidebarSwipeRef.current
+    sidebarSwipeRef.current=null
+    if(!start?.active)return
+    const touch=e.changedTouches[0]
+    if(!touch)return
+    const dx=touch.clientX-start.x
+    const dy=Math.abs(touch.clientY-start.y)
+    if(dx>=72&&dx>dy*1.35)setSidebar(true)
+  }
+
+  return <div className="app-shell" onTouchStart={beginSidebarSwipe} onTouchMove={moveSidebarSwipe} onTouchEnd={endSidebarSwipe} onTouchCancel={()=>{sidebarSwipeRef.current=null}}>
     <aside className={`sidebar ${sidebar?'open':''}`}>
       <div className="sidebar-head"><button className="brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><span className="brand-mark"><img className="brand-logo logo-night" src="./logo-night-v2.png" alt=""/><img className="brand-logo logo-day" src="./logo-day-v2.png" alt=""/></span><div><b>DI'ART</b><small>by ARIZONA <span className="brand-version">v{APP_VERSION}</span></small></div></button><button className="icon-btn sidebar-theme-toggle" title={theme==='system'?'Thème système actif':'Revenir au thème système'} aria-label={theme==='system'?'Thème système actif':'Revenir au thème système'} onClick={()=>setTheme(theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark'):'system')}>{theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?<Sun/>:<Moon/>):theme==='dark'?<Sun/>:<Moon/>}</button></div>
       <nav className="grouped-nav">{navGroupDefs.map(group=><div className="nav-group" key={group.label}><span className="nav-group-label">{group.label}</span>{group.ids.map(id=>{const item=navItems.find(x=>x[0]===id)!;const [,label,Icon]=item;return <button key={id} className={page===id?'active':''} onClick={()=>go(id)}><Icon size={19}/>{label}</button>})}</div>)}</nav>
