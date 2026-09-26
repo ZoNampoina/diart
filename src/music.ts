@@ -118,6 +118,17 @@ export function parseChordLyricsText(value:string):ParsedChordLyrics{
   }
 }
 
+export function transposeChordLyricsText(value:string,semitones:number):string{
+  if(!value||semitones===0)return value
+  return value.replace(/\r/g,'').split('\n').map(line=>{
+    if(isChordLine(line))return transposeChordText(line,semitones)
+    return line.replace(/\[([^\]]+)\]/g,(full,chord)=>{
+      const token=String(chord).trim()
+      return CHORD_TOKEN_RE.test(cleanChordToken(token))?'['+transposeChordText(token,semitones)+']':full
+    })
+  }).join('\n')
+}
+
 export function formatSemitoneOffset(value: number): string {
   if (value === 0) return '0'
   return value > 0 ? `+${value}` : String(value)
