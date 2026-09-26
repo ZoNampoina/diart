@@ -56,6 +56,68 @@ export function transposeChordText(value: string, semitones: number): string {
   }).join('')
 }
 
+
+export type ParsedChordLyrics = {
+  lyrics: string
+  chords: string
+  chordLyrics: string
+  chordLineCount: number
+}
+
+const CHORD_TOKEN_RE = /^[A-G](?:#|b|♯|♭)?(?:(?:maj|min|dim|aug|sus|add|m|M)?(?:2|4|5|6|7|9|11|13)?(?:[#b](?:5|9|11|13))?(?:\([^)]*\))?)*(?:\/[A-G](?:#|b|♯|♭)?)?$/
+
+function cleanChordToken(token:string):string{
+  return token.trim().replace(/^[|:;,]+|[|:;,]+$/g,'')
+}
+
+export function isChordLine(line:string):boolean{
+  const raw=line.trim()
+  if(!raw)return false
+  if(/^\[[^\]]+\]$/.test(raw))return false
+  const tokens=raw.split(/\s+/).map(cleanChordToken).filter(Boolean)
+  if(!tokens.length)return false
+  const musical=tokens.filter(token=>CHORD_TOKEN_RE.test(token))
+  if(musical.length!==tokens.length)return false
+  return musical.length>=1
+}
+
+export function parseChordLyricsText(value:string):ParsedChordLyrics{
+  const chordLyrics=String(value??'').replace(/\r/g,'').replace(/\u00a0/g,' ')
+  const lyricLines:string[]=[]
+  const chordLines:string[]=[]
+  let chordLineCount=0
+
+  for(const sourceLine of chordLyrics.split('\n')){
+    const line=sourceLine.replace(/[ \t]+$/,'')
+    const inline=[...line.matchAll(/\[([^\]]+)\]/g)]
+    if(inline.length){
+      const inlineChords=inline.map(x=>x[1].trim()).filter(Boolean)
+      const lyric=line.replace(/\[[^\]]+\]/g,'').trim()
+      if(inlineChords.length&&inlineChords.every(chord=>CHORD_TOKEN_RE.test(cleanChordToken(chord)))){
+        chordLines.push(inlineChords.join(' '))
+        chordLineCount++
+        if(lyric)lyricLines.push(lyric)
+        else if(lyricLines.length&&lyricLines[lyricLines.length-1]!=='')lyricLines.push('')
+        continue
+      }
+    }
+    if(isChordLine(line)){
+      chordLines.push(line.trim().replace(/\s+/g,' '))
+      chordLineCount++
+      continue
+    }
+    if(line.trim())lyricLines.push(line.trim())
+    else if(lyricLines.length&&lyricLines[lyricLines.length-1]!=='')lyricLines.push('')
+  }
+
+  return {
+    lyrics: lyricLines.join('\n').replace(/\n{3,}/g,'\n\n').trim(),
+    chords: chordLines.join('\n').replace(/\n{3,}/g,'\n\n').trim(),
+    chordLyrics: chordLyrics.trim(),
+    chordLineCount
+  }
+}
+
 export function formatSemitoneOffset(value: number): string {
   if (value === 0) return '0'
   return value > 0 ? `+${value}` : String(value)
@@ -113,7 +175,7 @@ export function emptySongDraft(): SongDraft {
   return {
     title: '', artist: '', authorComposer: '', originalKey: '', personalKey: '', bpm: null,
     timeSignature: '', style: '', durationSeconds: null, tags: [], notes: '', referenceUrl: '',
-    capo: null, structure: '', chords: '', instrumentNotes: '', musicianNotes: {}, lyrics: '', favorite: false, favoriteStatus: '', source: 'manual'
+    capo: null, structure: '', chords: '', chordLyrics: '', instrumentNotes: '', musicianNotes: {}, lyrics: '', favorite: false, favoriteStatus: '', source: 'manual'
   }
 }
 
@@ -155,7 +217,7 @@ export function searchSong(song: Song, query: string): boolean {
   const haystack = [
     song.title, song.artist, song.authorComposer, song.originalKey, song.personalKey,
     song.bpm ?? '', song.timeSignature, song.style, song.tags.join(' '), song.notes,
-    song.structure ?? '', song.chords ?? '', song.instrumentNotes ?? '',
+    song.structure ?? '', song.chords ?? '', song.chordLyrics ?? '', song.instrumentNotes ?? '',
     Object.entries(song.musicianNotes??{}).map(([role,note])=>role+' '+note).join(' '),song.lyrics ?? ''
   ].map((v) => normalizeIdentity(String(v))).join(' ')
   const terms=normalizeIdentity(residual).split(' ').filter(Boolean)
