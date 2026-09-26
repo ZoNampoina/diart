@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.36'
+const APP_VERSION='2.9.37'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1930,6 +1930,8 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
   const swipeStart=useRef<{x:number;y:number}|null>(null)
   const stageTouchMovedRef=useRef(false)
   const stageLastGestureAtRef=useRef(0)
+  const autoScrollTouchResumeRef=useRef(false)
+  const autoScrollTouchResumeTimerRef=useRef<number|null>(null)
   const song=orderedSongs[index]??orderedSongs[0]
   const nextSong=orderedSongs[index+1]??null
   const currentOverride:NonNullable<Setlist['songOverrides']>[string]=song?(localOverrides[song.id]??{}):{}
@@ -1947,7 +1949,7 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
   const showStageFeedback=(text:string)=>{const id=Date.now()+Math.random();setStageFeedback({id,text});window.setTimeout(()=>setStageFeedback(prev=>prev?.id===id?null:prev),850)}
   const go=(delta:number)=>{setAutoScroll(false);setNavDirection(delta<0?-1:1);setIndex(current=>Math.max(0,Math.min(orderedSongs.length-1,current+delta)))}
 
-  useEffect(()=>()=>{if(transposeSaveTimerRef.current!==null)window.clearTimeout(transposeSaveTimerRef.current);if(!standalone)void updateSetlist(list.id,{songOverrides:localOverridesRef.current})},[])
+  useEffect(()=>()=>{if(transposeSaveTimerRef.current!==null)window.clearTimeout(transposeSaveTimerRef.current);if(autoScrollTouchResumeTimerRef.current!==null)window.clearTimeout(autoScrollTouchResumeTimerRef.current);if(!standalone)void updateSetlist(list.id,{songOverrides:localOverridesRef.current})},[])
   useEffect(()=>{try{localStorage.setItem('diart-stage-font',String(lyricsFontSize))}catch{}},[lyricsFontSize])
   useEffect(()=>{try{localStorage.setItem('diart-stage-scroll-speed',String(scrollSpeed))}catch{}},[scrollSpeed])
   useEffect(()=>{try{localStorage.setItem('diart-stage-tools-collapsed',toolsCollapsed?'1':'0')}catch{}},[toolsCollapsed])
@@ -2153,6 +2155,17 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
     setStageEdit(null)
     setStageEditChoosing(false)
   }
+  const scheduleTouchAutoScrollResume=()=>{
+    if(!autoScrollTouchResumeRef.current)return
+    if(autoScrollTouchResumeTimerRef.current!==null)window.clearTimeout(autoScrollTouchResumeTimerRef.current)
+    autoScrollTouchResumeTimerRef.current=window.setTimeout(()=>{
+      autoScrollTouchResumeTimerRef.current=null
+      if(!autoScrollTouchResumeRef.current)return
+      autoScrollTouchResumeRef.current=false
+      setAutoScroll(true)
+      showStageFeedback('Défilement · reprise')
+    },320)
+  }
   const beginSwipe=(e:TouchEvent<HTMLElement>)=>{
     stageTouchMovedRef.current=false
     if(e.touches.length!==1){swipeStart.current=null;return}
@@ -2170,7 +2183,12 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
       stageLastGestureAtRef.current=Date.now()
     }
     if(Math.abs(dy)>14&&Math.abs(dy)>Math.abs(dx)*1.05){
-      if(autoScroll){setAutoScroll(false);showStageFeedback('Défilement manuel · pause')}
+      if(autoScroll){
+        autoScrollTouchResumeRef.current=true
+        if(autoScrollTouchResumeTimerRef.current!==null){window.clearTimeout(autoScrollTouchResumeTimerRef.current);autoScrollTouchResumeTimerRef.current=null}
+        setAutoScroll(false)
+        showStageFeedback('Défilement manuel · pause')
+      }
       swipeStart.current=null
     }
   }
@@ -2180,6 +2198,7 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
     swipeStart.current=null
     if(moved)stageLastGestureAtRef.current=Date.now()
     window.setTimeout(()=>{stageTouchMovedRef.current=false},0)
+    scheduleTouchAutoScrollResume()
     if(!start||!gesturePrefs.swipeSongs||e.changedTouches.length!==1)return
     const t=e.changedTouches[0]
     const dx=t.clientX-start.x
@@ -2301,7 +2320,7 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
       <div className="stage-top-actions" style={{gridColumn:3,justifySelf:'end'}}><button type="button" className={'stage-lock-toggle '+(locked?'active':'')} aria-label={locked?'Déverrouiller Live':'Verrouiller Live'} title={locked?'Déverrouiller':'Verrouiller'} onClick={()=>setLocked(v=>!v)}>{locked?<Lock/>:<Unlock/>}</button><button type="button" className="stage-theme-toggle" aria-label={stageTheme==='dark'?'Passer en mode jour':'Passer en mode nuit'} title={stageTheme==='dark'?'Mode jour':'Mode nuit'} onClick={()=>setStageTheme(t=>t==='dark'?'light':'dark')}>{stageTheme==='dark'?<Sun/>:<Moon/>}</button><button type="button" className="live-close" disabled={locked} onClick={()=>void closeToSetlist()} aria-label="Fermer"><X/></button></div>
     </header>
 
-    <main key={song.id} ref={contentRef} className={'stage-content stage-song-motion '+(navDirection>0?'motion-next':'motion-prev')} onScroll={handleStageScroll} onWheel={()=>{if(autoScroll){setAutoScroll(false);showStageFeedback('Défilement manuel · pause')}}} onClick={handleTap} onTouchStart={e=>{beginSwipe(e);beginLongPress()}} onTouchMove={e=>{moveSwipe(e);cancelLongPress()}} onTouchEnd={e=>{endSwipe(e);cancelLongPress()}} onTouchCancel={cancelLongPress} style={{minHeight:0,height:'100%',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',touchAction:'pan-y'}}>
+    <main key={song.id} ref={contentRef} className={'stage-content stage-song-motion '+(navDirection>0?'motion-next':'motion-prev')} onScroll={handleStageScroll} onWheel={()=>{if(autoScroll){setAutoScroll(false);showStageFeedback('Défilement manuel · pause')}}} onClick={handleTap} onTouchStart={e=>{beginSwipe(e);beginLongPress()}} onTouchMove={e=>{moveSwipe(e);cancelLongPress()}} onTouchEnd={e=>{endSwipe(e);cancelLongPress()}} onTouchCancel={()=>{cancelLongPress();scheduleTouchAutoScrollResume()}} style={{minHeight:0,height:'100%',overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch',overscrollBehavior:'contain',touchAction:'pan-y'}}>
       <div ref={songHeadRef} className={'stage-song-head '+(showHeaderIdentity?'handoff':'')}><p>{song.artist||'Artiste inconnu'}</p><h1>{song.title}</h1><div className="stage-metrics">{displayKey?<strong>{displayKey}</strong>:mode==='rehearsal'&&!locked?<button type="button" className="stage-add-key secondary" onClick={e=>{e.preventDefault();e.stopPropagation();setStageKeyDraft('');setStageKeyPickerOpen(true)}}><Plus/>Tonalité</button>:null}{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div></div>
 
       {view==='lyrics'&&effectiveLyrics
