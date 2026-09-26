@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.40'
+const APP_VERSION='2.9.41'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1355,7 +1355,7 @@ function tononkiraBlocksToLyrics(blocks:TononkiraStructureBlock[]):string{
   return blocks.map(b=>b.text.split('\n').map(line=>line.trim()).filter(Boolean).join('\n')).filter(Boolean).join('\n\n').trim()
 }
 
-function reviewDraftFromExternal(full:{title?:string;artist?:string;sourceUrl?:string;source?:string;structure?:string;chords?:string;lyrics?:string;originalKey?:string;bpm?:number|null},fallback:{title:string;artist:string;url:string}):SongDraft{
+function reviewDraftFromExternal(full:{title?:string;artist?:string;sourceUrl?:string;source?:string;structure?:string;chords?:string;chordLyrics?:string;lyrics?:string;originalKey?:string;bpm?:number|null},fallback:{title:string;artist:string;url:string}):SongDraft{
   const draft=emptySongDraft()
   draft.title=full.title||fallback.title
   draft.artist=full.artist||fallback.artist
@@ -1364,6 +1364,7 @@ function reviewDraftFromExternal(full:{title?:string;artist?:string;sourceUrl?:s
   draft.bpm=full.bpm??null
   draft.chords=full.chords||''
   draft.lyrics=normalizeImportedLyrics(full.lyrics||'')
+  draft.chordLyrics=String(full.chordLyrics||'').trim()||(draft.chords.trim()&&draft.lyrics.trim()?combineLyricsAndChords(draft.lyrics,draft.chords):'')
   draft.referenceUrl=full.sourceUrl||fallback.url
   draft.notes='Source recueil : '+(full.source||'Externe')
   draft.source='import'
@@ -2343,7 +2344,7 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
       <div className="stage-left-stack" style={{gridColumn:1,justifySelf:'start'}}>{!standalone&&<div className="stage-list-context"><span>{mode==='rehearsal'?'Répétition':'Live Mode'}</span><b>{list.name}</b></div>}</div>
       <div className={'stage-current-song '+(showHeaderIdentity?'identity-visible':'identity-hidden')} style={{gridColumn:2,justifySelf:'center',textAlign:'center'}}>
         <div className="stage-header-identity" aria-hidden={!showHeaderIdentity}><b>{song.title}</b><small>{song.artist||'Artiste inconnu'}</small></div>
-        {(hasGuide||effectiveLyrics||effectiveChordLyrics.trim()||(effectiveLyrics&&effectiveChords))&&<div className="stage-view-tabs">{hasGuide&&<button type="button" className={view==='guide'?'active':''} onClick={()=>{setView('guide');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Repères</button>}{effectiveLyrics&&<button type="button" className={view==='lyrics'?'active':''} onClick={()=>{setView('lyrics');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Paroles</button>}{(effectiveChordLyrics.trim()||(effectiveLyrics&&effectiveChords))&&<button type="button" className={view==='both'?'active':''} title="Accords + paroles" aria-label="Accords + paroles" onClick={()=>{setView('both');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>&amp;</button>}</div>}
+        {(hasGuide||effectiveLyrics||effectiveChordLyrics.trim()||(effectiveLyrics&&effectiveChords))&&<div className="stage-view-tabs">{hasGuide&&<button type="button" className={view==='guide'?'active':''} onClick={()=>{setView('guide');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Repères</button>}{(effectiveChordLyrics.trim()||(effectiveLyrics&&effectiveChords))&&<button type="button" className={'stage-view-combined '+(view==='both'?'active':'')} title="Accords + paroles" aria-label="Accords + paroles" onClick={()=>{setView('both');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>&amp;</button>}{effectiveLyrics&&<button type="button" className={view==='lyrics'?'active':''} onClick={()=>{setView('lyrics');setAutoScroll(false);requestAnimationFrame(()=>contentRef.current?.scrollTo({top:0}))}}>Paroles</button>}</div>}
       </div>
       <div className="stage-top-actions" style={{gridColumn:3,justifySelf:'end'}}><button type="button" className={'stage-lock-toggle '+(locked?'active':'')} aria-label={locked?'Déverrouiller Live':'Verrouiller Live'} title={locked?'Déverrouiller':'Verrouiller'} onClick={()=>setLocked(v=>!v)}>{locked?<Lock/>:<Unlock/>}</button><button type="button" className="stage-theme-toggle" aria-label={stageTheme==='dark'?'Passer en mode jour':'Passer en mode nuit'} title={stageTheme==='dark'?'Mode jour':'Mode nuit'} onClick={()=>setStageTheme(t=>t==='dark'?'light':'dark')}>{stageTheme==='dark'?<Sun/>:<Moon/>}</button><button type="button" className="live-close" disabled={locked} onClick={()=>void closeToSetlist()} aria-label="Fermer"><X/></button></div>
     </header>
