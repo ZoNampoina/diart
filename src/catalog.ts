@@ -116,6 +116,7 @@ export interface ExternalRecueilImport {
   source:string
   structure?:string
   chords?:string
+  chordLyrics?:string
   lyrics?:string
   originalKey?:string
   bpm?:number|null
