@@ -9919,3 +9919,7 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
     flex-basis:112px!important;
   }
 }
+
+/* DI'ART 2.9.41 — compact combined stage tab */
+.stage-view-tabs .stage-view-combined{padding-inline:8px;min-width:30px;width:30px;font-size:15px;line-height:1}
+@media(max-width:760px){.stage-view-tabs{gap:3px;padding:3px}.stage-view-tabs button{padding:8px 10px}.stage-view-tabs .stage-view-combined{padding-inline:6px;min-width:28px;width:28px}}
