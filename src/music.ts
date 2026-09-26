@@ -118,6 +118,36 @@ export function parseChordLyricsText(value:string):ParsedChordLyrics{
   }
 }
 
+export function combineLyricsAndChords(lyrics:string,chords:string):string{
+  const lyricLines=String(lyrics??'').replace(/\r/g,'').split('\n')
+  const chordLines=String(chords??'').replace(/\r/g,'').split('\n')
+  const lyricNonEmpty=lyricLines.filter(line=>line.trim())
+  const chordNonEmpty=chordLines.filter(line=>line.trim()&&!/^\[[^\]]+\]$/.test(line.trim()))
+  if(!lyricNonEmpty.length)return String(chords??'').trim()
+  if(!chordNonEmpty.length)return String(lyrics??'').trim()
+
+  const out:string[]=[]
+  let chordIndex=0
+  for(const lyric of lyricLines){
+    if(!lyric.trim()){if(out.length&&out[out.length-1]!=='')out.push('');continue}
+    while(chordIndex<chordLines.length&&/^\[[^\]]+\]$/.test(chordLines[chordIndex].trim())){
+      const section=chordLines[chordIndex].trim()
+      if(section)out.push(section)
+      chordIndex++
+    }
+    const chord=chordIndex<chordLines.length?chordLines[chordIndex].trim():''
+    if(chord)out.push(chord)
+    out.push(lyric)
+    chordIndex++
+  }
+  while(chordIndex<chordLines.length){
+    const rest=chordLines[chordIndex].trim()
+    if(rest)out.push(rest)
+    chordIndex++
+  }
+  return out.join('\n').replace(/\n{3,}/g,'\n\n').trim()
+}
+
 export function transposeChordLyricsText(value:string,semitones:number):string{
   if(!value||semitones===0)return value
   return value.replace(/\r/g,'').split('\n').map(line=>{
