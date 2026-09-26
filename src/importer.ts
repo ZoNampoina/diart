@@ -34,6 +34,7 @@ const aliases: Record<ImportField, string[]> = {
   capo:['capo','capodastre'],
   structure:['structure','song structure','plan'],
   chords:['accords','chords','grille','grille accords'],
+  chordLyrics:['paroles + accords','lyrics + chords','lyrics chords','chord lyrics','paroles accords'],
   instrumentNotes:['notes instrumentales','instrument notes','repères instrument','reperes instrument'],
   lyrics:['paroles','lyrics','texte','song lyrics']
 }
