@@ -1,5 +1,5 @@
 import type { SongDraft } from './types'
-import { emptySongDraft, normalizeKey, parseBpm } from './music'
+import { combineLyricsAndChords, emptySongDraft, normalizeKey, parseBpm } from './music'
 
 export type RecueilSource = {
   id:string
@@ -95,6 +95,7 @@ export function parseChordPro(text:string):SongDraft{
 
   draft.lyrics=lyrics.join('\n').replace(/\n{3,}/g,'\n\n').trim()
   draft.chords=chordRows.join('\n').replace(/\n{3,}/g,'\n\n').trim()
+  draft.chordLyrics=combineLyricsAndChords(draft.lyrics,draft.chords)
   if(!draft.title) draft.title='Morceau ChordPro'
   return draft
 }
