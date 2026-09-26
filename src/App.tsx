@@ -10,14 +10,14 @@ import {
 } from 'lucide-react'
 import { db, createSong, ensureDemoSeed, getSetting, markViewed, setSetting, softDeleteSong, restoreSong, updateSong, createSetlist, updateSetlist, logActivity, markActivityRestored, listActivity } from './db'
 import type { ActivityEntry, ActivityKind, FavoriteStatus, ImportField, ImportMapping, ImportRowPreview, Song, SongDraft, Setlist, StageRole } from './types'
-import { duplicateKey, emptySongDraft, formatDuration, normalizeIdentity, normalizeKey, parseBpm, parseDuration, searchSong, transposeKey, transposeChordText, transposeChordLyricsText, combineLyricsAndChords, parseChordLyricsText, formatSemitoneOffset } from './music'
+import { duplicateKey, emptySongDraft, formatDuration, normalizeIdentity, normalizeKey, parseBpm, parseDuration, searchSong, transposeKey, transposeChordText, transposeChordLyricsText, combineLyricsAndChords, isChordLine, parseChordLyricsText, formatSemitoneOffset } from './music'
 import { parseWorkbook, rowsToPreview, suggestMapping, type ParsedWorkbook } from './importer'
 import { exportCsv, exportJson, exportXlsx, restoreJson } from './exporter'
 import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToLocal, resolveSyncConflict, resolveMergedSyncConflict, type SyncConflict } from './cloud'
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.41'
+const APP_VERSION='2.9.42'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -2353,7 +2353,7 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
       <div ref={songHeadRef} className={'stage-song-head '+(showHeaderIdentity?'handoff':'')}><p>{song.artist||'Artiste inconnu'}</p><h1>{song.title}</h1><div className="stage-metrics">{displayKey?<strong>{displayKey}</strong>:mode==='rehearsal'&&!locked?<button type="button" className="stage-add-key secondary" onClick={e=>{e.preventDefault();e.stopPropagation();setStageKeyDraft('');setStageKeyPickerOpen(true)}}><Plus/>Tonalité</button>:null}{song.bpm!==null&&<span>{song.bpm} BPM</span>}{song.timeSignature&&<span>{song.timeSignature}</span>}</div></div>
 
       {view==='both'&&displayChordLyrics.trim()
-        ?<pre className={'stage-lyrics stage-chord-lyrics '+(mode==='rehearsal'&&!locked?'rehearsal-click-edit':'')} style={{fontSize:lyricsFontSize}} onClick={e=>{if(mode==='rehearsal'&&!locked){e.stopPropagation();openStageContentEditor('chordLyrics','Paroles + accords',effectiveChordLyrics)}}}>{displayChordLyrics}</pre>
+        ?<div className={'stage-lyrics stage-chord-lyrics '+(mode==='rehearsal'&&!locked?'rehearsal-click-edit':'')} style={{fontSize:lyricsFontSize}} onClick={e=>{if(mode==='rehearsal'&&!locked){e.stopPropagation();openStageContentEditor('chordLyrics','Paroles + accords',effectiveChordLyrics)}}}>{displayChordLyrics.split('\n').map((line,i)=><span key={i} className={isChordLine(line)?'stage-chord-line':'stage-lyric-line'}>{line||'\u00a0'}</span>)}</div>
         :view==='lyrics'&&effectiveLyrics
         ?<pre className={'stage-lyrics '+(mode==='rehearsal'&&!locked?'rehearsal-click-edit':'')} style={{fontSize:lyricsFontSize}} onClick={e=>{if(mode==='rehearsal'&&!locked){e.stopPropagation();openStageContentEditor('lyrics','Paroles',effectiveLyrics)}}}>{effectiveLyrics}</pre>
         :hasGuide?<div className="stage-guide stage-guide-modern">
