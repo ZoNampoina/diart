@@ -43,6 +43,7 @@ export interface Song {
   capo?: number | null
   structure?: string
   chords?: string
+  chordLyrics?: string
   instrumentNotes?: string
   musicianNotes?: Record<string,string>
   lyrics?: string
@@ -87,6 +88,7 @@ export type ImportField =
   | 'capo'
   | 'structure'
   | 'chords'
+  | 'chordLyrics'
   | 'instrumentNotes'
   | 'lyrics'
 
@@ -110,7 +112,7 @@ export interface Setlist {
   rehearsalNotes?: Record<string,string>
   rehearsalIssues?: Record<string,RehearsalIssue[]>
   transitions?: Record<string,SetlistTransition>
-  songOverrides?: Record<string,{key?:string;bpm?:number|null;notes?:string;transpose?:number;structure?:string;chords?:string;instrumentNotes?:string;musicianNotes?:Record<string,string>;lyrics?:string}>
+  songOverrides?: Record<string,{key?:string;bpm?:number|null;notes?:string;transpose?:number;structure?:string;chords?:string;chordLyrics?:string;instrumentNotes?:string;musicianNotes?:Record<string,string>;lyrics?:string}>
   createdAt: string
   updatedAt: string
   deletedAt: string | null
