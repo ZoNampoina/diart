@@ -9923,3 +9923,23 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
 /* DI'ART 2.9.41 — compact combined stage tab */
 .stage-view-tabs .stage-view-combined{padding-inline:8px;min-width:30px;width:30px;font-size:15px;line-height:1}
 @media(max-width:760px){.stage-view-tabs{gap:3px;padding:3px}.stage-view-tabs button{padding:8px 10px}.stage-view-tabs .stage-view-combined{padding-inline:6px;min-width:28px;width:28px}}
+
+/* DI'ART 2.9.42 — colored combined view + opaque stage controls */
+.stage-chord-lyrics{display:block;text-align:left!important;font-family:inherit}
+.stage-chord-lyrics>span{display:block;white-space:pre-wrap;min-height:1.7em}
+.stage-chord-lyrics .stage-chord-line{color:#e0bd5e;font-family:Consolas,ui-monospace,SFMono-Regular,monospace;font-weight:800}
+.stage-chord-lyrics .stage-lyric-line{color:#f2fbfc;font-family:inherit;font-weight:500}
+.stage-session-tools,
+.stage-tools-body,
+.stage-control-group{backdrop-filter:none!important;filter:none!important}
+.stage-control-group{background:#08171c!important;border:1px solid #17323a!important}
+.stage-control-group button,
+.stage-tools-toggle{background:#0d252c!important;border:1px solid #1b3a42!important;color:#a7cbd0!important;box-shadow:none!important}
+.stage-control-group button:hover:not(:disabled),
+.stage-tools-toggle:hover{background:#133640!important;color:#f2fbfc!important}
+.stage-control-group button.active,
+.stage-control-group .active,
+.stage-autoscroll-toggle.active{background:#16505c!important;color:#e7fbff!important;border-color:#2f7c8b!important}
+.stage-control-group select,
+.stage-control-group input[type="range"]{background:#0d252c!important}
+@media(max-width:760px){.stage-chord-lyrics{width:min(96%,820px)!important;max-width:96%!important;text-align:left!important}.stage-chord-lyrics>span{min-height:1.65em}}
