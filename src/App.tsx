@@ -10,14 +10,14 @@ import {
 } from 'lucide-react'
 import { db, createSong, ensureDemoSeed, getSetting, markViewed, setSetting, softDeleteSong, restoreSong, updateSong, createSetlist, updateSetlist, logActivity, markActivityRestored, listActivity } from './db'
 import type { ActivityEntry, ActivityKind, FavoriteStatus, ImportField, ImportMapping, ImportRowPreview, Song, SongDraft, Setlist, StageRole } from './types'
-import { duplicateKey, emptySongDraft, formatDuration, normalizeIdentity, normalizeKey, parseBpm, parseDuration, searchSong, transposeKey, transposeChordText, formatSemitoneOffset } from './music'
+import { duplicateKey, emptySongDraft, formatDuration, normalizeIdentity, normalizeKey, parseBpm, parseDuration, searchSong, transposeKey, transposeChordText, transposeChordLyricsText, parseChordLyricsText, formatSemitoneOffset } from './music'
 import { parseWorkbook, rowsToPreview, suggestMapping, type ParsedWorkbook } from './importer'
 import { exportCsv, exportJson, exportXlsx, restoreJson } from './exporter'
 import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToLocal, resolveSyncConflict, resolveMergedSyncConflict, type SyncConflict } from './cloud'
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 
-const APP_VERSION='2.9.37'
+const APP_VERSION='2.9.38'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -41,8 +41,8 @@ const MUSICIAN_ROLES=['Piano','Clavier','Guitare','Basse','Batterie','Sax','Chœ
 const FAVORITE_STATUS_OPTIONS:[FavoriteStatus,string][]=[['','Aucun statut'],['favorite','Favori'],['learn','À apprendre'],['rehearse','À répéter'],['mastered','Maîtrisé'],['review','À revoir']]
 const DEFAULT_SHORTCUTS={search:'/',newSong:'n',setlists:'s',favorites:'f'}
 const DEFAULT_GESTURES={swipeSongs:true,doubleTapPlay:true,longPressLock:true}
-type QuickDeleteField='originalKey'|'personalKey'|'bpm'|'timeSignature'|'capo'|'durationSeconds'|'tags'|'favoriteStatus'|'structure'|'chords'|'instrumentNotes'|'musicianNotes'|'lyrics'|'notes'|'referenceUrl'
-const QUICK_DELETE_LABELS:Record<QuickDeleteField,string>={originalKey:'Tonalité originale',personalKey:'Tonalité habituelle',bpm:'BPM',timeSignature:'Signature',capo:'Capo',durationSeconds:'Durée',tags:'Tags',favoriteStatus:'Statut personnel',structure:'Structure',chords:'Accords',instrumentNotes:'Notes instrumentales',musicianNotes:'Notes par musicien',lyrics:'Paroles',notes:'Notes générales',referenceUrl:'Lien de référence'}
+type QuickDeleteField='originalKey'|'personalKey'|'bpm'|'timeSignature'|'capo'|'durationSeconds'|'tags'|'favoriteStatus'|'structure'|'chords'|'chordLyrics'|'instrumentNotes'|'musicianNotes'|'lyrics'|'notes'|'referenceUrl'
+const QUICK_DELETE_LABELS:Record<QuickDeleteField,string>={originalKey:'Tonalité originale',personalKey:'Tonalité habituelle',bpm:'BPM',timeSignature:'Signature',capo:'Capo',durationSeconds:'Durée',tags:'Tags',favoriteStatus:'Statut personnel',structure:'Structure',chords:'Accords',chordLyrics:'Paroles + accords',instrumentNotes:'Notes instrumentales',musicianNotes:'Notes par musicien',lyrics:'Paroles',notes:'Notes générales',referenceUrl:'Lien de référence'}
 function quickDeleteEmptyValue(field:QuickDeleteField):unknown{
   if(field==='bpm'||field==='capo'||field==='durationSeconds')return null
   if(field==='tags')return []
@@ -146,6 +146,7 @@ function mergeSongDraft(primary:Song,secondary:Song):SongDraft{
     capo:primary.capo??secondary.capo??null,
     structure:pick(primary.structure,secondary.structure),
     chords:hasMeaningfulChordContent(primary.chords??'')?(primary.chords??''):(secondary.chords??''),
+    chordLyrics:pick(primary.chordLyrics,secondary.chordLyrics),
     instrumentNotes:combineNotes(primary.instrumentNotes,secondary.instrumentNotes),
     musicianNotes:Object.fromEntries([...new Set([...Object.keys(primary.musicianNotes??{}),...Object.keys(secondary.musicianNotes??{})])].map(role=>[role,combineNotes(primary.musicianNotes?.[role],secondary.musicianNotes?.[role])])),
     lyrics:pick(primary.lyrics,secondary.lyrics),
@@ -236,7 +237,7 @@ function conflictValueSummary(value:unknown,field:string):string{
     return entries.map(([k,v])=>k+': '+conflictValueSummary(v,k)).join(' · ')
   }
   const text=String(value)
-  if(['lyrics','chords','notes','instrumentNotes'].includes(field)){
+  if(['lyrics','chords','chordLyrics','notes','instrumentNotes'].includes(field)){
     const lines=text.split('\n').filter(Boolean).length
     const preview=text.replace(/\s+/g,' ').trim().slice(0,110)
     return (lines?lines+' ligne'+(lines>1?'s':'')+' · ':'')+preview+(text.length>110?'…':'')
@@ -244,7 +245,7 @@ function conflictValueSummary(value:unknown,field:string):string{
   return text.length>140?text.slice(0,140)+'…':text
 }
 function conflictDiff(conflict:SyncConflict):{field:string;label:string;local:string;remote:string}[]{
-  const songLabels:Record<string,string>={title:'Titre',artist:'Artiste',authorComposer:'Auteur / Compositeur',originalKey:'Tonalité originale',personalKey:'Tonalité habituelle',bpm:'BPM',timeSignature:'Signature',style:'Style',durationSeconds:'Durée',tags:'Tags',notes:'Notes générales',referenceUrl:'Lien source',capo:'Capo',structure:'Structure',chords:'Accords',instrumentNotes:'Notes instrumentales',musicianNotes:'Notes par musicien',lyrics:'Paroles',favorite:'Favori',favoriteStatus:'Statut personnel'}
+  const songLabels:Record<string,string>={title:'Titre',artist:'Artiste',authorComposer:'Auteur / Compositeur',originalKey:'Tonalité originale',personalKey:'Tonalité habituelle',bpm:'BPM',timeSignature:'Signature',style:'Style',durationSeconds:'Durée',tags:'Tags',notes:'Notes générales',referenceUrl:'Lien source',capo:'Capo',structure:'Structure',chords:'Accords',chordLyrics:'Paroles + accords',instrumentNotes:'Notes instrumentales',musicianNotes:'Notes par musicien',lyrics:'Paroles',favorite:'Favori',favoriteStatus:'Statut personnel'}
   const setlistLabels:Record<string,string>={name:'Nom',songIds:'Ordre / morceaux',notes:'Notes',rehearsalNotes:'Notes de répétition',songOverrides:'Réglages propres à la setlist'}
   const labels=conflict.kind==='song'?songLabels:setlistLabels
   const local=conflict.local as any,remote=conflict.remote as any
@@ -801,7 +802,7 @@ function MergeSongsModal({a,b,onClose,onKeepBoth,onMerge}:{a:Song;b:Song;onClose
     {key:'originalKey',label:'Tonalité originale'},{key:'personalKey',label:'Tonalité habituelle'},
     {key:'bpm',label:'BPM'},{key:'timeSignature',label:'Signature'},{key:'style',label:'Style'},
     {key:'durationSeconds',label:'Durée'},{key:'capo',label:'Capo'},{key:'tags',label:'Tags'},
-    {key:'structure',label:'Structure'},{key:'chords',label:'Accords'},{key:'lyrics',label:'Paroles'},
+    {key:'structure',label:'Structure'},{key:'chords',label:'Accords'},{key:'chordLyrics',label:'Paroles + accords'},{key:'lyrics',label:'Paroles'},
     {key:'instrumentNotes',label:'Notes instrumentales'},{key:'musicianNotes',label:'Notes par musicien'},
     {key:'notes',label:'Notes générales'},{key:'referenceUrl',label:'Lien source'},{key:'favoriteStatus',label:'Statut personnel'}
   ]
@@ -912,6 +913,7 @@ function SongDetail({song,backLabel,setlists,refreshSetlists,refreshSongs,toast,
   const applyTranspose=(next:number)=>{setTranspose(next);setShowTranspose(next!==0);if(baseKey&&onSetlistKey)onSetlistKey(transposeKey(baseKey,next))}
   const chooseKey=(key:string)=>{if(!baseKey||!key)return;applyTranspose(keyOffsetFromOriginal(baseKey,key))}
   const workingChords=transposeChordText(song.chords??'',transpose)
+  const workingChordLyrics=transposeChordLyricsText(song.chordLyrics??'',transpose)
   const hasWorkingChords=hasMeaningfulChordContent(workingChords)
   const normalizedStructure=parseStructureSequence(song.structure??'').join(' · ')
   const hasInfo=Boolean(song.originalKey||habitualDistinct||song.capo!=null||song.durationSeconds!=null||(song.tags?.length??0)>0)
@@ -929,6 +931,7 @@ function SongDetail({song,backLabel,setlists,refreshSetlists,refreshSongs,toast,
     {hasInfo&&<section className="panel info-list quick-delete-info"><h2>Informations musicales</h2>{song.originalKey&&<div className="info-row-with-delete"><button type="button" className={'info-key-row '+(transpose===0?'active':'')} onClick={()=>chooseKey(song.originalKey)}><span>Tonalité originale</span><b>{song.originalKey}</b></button>{quickDelete('originalKey')}</div>}{habitualDistinct&&<div className="info-row-with-delete"><button type="button" className={'info-key-row '+(normalizeKey(workingKey)===normalizeKey(song.personalKey)?'active':'')} onClick={()=>chooseKey(song.personalKey)}><span>Tonalité habituelle</span><b>{song.personalKey}</b></button>{quickDelete('personalKey')}</div>}{song.capo!=null&&<div className="info-row-with-delete"><div><span>Capo</span><b>{song.capo}</b></div>{quickDelete('capo')}</div>}{song.durationSeconds!=null&&<div className="info-row-with-delete"><div><span>Durée</span><b>{formatDuration(song.durationSeconds)}</b></div>{quickDelete('durationSeconds')}</div>}{song.tags.length>0&&<div className="info-row-with-delete"><div><span>Tags</span><b>{song.tags.join(', ')}</b></div>{quickDelete('tags')}</div>}{song.favoriteStatus&&<div className="info-row-with-delete"><div><span>Statut personnel</span><b>{FAVORITE_STATUS_OPTIONS.find(([v])=>v===song.favoriteStatus)?.[1]}</b></div>{quickDelete('favoriteStatus')}</div>}</section>}
     {normalizedStructure&&<section className="panel performance-panel"><div className="panel-title-row"><h2>Structure</h2>{quickDelete('structure')}</div><p className="performance-text">{normalizedStructure}</p></section>}
     {hasWorkingChords&&<section className="panel performance-panel chords-panel"><div className="panel-title-row"><h2>Accords / repères</h2><div className="panel-inline-actions">{transpose!==0&&<span className="transpose-chip">{formatSemitoneOffset(transpose)}</span>}{quickDelete('chords')}</div></div><pre className="chord-sheet">{workingChords}</pre></section>}
+    {workingChordLyrics.trim()&&<section className="panel performance-panel chords-panel chord-lyrics-panel"><div className="panel-title-row"><h2>Paroles + accords</h2><div className="panel-inline-actions">{transpose!==0&&<span className="transpose-chip">{formatSemitoneOffset(transpose)}</span>}{quickDelete('chordLyrics')}</div></div><pre className="chord-sheet chord-lyrics-sheet">{workingChordLyrics}</pre></section>}
     {song.instrumentNotes&&<section className="panel performance-panel"><div className="panel-title-row"><h2>Notes instrumentales</h2>{quickDelete('instrumentNotes')}</div><p className="performance-text">{song.instrumentNotes}</p></section>}{Object.values(song.musicianNotes??{}).some(Boolean)&&<section className="panel performance-panel"><div className="panel-title-row"><h2>Notes par musicien</h2>{quickDelete('musicianNotes')}</div><div className="role-note-list">{Object.entries(song.musicianNotes??{}).filter(([,v])=>v?.trim()).map(([role,note])=><div key={role}><b>{role}</b><p>{note}</p></div>)}</div></section>}
     <section className={`panel lyrics-panel ${song.lyrics?'':'lyrics-empty'}`}><div className="panel-title-row"><h2>Paroles</h2><div className="lyrics-title-actions">{(song.lyricVersions?.length??0)>0&&<button className="secondary lyrics-history-button" onClick={()=>{const latest=song.lyricVersions?.[song.lyricVersions.length-1];setHistoryVersionId(latest?.id??'');setLyricsHistoryOpen(true)}}><History/>Historique · {song.lyricVersions?.length}</button>}<button className="bare-action lyrics-inline-action" aria-label={song.lyrics?'Modifier les paroles':'Ajouter des paroles'} title={song.lyrics?'Modifier les paroles':'Ajouter des paroles'} onClick={()=>{setLyricsDraft(song.lyrics??'');setEditingLyrics(true)}}><Pencil/></button>{song.lyrics&&quickDelete('lyrics')}</div></div>{song.lyrics?<pre className="lyrics-text">{song.lyrics}</pre>:<div className="lyrics-missing-actions"><button className="lyrics-add-empty" onClick={()=>{setLyricsDraft('');setEditingLyrics(true)}}><Plus/>Ajouter manuellement</button><button className="secondary lyrics-recueil-search" onClick={()=>onRecueilSearch({title:song.title,artist:song.artist})}><BookMarked/>Rechercher dans les Recueils</button></div>}</section>
     <section className="panel optional-metronome-panel"><button type="button" className="optional-metronome-toggle" onClick={()=>setShowMetronome(v=>!v)}><span><Gauge/><span><b>Métronome</b><small>Outil optionnel</small></span></span>{showMetronome?<ChevronUp/>:<ChevronDown/>}</button><div className={'optional-metronome-body collapsible-body '+(showMetronome?'is-expanded':'is-collapsed')}><MetronomeCard initialBpm={song.bpm??96} signature={song.timeSignature}/></div></section>
@@ -995,7 +998,7 @@ function hasMeaningfulChordContent(value:string):boolean{
 }
 
 function SongForm({initial,songs,presetArtist='',presetAuthor='',onCancel,onSave,onMergeDuplicate}:{initial:Song|null;songs:Song[];presetArtist?:string;presetAuthor?:string;onCancel:()=>void;onSave:(d:SongDraft)=>Promise<void>;onMergeDuplicate:(d:SongDraft,duplicate:Song)=>Promise<void>}) {
-  const [d,setD]=useState<SongDraft>(()=>initial?{...emptySongDraft(),title:initial.title,artist:initial.artist,authorComposer:initial.authorComposer,originalKey:initial.originalKey,personalKey:initial.personalKey,bpm:initial.bpm,timeSignature:initial.timeSignature,style:initial.style,durationSeconds:initial.durationSeconds,tags:initial.tags,notes:initial.notes,referenceUrl:initial.referenceUrl,capo:initial.capo??null,structure:initial.structure??'',chords:initial.chords??'',instrumentNotes:initial.instrumentNotes??'',musicianNotes:initial.musicianNotes??{},lyrics:initial.lyrics??'',favorite:initial.favorite,favoriteStatus:initial.favoriteStatus??(initial.favorite?'favorite':''),source:initial.source}:{...emptySongDraft(),artist:presetArtist,authorComposer:presetAuthor})
+  const [d,setD]=useState<SongDraft>(()=>initial?{...emptySongDraft(),title:initial.title,artist:initial.artist,authorComposer:initial.authorComposer,originalKey:initial.originalKey,personalKey:initial.personalKey,bpm:initial.bpm,timeSignature:initial.timeSignature,style:initial.style,durationSeconds:initial.durationSeconds,tags:initial.tags,notes:initial.notes,referenceUrl:initial.referenceUrl,capo:initial.capo??null,structure:initial.structure??'',chords:initial.chords??'',chordLyrics:initial.chordLyrics??'',instrumentNotes:initial.instrumentNotes??'',musicianNotes:initial.musicianNotes??{},lyrics:initial.lyrics??'',favorite:initial.favorite,favoriteStatus:initial.favoriteStatus??(initial.favorite?'favorite':''),source:initial.source}:{...emptySongDraft(),artist:presetArtist,authorComposer:presetAuthor})
   const [duration,setDuration]=useState(initial?formatDuration(initial.durationSeconds)==='—'?'':formatDuration(initial.durationSeconds):'')
   const [saving,setSaving]=useState(false)
   const [mergeConfirm,setMergeConfirm]=useState(false)
@@ -1060,6 +1063,10 @@ function SongForm({initial,songs,presetArtist='',presetAuthor='',onCancel,onSave
     set('chords',next)
     requestAnimationFrame(()=>{chordRef.current?.focus();chordRef.current?.setSelectionRange(cursor,cursor)})
   }
+  const analyzeChordLyrics=()=>{
+    const parsed=parseChordLyricsText(d.chordLyrics??'')
+    setD(prev=>({...prev,chordLyrics:parsed.chordLyrics,lyrics:parsed.lyrics,chords:parsed.chords}))
+  }
   const moveStructure=(index:number,delta:number)=>{
     const next=[...sequence]
     const target=index+delta
@@ -1078,10 +1085,11 @@ function SongForm({initial,songs,presetArtist='',presetAuthor='',onCancel,onSave
 
   <label className="span2">Structure<textarea rows={3} value={d.structure??''} onChange={e=>set('structure',e.target.value)} placeholder="Prélude · Couplet · Refrain · Couplet · Bridge · Refrain · Postlude"/></label>
   <label className="span2 chord-label"><span className="field-label-row"><span>Accords / repères</span></span>{structureChoices.length>0&&<div className="chord-section-picker"><small>Insérer une section</small><div>{structureChoices.map(label=><button type="button" key={label} onClick={()=>insertChordSection(label)}>[{label}]</button>)}</div></div>}<div className="chord-assistant"><div className="chord-accidental-picker">{([{v:'',l:'♮'},{v:'#',l:'#'},{v:'b',l:'b'}] as const).map(item=><button type="button" className={chordAccidental===item.v?'active':''} key={item.l} onClick={()=>setChordAccidental(item.v)}>{item.l}</button>)}</div><div className="chord-type-picker">{(['M','m','7','Sus','Aug'] as const).map(type=><button type="button" className={chordType===type?'active':''} key={type} onClick={()=>setChordType(type)}>{type}</button>)}</div><div className="chord-root-picker">{['A','B','C','D','E','F','G'].map(root=><button type="button" key={root} onClick={()=>insertChord(root)}>{root}</button>)}</div></div><textarea ref={chordRef} rows={Math.max(6,sequence.length*2)} className="chord-input" value={d.chords??''} onChange={e=>set('chords',e.target.value)} placeholder="[Prélude]&#10;C  G  Am  F&#10;&#10;[Couplet]&#10;C  G/B  Am7  F"/></label>
+  <label className="span2 chord-label"><span className="field-label-row"><span>Paroles + accords</span><button type="button" className="secondary" onClick={analyzeChordLyrics}><Wrench/>Détecter et séparer</button></span><textarea rows={12} className="chord-input" value={d.chordLyrics??''} onChange={e=>set('chordLyrics',e.target.value)} placeholder={"Am                Dm\nFly me to the moon\n       Dm       G\nAnd let me play"}/><small>Collez la version combinée puis utilisez « Détecter et séparer ». DI’ART remplit Paroles et Accords, tout en conservant cette version alignée. Vous pouvez relancer l’analyse après chaque modification.</small></label>
   <label className="span2">Notes instrumentales générales<textarea rows={4} value={d.instrumentNotes??''} onChange={e=>set('instrumentNotes',e.target.value)} placeholder="Informations communes à tous les musiciens…"/></label><div className="span2 musician-role-notes"><div className="form-section-title"><span>Notes propres aux musiciens</span><small>Chaque rôle verra sa note en Mode Musicien.</small></div><div className="musician-role-grid">{MUSICIAN_ROLES.map(role=><label key={role}>{role}<textarea rows={2} value={d.musicianNotes?.[role]??''} onChange={e=>setMusicianNote(role,e.target.value)} placeholder={'Note pour '+role+'…'}/></label>)}</div></div><label className="span2">Paroles<textarea rows={8} value={d.lyrics??''} onChange={e=>set('lyrics',e.target.value)} placeholder="Paroles du morceau…"/></label><label className="span2">Lien de référence<input value={d.referenceUrl} onChange={e=>set('referenceUrl',e.target.value)}/></label><label className="span2">Notes générales<textarea rows={5} value={d.notes} onChange={e=>set('notes',e.target.value)}/></label><div className="form-actions song-form-actions span2"><button type="button" className="secondary" onClick={onCancel}>Annuler</button><button className="primary" disabled={saving}><Save/>{saving?'Enregistrement…':'Enregistrer'}</button></div></form>{mergeConfirm&&duplicateCandidate&&<Modal title="Fusionner avec le doublon ?" onClose={()=>setMergeConfirm(false)}><p>Les informations saisies seront regroupées avec « {duplicateCandidate.title} ». Une seule fiche restera dans la bibliothèque.</p><div className="modal-actions"><button className="secondary" onClick={()=>setMergeConfirm(false)}>Annuler</button><button className="primary" disabled={saving} onClick={()=>void mergeDuplicate()}><GitMerge/>{saving?'Fusion…':'Fusionner'}</button></div></Modal>}</>
 }
 
-const fieldOptions:[ImportField,string][]=[['title','Titre *'],['artist','Artiste'],['authorComposer','Auteur / Compositeur'],['originalKey','Tonalité originale'],['personalKey','Tonalité personnelle'],['bpm','BPM'],['timeSignature','Signature rythmique'],['style','Style'],['duration','Durée'],['tags','Tags'],['notes','Notes'],['referenceUrl','Lien de référence'],['capo','Capo'],['structure','Structure'],['chords','Accords'],['instrumentNotes','Notes instrumentales'],['lyrics','Paroles']]
+const fieldOptions:[ImportField,string][]=[['title','Titre *'],['artist','Artiste'],['authorComposer','Auteur / Compositeur'],['originalKey','Tonalité originale'],['personalKey','Tonalité personnelle'],['bpm','BPM'],['timeSignature','Signature rythmique'],['style','Style'],['duration','Durée'],['tags','Tags'],['notes','Notes'],['referenceUrl','Lien de référence'],['capo','Capo'],['structure','Structure'],['chords','Accords'],['chordLyrics','Paroles + accords'],['instrumentNotes','Notes instrumentales'],['lyrics','Paroles']]
 
 
 type SongCompletion = {patch:Partial<SongDraft>;labels:string[]}
@@ -1118,6 +1126,7 @@ function songCompletion(existing:Song,incoming:SongDraft):SongCompletion{
   addString('style','Style')
   addString('structure','Structure')
   if(!hasMeaningfulChordContent(existing.chords??'')&&hasMeaningfulChordContent(incoming.chords??'')){patch.chords=incoming.chords;labels.push('Accords / repères')}
+  addString('chordLyrics','Paroles + accords')
   addString('instrumentNotes','Notes instrumentales')
   const musicianRoles=[...new Set([...Object.keys(existing.musicianNotes??{}),...Object.keys(incoming.musicianNotes??{})])]
   const mergedMusicianNotes=Object.fromEntries(musicianRoles.map(role=>[role,combineText(existing.musicianNotes?.[role],incoming.musicianNotes?.[role])]).filter(([,v])=>v))
@@ -1139,6 +1148,7 @@ function draftSummary(draft:SongDraft):{label:string;value:string}[]{
     ['Tonalité',draft.personalKey||draft.originalKey],['BPM',draft.bpm===null?'':String(draft.bpm)],
     ['Signature',draft.timeSignature],['Style',draft.style],['Structure',draft.structure??''],
     ['Accords / repères',hasMeaningfulChordContent(draft.chords??'')?'Présents':''],
+    ['Paroles + accords',draft.chordLyrics?.trim()?String(draft.chordLyrics.split('\n').filter(Boolean).length)+' lignes':''],
     ['Paroles',draft.lyrics?.trim()?String(draft.lyrics.split('\n').filter(Boolean).length)+' lignes':''],
     ['Notes instrumentales',draft.instrumentNotes??''],['Lien source',draft.referenceUrl]
   ] as [string,string][]
