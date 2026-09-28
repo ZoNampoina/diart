@@ -18,7 +18,7 @@ import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 import { InventoryPage, InventoryProgramPage } from './inventory'
 
-const APP_VERSION='2.11.0'
+const APP_VERSION='2.12.0'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
