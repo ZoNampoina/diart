@@ -1,6 +1,6 @@
 import { createClient, type User } from '@supabase/supabase-js'
 import { db } from './db'
-import type { ActivityEntry, Song, Setlist } from './types'
+import type { ActivityEntry, InventoryProgram, Song, Setlist } from './types'
 
 export type SyncConflict={kind:'song'|'setlist';id:string;local:Song|Setlist;remote:Song|Setlist;localUpdatedAt:string;remoteUpdatedAt:string}
 
@@ -30,7 +30,7 @@ function newer(a:string|undefined|null,b:string|undefined|null){
   return (a??'')>(b??'')
 }
 
-function sameSyncContent(a:Song|Setlist|undefined,b:Song|Setlist|undefined){
+function sameSyncContent(a:Song|Setlist|InventoryProgram|undefined,b:Song|Setlist|InventoryProgram|undefined){
   if(!a||!b)return false
   const clean=(value:Song|Setlist)=>{
     const copy={...value} as Record<string,unknown>
@@ -94,6 +94,30 @@ export async function syncSetlists(userId:string,since=''){
 }
 
 
+export async function syncPrograms(userId:string){
+  const local=await db.programs.toArray()
+  const {data,error}=await supabase.from('diart_programs').select('id,payload,updated_at').eq('user_id',userId)
+  if(error) throw error
+  const remote=new Map((data??[]).map(r=>[r.id,r]))
+  const pushes:{user_id:string;id:string;payload:InventoryProgram;updated_at:string}[]=[]
+  let pulled=0
+  for(const item of local){
+    const r=remote.get(item.id)
+    const remoteItem=r?.payload as InventoryProgram|undefined
+    const sameContent=Boolean(r&&remoteItem&&sameSyncContent(item,remoteItem))
+    if(!r || sameContent || newer(item.updatedAt,r.updated_at)) pushes.push({user_id:userId,id:item.id,payload:item,updated_at:item.updatedAt})
+    else if(newer(r.updated_at,item.updatedAt)){await db.programs.put(r.payload as InventoryProgram);pulled++}
+    remote.delete(item.id)
+  }
+  for(const r of remote.values()){await db.programs.put(r.payload as InventoryProgram);pulled++}
+  if(pushes.length){
+    const {error:e}=await supabase.from('diart_programs').upsert(pushes,{onConflict:'user_id,id'})
+    if(e) throw e
+  }
+  return {pushed:pushes.length,pulled}
+}
+
+
 export async function syncActivity(userId:string){
   const local=await db.activity.toArray()
   const {data,error}=await supabase.from('diart_activity').select('id,payload,created_at').eq('user_id',userId)
@@ -115,8 +139,8 @@ export async function syncActivity(userId:string){
 }
 
 export async function syncAll(userId:string,since=''){
-  const [songs,setlists,activity]=await Promise.all([syncSongs(userId,since),syncSetlists(userId,since),syncActivity(userId)])
-  return {songs,setlists,activity,conflicts:[...songs.conflicts,...setlists.conflicts],pulled:songs.pulled+setlists.pulled+activity.pulled,pushed:songs.pushed+setlists.pushed+activity.pushed}
+  const [songs,setlists,programs,activity]=await Promise.all([syncSongs(userId,since),syncSetlists(userId,since),syncPrograms(userId),syncActivity(userId)])
+  return {songs,setlists,programs,activity,conflicts:[...songs.conflicts,...setlists.conflicts],pulled:songs.pulled+setlists.pulled+programs.pulled+activity.pulled,pushed:songs.pushed+setlists.pushed+programs.pushed+activity.pushed}
 }
 
 export async function resolveSyncConflict(userId:string,conflict:SyncConflict,choice:'local'|'remote'){
@@ -152,33 +176,39 @@ export async function resolveMergedSyncConflict(userId:string,conflict:SyncConfl
 }
 
 export async function getCloudStats(userId:string){
-  const [{count:songs,error:songsError},{count:setlists,error:setlistsError}] = await Promise.all([
+  const [{count:songs,error:songsError},{count:setlists,error:setlistsError},{count:programs,error:programsError}] = await Promise.all([
     supabase.from('diart_songs').select('id',{count:'exact',head:true}).eq('user_id',userId),
-    supabase.from('diart_setlists').select('id',{count:'exact',head:true}).eq('user_id',userId)
+    supabase.from('diart_setlists').select('id',{count:'exact',head:true}).eq('user_id',userId),
+    supabase.from('diart_programs').select('id',{count:'exact',head:true}).eq('user_id',userId)
   ])
   if(songsError) throw songsError
   if(setlistsError) throw setlistsError
-  return {songs:songs??0,setlists:setlists??0}
+  if(programsError) throw programsError
+  return {songs:songs??0,setlists:setlists??0,programs:programs??0}
 }
 
 export async function pullCloudToLocal(userId:string){
-  const [{data:songs,error:songsError},{data:setlists,error:setlistsError},{data:activity,error:activityError}] = await Promise.all([
+  const [{data:songs,error:songsError},{data:setlists,error:setlistsError},{data:programs,error:programsError},{data:activity,error:activityError}] = await Promise.all([
     supabase.from('diart_songs').select('payload').eq('user_id',userId),
     supabase.from('diart_setlists').select('payload').eq('user_id',userId),
+    supabase.from('diart_programs').select('payload').eq('user_id',userId),
     supabase.from('diart_activity').select('payload').eq('user_id',userId)
   ])
   if(songsError) throw songsError
   if(setlistsError) throw setlistsError
+  if(programsError) throw programsError
   if(activityError) throw activityError
-  await db.transaction('rw',db.songs,db.setlists,db.activity,async()=>{
+  await db.transaction('rw',db.songs,db.setlists,db.programs,db.activity,async()=>{
     const demoSongs=(await db.songs.toArray()).filter(s=>s.source==='demo')
     await db.songs.clear()
     await db.setlists.clear()
+    await db.programs.clear()
     await db.activity.clear()
     if(demoSongs.length) await db.songs.bulkPut(demoSongs)
     if(songs?.length) await db.songs.bulkPut(songs.map(r=>r.payload as Song))
     if(setlists?.length) await db.setlists.bulkPut(setlists.map(r=>r.payload as Setlist))
+    if(programs?.length) await db.programs.bulkPut(programs.map(r=>r.payload as InventoryProgram))
     if(activity?.length) await db.activity.bulkPut(activity.map(r=>r.payload as ActivityEntry))
   })
-  return {songs:songs?.length??0,setlists:setlists?.length??0,activity:activity?.length??0}
+  return {songs:songs?.length??0,setlists:setlists?.length??0,programs:programs?.length??0,activity:activity?.length??0}
 }
