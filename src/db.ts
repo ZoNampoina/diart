@@ -124,8 +124,15 @@ export async function updateSetlist(id:string, patch:Partial<Omit<Setlist,'id'|'
 }
 
 
-export async function logActivity(kind:ActivityKind,label:string,details:string,meta:{songId?:string|null;songTitle?:string;source?:string;sessionId?:string;setlistId?:string;setlistName?:string;restoreData?:ActivityRestoreData}={}):Promise<ActivityEntry>{
-  const entry:ActivityEntry={id:crypto.randomUUID(),kind,label,details,createdAt:now(),songId:meta.songId??null,songTitle:meta.songTitle??'',source:meta.source??'',sessionId:meta.sessionId??'',setlistId:meta.setlistId??'',setlistName:meta.setlistName??'',restoreData:meta.restoreData,restoredAt:null}
+export async function logActivity(kind:ActivityKind,label:string,details:string,meta:{songId?:string|null;songTitle?:string;source?:string;sessionId?:string;setlistId?:string;setlistName?:string;inventoryStockItemId?:string;inventoryProgramId?:string;inventoryProvider?:string;inventoryDelta?:number;restoreData?:ActivityRestoreData}={}):Promise<ActivityEntry>{
+  const entry:ActivityEntry={
+    id:crypto.randomUUID(),kind,label,details,createdAt:now(),
+    songId:meta.songId??null,songTitle:meta.songTitle??'',source:meta.source??'',sessionId:meta.sessionId??'',
+    setlistId:meta.setlistId??'',setlistName:meta.setlistName??'',
+    inventoryStockItemId:meta.inventoryStockItemId??'',inventoryProgramId:meta.inventoryProgramId??'',
+    inventoryProvider:meta.inventoryProvider??'',inventoryDelta:meta.inventoryDelta,
+    restoreData:meta.restoreData,restoredAt:null
+  }
   await db.activity.add(entry)
   return entry
 }
