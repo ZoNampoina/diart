@@ -47,7 +47,7 @@ const DEFAULT_CATALOG: Record<string,string[]> = {
     'Rallonge électrique','Adaptateur secteur universel','Câble IEC'
   ],
   instrument:[
-    'Piano','Guitare','Basse','Batterie','Pad','Micro','Saxophone','Clavier maître','Cajón'
+    'Piano','Guitare','Basse','Batterie','Pad','Micro','Saxophone','Clavier maître','Cajón','Table de mixage'
   ],
   adaptateur:[
     'minijack to JACK','RCA to JACK','RCA to minijack','JACK to minijack',
@@ -1097,7 +1097,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
     void persist({date,weekday})
   }
 
-  const installation=program?.installation??{nodes:[],links:[],suggestions:[],aiSummary:''}
+  const installation=program?.installation??{nodes:[],links:[],suggestions:[],aiSummary:'',analysisMode:undefined,analyzedAt:undefined}
   const stockByNode=(nodeId:string)=>{
     const node=installation.nodes.find(item=>item.id===nodeId)
     return node?.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
