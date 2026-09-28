@@ -1029,6 +1029,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
   const [linkToNode,setLinkToNode]=useState('')
   const [linkFromPort,setLinkFromPort]=useState('')
   const [linkToPort,setLinkToPort]=useState('')
+  const [linkLengthMeters,setLinkLengthMeters]=useState('')
   const [aiAnalyzing,setAiAnalyzing]=useState(false)
   const [online,setOnline]=useState(typeof navigator==='undefined'?true:navigator.onLine)
   const [exporting,setExporting]=useState(false)
@@ -1288,15 +1289,36 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
   }
   const addInstallationLink=()=>{
     if(!program||!linkFromNode||!linkToNode||linkFromNode===linkToNode){toast('Choisissez deux équipements différents.');return}
-    const link={id:crypto.randomUUID(),fromNodeId:linkFromNode,toNodeId:linkToNode,fromPort:linkFromPort||undefined,toPort:linkToPort||undefined}
-    void persist({installation:{...installation,links:[...installation.links,link],suggestions:[]}})
-    setLinkFromPort('');setLinkToPort('')
+    const length=Number(String(linkLengthMeters).replace(',','.'))
+    const link:InstallationLink={
+      id:crypto.randomUUID(),fromNodeId:linkFromNode,toNodeId:linkToNode,
+      fromPort:linkFromPort||undefined,toPort:linkToPort||undefined,
+      lengthMeters:Number.isFinite(length)&&length>0?length:undefined
+    }
+    const draftProgram={...program,installation:{...installation,links:[...installation.links,link],suggestions:[]}}
+    const links=enrichInstallationLinks(draftProgram,stock)
+    void persist({installation:{...installation,links,suggestions:[],aiSummary:'',analyzedAt:undefined,analysisMode:undefined}})
+    setLinkFromPort('');setLinkToPort('');setLinkLengthMeters('')
   }
-  const removeInstallationLink=(id:string)=>void persist({installation:{...installation,links:installation.links.filter(link=>link.id!==id),suggestions:[]}})
+  const updateInstallationLink=(id:string,patch:Partial<InstallationLink>)=>{
+    if(!program)return
+    const rawLinks=installation.links.map(link=>link.id===id?{...link,...patch}:link)
+    const links=enrichInstallationLinks({...program,installation:{...installation,links:rawLinks}},stock)
+    void persist({installation:{...installation,links,suggestions:[],aiSummary:'',analyzedAt:undefined,analysisMode:undefined}})
+  }
+  const removeInstallationLink=(id:string)=>void persist({installation:{...installation,links:installation.links.filter(link=>link.id!==id),suggestions:[],aiSummary:'',analyzedAt:undefined,analysisMode:undefined}})
+  const autoAssignChannels=()=>{
+    if(!program)return
+    const links=enrichInstallationLinks(program,stock)
+    void persist({installation:{...installation,links}})
+    toast('Canaux affectés automatiquement.')
+  }
   const runLocalInstallationAnalysis=async()=>{
     if(!program)return
-    const result=localInstallationAnalysis(program,stock)
-    await persist({installation:{...installation,suggestions:result.suggestions,aiSummary:result.summary,analyzedAt:now(),analysisMode:'local'}})
+    const links=enrichInstallationLinks(program,stock)
+    const analyzedProgram={...program,installation:{...installation,links}}
+    const result=localInstallationAnalysis(analyzedProgram,stock)
+    await persist({installation:{...installation,links,suggestions:result.suggestions,aiSummary:result.summary,analyzedAt:now(),analysisMode:'local'}})
     toast('Analyse locale terminée.')
   }
   const runAIInstallationAnalysis=async()=>{
@@ -1304,9 +1326,13 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
     if(!online){toast('Connexion requise pour l’analyse IA.');return}
     setAiAnalyzing(true)
     try{
+      const links=enrichInstallationLinks(program,stock)
+      const preparedInstallation={...installation,links}
+      const preparedProgram={...program,installation:preparedInstallation}
+      const baseline=localInstallationAnalysis(preparedProgram,stock)
       const data=await analyzeInventoryInstallationWithAI({
         program:{name:program.name,date:program.date,startTime:program.startTime,endTime:program.endTime,location:program.location},
-        installation,
+        installation:preparedInstallation,
         stock:stock.map(item=>({
           id:item.id,name:item.name,category:item.category,provider:normalizeProvider(item.provider),
           quantity:item.quantity,status:item.status,characteristics:item.characteristics??[],ports:item.ports??[]
@@ -1323,11 +1349,17 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
         category:value?.category?String(value.category):undefined,
         matchedStockItemId:value?.matchedStockItemId?String(value.matchedStockItemId):undefined
       }))
-      await persist({installation:{...installation,suggestions,aiSummary:String(data?.summary??'Analyse IA terminée.'),analyzedAt:now(),analysisMode:'ai'}})
+      const merged=[...baseline.suggestions]
+      for(const suggestion of suggestions){
+        if(!merged.some(item=>item.name.toLowerCase()===suggestion.name.toLowerCase()&&item.reason===suggestion.reason))merged.push(suggestion)
+      }
+      await persist({installation:{...preparedInstallation,suggestions:merged,aiSummary:String(data?.summary??'Analyse IA terminée.'),analyzedAt:now(),analysisMode:'ai'}})
       toast('Analyse IA terminée.')
     }catch(error){
-      const fallback=localInstallationAnalysis(program,stock)
-      await persist({installation:{...installation,suggestions:fallback.suggestions,aiSummary:'IA distante indisponible · '+fallback.summary,analyzedAt:now(),analysisMode:'local'}})
+      const links=enrichInstallationLinks(program,stock)
+      const fallbackProgram={...program,installation:{...installation,links}}
+      const fallback=localInstallationAnalysis(fallbackProgram,stock)
+      await persist({installation:{...installation,links,suggestions:fallback.suggestions,aiSummary:'IA distante indisponible · '+fallback.summary,analyzedAt:now(),analysisMode:'local'}})
       toast('IA distante indisponible : analyse locale utilisée.')
     }finally{setAiAnalyzing(false)}
   }
