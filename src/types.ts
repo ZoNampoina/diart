@@ -118,8 +118,23 @@ export interface Setlist {
   deletedAt: string | null
 }
 
-export type InventoryCategory = 'cable'|'prise'|'instrument'|'adaptateur'
+export type InventoryCategory = string
 export type InventoryStockStatus = 'available'|'reserved'|'in_use'|'repair'|'maintenance'|'unavailable'
+export type InventoryPortDirection = 'input'|'output'|'bidirectional'|'power'
+
+export interface InventoryCharacteristic {
+  id: string
+  label: string
+  value: string
+}
+
+export interface InventoryPort {
+  id: string
+  label: string
+  connector: string
+  direction: InventoryPortDirection
+  count: number
+}
 
 export interface InventoryMaterial {
   id: string
@@ -138,6 +153,8 @@ export interface InventoryStockItem {
   quantity: number
   provider?: string
   status?: InventoryStockStatus
+  characteristics?: InventoryCharacteristic[]
+  ports?: InventoryPort[]
   notes?: string
   createdAt: string
   updatedAt: string
@@ -159,6 +176,42 @@ export interface InventoryKit {
   updatedAt: string
 }
 
+export interface InstallationNode {
+  id: string
+  name: string
+  stockItemId?: string
+  x?: number
+  y?: number
+}
+
+export interface InstallationLink {
+  id: string
+  fromNodeId: string
+  toNodeId: string
+  fromPort?: string
+  toPort?: string
+  label?: string
+}
+
+export interface InstallationSuggestion {
+  id: string
+  kind: 'cable'|'adapter'|'power'|'accessory'|'equipment'|'warning'
+  name: string
+  quantity: number
+  reason: string
+  category?: InventoryCategory
+  matchedStockItemId?: string
+}
+
+export interface InventoryInstallation {
+  nodes: InstallationNode[]
+  links: InstallationLink[]
+  suggestions?: InstallationSuggestion[]
+  aiSummary?: string
+  analyzedAt?: string
+  analysisMode?: 'local'|'ai'
+}
+
 export type InventoryFrequency = 'once'|'weekly'|'monthly'
 
 export interface InventoryProgram {
@@ -172,6 +225,7 @@ export interface InventoryProgram {
   location: string
   notes: string
   items: InventoryMaterial[]
+  installation?: InventoryInstallation
   createdAt: string
   updatedAt: string
   deletedAt: string | null
