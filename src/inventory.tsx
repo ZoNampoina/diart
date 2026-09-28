@@ -16,6 +16,7 @@ const CATEGORY_LABELS: Record<InventoryCategory,string> = {
   adaptateur:'Adaptateurs'
 }
 const WEEKDAYS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi']
+const DEFAULT_PROVIDER = 'Mon stock'
 
 const DEFAULT_CATALOG: Record<InventoryCategory,string[]> = {
   cable:[
@@ -37,6 +38,15 @@ const DEFAULT_CATALOG: Record<InventoryCategory,string[]> = {
 
 const now = () => new Date().toISOString()
 const clampQuantity = (value:number) => Math.max(0,Math.min(999,Math.floor(Number.isFinite(value)?value:0)))
+
+function normalizeProvider(value:unknown):string{
+  const provider=String(value??'').trim()
+  return provider||DEFAULT_PROVIDER
+}
+
+function normalizeStockItem(item:InventoryStockItem):InventoryStockItem{
+  return {...item,category:normalizeCategory(item.category,item.name),provider:normalizeProvider(item.provider)}
+}
 
 function normalizeCategory(value:unknown,name=''):InventoryCategory{
   if(value==='cable'||value==='prise'||value==='instrument'||value==='adaptateur')return value
@@ -82,15 +92,15 @@ async function ensureStockSeed():Promise<void>{
   if(seeded)return
   const stamp=now()
   const existing=await db.inventoryStock.toArray()
-  const existingNames=new Set(existing.map(item=>item.category+':'+item.name.trim().toLowerCase()))
+  const existingNames=new Set(existing.map(item=>normalizeProvider(item.provider)+'|'+normalizeCategory(item.category,item.name)+':'+item.name.trim().toLowerCase()))
   const rows:InventoryStockItem[]=[]
   for(const category of CATEGORY_ORDER){
     for(const name of DEFAULT_CATALOG[category]){
-      const key=category+':'+name.toLowerCase()
+      const key=DEFAULT_PROVIDER+'|'+category+':'+name.toLowerCase()
       if(existingNames.has(key))continue
       rows.push({
         id:stableCatalogUuid(category,name),
-        name,category,quantity:0,notes:'',
+        name,category,quantity:0,provider:DEFAULT_PROVIDER,notes:'',
         createdAt:stamp,updatedAt:'1970-01-01T00:00:00.000Z',deletedAt:null
       })
     }
@@ -214,7 +224,7 @@ export async function exportTechnicalSheetImage(program:InventoryProgram,stock:I
         if(stockItem){
           ctx.fillStyle=item.quantity>stockItem.quantity?'#b34d45':'#5f7c80'
           ctx.font='600 18px system-ui, -apple-system, Segoe UI, sans-serif'
-          ctx.fillText('Stock '+stockItem.quantity,left+720,y+47)
+          ctx.fillText(normalizeProvider(stockItem.provider)+' · Stock '+stockItem.quantity,left+720,y+47)
         }
         ctx.fillStyle='#0f6f78';ctx.font='800 30px system-ui, -apple-system, Segoe UI, sans-serif';ctx.textAlign='right'
         ctx.fillText(String(item.quantity),right-30,y+50);ctx.textAlign='left'
@@ -256,6 +266,8 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   const [name,setName]=useState('')
   const [stockName,setStockName]=useState('')
   const [stockCategory,setStockCategory]=useState<InventoryCategory>('cable')
+  const [providerName,setProviderName]=useState('')
+  const [stockProvider,setStockProvider]=useState(DEFAULT_PROVIDER)
   const [busy,setBusy]=useState(false)
   const [openCategories,setOpenCategories]=useState<Record<InventoryCategory,boolean>>({cable:true,prise:true,instrument:true,adaptateur:true})
 
@@ -263,11 +275,12 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     await ensureStockSeed()
     const [p,s]=await Promise.all([db.programs.toArray(),db.inventoryStock.toArray()])
     setPrograms(p.filter(item=>!item.deletedAt).map(normalizeProgram).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)))
-    setStock(s.filter(item=>!item.deletedAt).map(item=>({...item,category:normalizeCategory(item.category,item.name)})).sort((a,b)=>a.name.localeCompare(b.name,'fr')))
+    setStock(s.filter(item=>!item.deletedAt).map(normalizeStockItem).sort((a,b)=>a.name.localeCompare(b.name,'fr')))
   }
   useEffect(()=>{void refresh()},[])
 
   const changed=async()=>{await refresh();onChanged()}
+  const providers=useMemo(()=>Array.from(new Set([DEFAULT_PROVIDER,...stock.map(item=>normalizeProvider(item.provider))])).sort((a,b)=>a===DEFAULT_PROVIDER?-1:b===DEFAULT_PROVIDER?1:a.localeCompare(b,'fr')),[stock])
 
   const create=async()=>{
     if(!name.trim()||busy)return
@@ -277,15 +290,31 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     }finally{setBusy(false)}
   }
 
+  const createProvider=async()=>{
+    const value=providerName.trim()
+    if(!value)return
+    const existing=providers.find(provider=>provider.toLowerCase()===value.toLowerCase())
+    if(existing){
+      setStockProvider(existing);setProviderName('');toast('Ce prestataire existe déjà.')
+      return
+    }
+    const stamp=now()
+    const rows:InventoryStockItem[]=CATEGORY_ORDER.flatMap(category=>DEFAULT_CATALOG[category].map(name=>({
+      id:crypto.randomUUID(),name,category,quantity:0,provider:value,notes:'',createdAt:stamp,updatedAt:stamp,deletedAt:null
+    })))
+    await db.inventoryStock.bulkAdd(rows)
+    setProviderName('');setStockProvider(value);await changed();toast('Prestataire ajouté.')
+  }
+
   const addStock=async()=>{
     const value=stockName.trim()
     if(!value)return
-    const existing=stock.find(item=>item.category===stockCategory&&item.name.trim().toLowerCase()===value.toLowerCase())
+    const existing=stock.find(item=>normalizeProvider(item.provider)===stockProvider&&item.category===stockCategory&&item.name.trim().toLowerCase()===value.toLowerCase())
     if(existing){
-      await db.inventoryStock.update(existing.id,{quantity:existing.quantity+1,updatedAt:now()})
+      await db.inventoryStock.update(existing.id,{quantity:existing.quantity+1,provider:stockProvider,updatedAt:now()})
     }else{
       const stamp=now()
-      await db.inventoryStock.add({id:crypto.randomUUID(),name:value,category:stockCategory,quantity:1,notes:'',createdAt:stamp,updatedAt:stamp,deletedAt:null})
+      await db.inventoryStock.add({id:crypto.randomUUID(),name:value,category:stockCategory,quantity:1,provider:stockProvider,notes:'',createdAt:stamp,updatedAt:stamp,deletedAt:null})
     }
     setStockName('');await changed()
   }
@@ -331,15 +360,22 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
       </div>
     </>:<>
       <div className="stock-toolbar panel">
+        <select value={stockProvider} onChange={e=>setStockProvider(e.target.value)}>
+          {providers.map(provider=><option value={provider} key={provider}>{provider}</option>)}
+        </select>
+        <input value={providerName} onChange={e=>setProviderName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createProvider()}} placeholder="Nouveau prestataire / stockage…"/>
+        <button className="secondary" disabled={!providerName.trim()} onClick={()=>void createProvider()}><Plus/>Prestataire</button>
+      </div>
+      <div className="stock-toolbar panel">
         <select value={stockCategory} onChange={e=>setStockCategory(e.target.value as InventoryCategory)}>
           {CATEGORY_ORDER.map(category=><option value={category} key={category}>{CATEGORY_LABELS[category]}</option>)}
         </select>
-        <input value={stockName} onChange={e=>setStockName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void addStock()}} placeholder="Ajouter au stock…"/>
+        <input value={stockName} onChange={e=>setStockName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void addStock()}} placeholder={'Ajouter chez '+stockProvider+'…'}/>
         <button className="primary" disabled={!stockName.trim()} onClick={()=>void addStock()}><Plus/>Ajouter</button>
       </div>
       <div className="inventory-category-stack">
         {CATEGORY_ORDER.map(category=>{
-          const items=stock.filter(item=>item.category===category)
+          const items=stock.filter(item=>normalizeProvider(item.provider)===stockProvider&&item.category===category)
           return <CategorySection category={category} key={category} open={openCategories[category]} onToggle={()=>toggleCategory(category)} count={items.length}>
             {items.map(item=><div className={'stock-row '+(item.quantity>0?'active':'empty-stock')} key={item.id}>
               <b>{item.name}</b>
@@ -361,6 +397,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
 export function InventoryProgramPage({programId,onBack,onChanged,toast}:{programId:string;onBack:()=>void;onChanged:()=>void;toast:(text:string)=>void}){
   const [program,setProgram]=useState<InventoryProgram|null>(null)
   const [stock,setStock]=useState<InventoryStockItem[]>([])
+  const [stockProvider,setStockProvider]=useState(DEFAULT_PROVIDER)
   const [detailsOpen,setDetailsOpen]=useState(false)
   const [summaryOpen,setSummaryOpen]=useState(false)
   const [stockPickerOpen,setStockPickerOpen]=useState(false)
@@ -375,7 +412,12 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
     await ensureStockSeed()
     const [p,s]=await Promise.all([db.programs.get(programId),db.inventoryStock.toArray()])
     setProgram(p?normalizeProgram(p):null)
-    setStock(s.filter(item=>!item.deletedAt).map(item=>({...item,category:normalizeCategory(item.category,item.name)})).sort((a,b)=>a.name.localeCompare(b.name,'fr')))
+    const normalizedStock=s.filter(item=>!item.deletedAt).map(normalizeStockItem).sort((a,b)=>a.name.localeCompare(b.name,'fr'))
+    setStock(normalizedStock)
+    setStockProvider(current=>{
+      if(normalizedStock.some(item=>normalizeProvider(item.provider)===current&&item.quantity>0))return current
+      return normalizeProvider(normalizedStock.find(item=>item.quantity>0)?.provider)
+    })
   }
   useEffect(()=>{void refresh()},[programId])
 
@@ -389,6 +431,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
   }
 
   const items=program?.items??[]
+  const stockProviders=useMemo(()=>Array.from(new Set(stock.map(item=>normalizeProvider(item.provider)))).sort((a,b)=>a===DEFAULT_PROVIDER?-1:b===DEFAULT_PROVIDER?1:a.localeCompare(b,'fr')),[stock])
   const selectedItems=useMemo(()=>items.filter(item=>item.quantity>0),[items])
   const totalQuantity=useMemo(()=>selectedItems.reduce((sum,item)=>sum+item.quantity,0),[selectedItems])
 
@@ -479,9 +522,9 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
       </div>
 
       {stockPickerOpen&&<div className="stock-picker">
-        <div className="stock-picker-title"><Archive/><span><b>Prendre depuis mon stock</b><small>Ajoute l’élément au programme sans diminuer le stock réel.</small></span></div>
+        <div className="stock-picker-title"><Archive/><span><b>Prendre depuis un stockage</b><small>Choisissez le prestataire ; l’ajout ne diminue pas le stock réel.</small></span><select value={stockProvider} onChange={e=>setStockProvider(e.target.value)}>{stockProviders.map(provider=><option value={provider} key={provider}>{provider}</option>)}</select></div>
         {CATEGORY_ORDER.map(category=>{
-          const group=stock.filter(item=>item.category===category&&item.quantity>0)
+          const group=stock.filter(item=>normalizeProvider(item.provider)===stockProvider&&item.category===category&&item.quantity>0)
           return <CategorySection category={category} key={category} open={stockPickerCategories[category]} onToggle={()=>setStockPickerCategories(v=>({...v,[category]:!v[category]}))} count={group.length}>
             {group.length?group.map(item=>{
               const planned=items.find(p=>p.stockItemId===item.id)?.quantity??0
@@ -508,7 +551,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
               const shortage=Boolean(stockItem&&item.quantity>stockItem.quantity)
               return <div className={'program-material-row '+(item.quantity>0?'active ':'')+(shortage?'shortage':'')} key={item.id}>
                 <b>{item.name}</b>
-                <span className="program-material-source">{stockItem?(shortage?'Stock insuffisant':'Stock '+stockItem.quantity):''}</span>
+                <span className="program-material-source">{stockItem?(normalizeProvider(stockItem.provider)+' · '+(shortage?'Stock insuffisant':'Stock '+stockItem.quantity)):''}</span>
                 <div className="compact-qty">
                   <button disabled={item.quantity<=0} onClick={()=>setQuantity(item.id,item.quantity-1)}><Minus/></button>
                   <input type="number" min="0" max="999" inputMode="numeric" value={item.quantity} onChange={e=>setQuantity(item.id,Number(e.target.value))}/>
