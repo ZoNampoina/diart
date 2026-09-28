@@ -375,7 +375,9 @@ function CategorySection({category,open,onToggle,children,count}:{category:Inven
 export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void;onChanged:()=>void;toast:(text:string)=>void}){
   const [programs,setPrograms]=useState<InventoryProgram[]>([])
   const [stock,setStock]=useState<InventoryStockItem[]>([])
+  const [history,setHistory]=useState<ActivityEntry[]>([])
   const [tab,setTab]=useState<'programs'|'stock'>('programs')
+  const [stockView,setStockView]=useState<'provider'|'global'|'history'>('provider')
   const [name,setName]=useState('')
   const [stockName,setStockName]=useState('')
   const [stockCategory,setStockCategory]=useState<InventoryCategory>('cable')
@@ -386,14 +388,33 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
 
   const refresh=async()=>{
     await ensureStockSeed()
-    const [p,s]=await Promise.all([db.programs.toArray(),db.inventoryStock.toArray()])
+    const [p,s,h]=await Promise.all([
+      db.programs.toArray(),
+      db.inventoryStock.toArray(),
+      db.activity.orderBy('createdAt').reverse().limit(180).toArray()
+    ])
     setPrograms(p.filter(item=>!item.deletedAt).map(normalizeProgram).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)))
     setStock(s.filter(item=>!item.deletedAt).map(normalizeStockItem).sort((a,b)=>a.name.localeCompare(b.name,'fr')))
+    setHistory(h.filter(item=>item.source==='inventory'))
   }
   useEffect(()=>{void refresh()},[])
 
   const changed=async()=>{await refresh();onChanged()}
   const providers=useMemo(()=>Array.from(new Set([DEFAULT_PROVIDER,...stock.map(item=>normalizeProvider(item.provider))])).sort((a,b)=>a===DEFAULT_PROVIDER?-1:b===DEFAULT_PROVIDER?1:a.localeCompare(b,'fr')),[stock])
+  const stockUnits=stock.reduce((sum,item)=>sum+item.quantity,0)
+  const unavailableUnits=stock.filter(item=>statusBlocksAvailability(item.status)).reduce((sum,item)=>sum+item.quantity,0)
+
+  const globalStock=useMemo(()=>{
+    const map=new Map<string,{category:InventoryCategory;name:string;total:number;providers:{provider:string;quantity:number;status:InventoryStockStatus;id:string}[]}>()
+    for(const item of stock){
+      const key=item.category+'|'+item.name.trim().toLowerCase()
+      const row=map.get(key)??{category:item.category,name:item.name,total:0,providers:[]}
+      row.total+=item.quantity
+      row.providers.push({provider:normalizeProvider(item.provider),quantity:item.quantity,status:item.status??'available',id:item.id})
+      map.set(key,row)
+    }
+    return Array.from(map.values()).sort((a,b)=>a.category.localeCompare(b.category)||a.name.localeCompare(b.name,'fr'))
+  },[stock])
 
   const create=async()=>{
     if(!name.trim()||busy)return
@@ -413,9 +434,10 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     }
     const stamp=now()
     const rows:InventoryStockItem[]=CATEGORY_ORDER.flatMap(category=>DEFAULT_CATALOG[category].map(name=>({
-      id:crypto.randomUUID(),name,category,quantity:0,provider:value,notes:'',createdAt:stamp,updatedAt:stamp,deletedAt:null
+      id:crypto.randomUUID(),name,category,quantity:0,provider:value,status:'available' as InventoryStockStatus,notes:'',createdAt:stamp,updatedAt:stamp,deletedAt:null
     })))
     await db.inventoryStock.bulkAdd(rows)
+    await logActivity('create','Nouveau stockage',value,{source:'inventory',inventoryProvider:value})
     setProviderName('');setStockProvider(value);await changed();toast('Prestataire ajouté.')
   }
 
@@ -425,27 +447,49 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     const existing=stock.find(item=>normalizeProvider(item.provider)===stockProvider&&item.category===stockCategory&&item.name.trim().toLowerCase()===value.toLowerCase())
     if(existing){
       await db.inventoryStock.update(existing.id,{quantity:existing.quantity+1,provider:stockProvider,updatedAt:now()})
+      await logActivity('update','Entrée stock',value+' · +1',{source:'inventory',inventoryStockItemId:existing.id,inventoryProvider:stockProvider,inventoryDelta:1})
     }else{
       const stamp=now()
-      await db.inventoryStock.add({id:crypto.randomUUID(),name:value,category:stockCategory,quantity:1,provider:stockProvider,notes:'',createdAt:stamp,updatedAt:stamp,deletedAt:null})
+      const id=crypto.randomUUID()
+      await db.inventoryStock.add({id,name:value,category:stockCategory,quantity:1,provider:stockProvider,status:'available',notes:'',createdAt:stamp,updatedAt:stamp,deletedAt:null})
+      await logActivity('create','Ajout matériel',value+' · +1',{source:'inventory',inventoryStockItemId:id,inventoryProvider:stockProvider,inventoryDelta:1})
     }
     setStockName('');await changed()
   }
 
   const setStockQuantity=async(item:InventoryStockItem,quantity:number)=>{
-    await db.inventoryStock.update(item.id,{quantity:clampQuantity(quantity),updatedAt:now()});await changed()
+    const next=clampQuantity(quantity)
+    const delta=next-item.quantity
+    if(!delta)return
+    await db.inventoryStock.update(item.id,{quantity:next,updatedAt:now()})
+    await logActivity('update',delta>0?'Entrée stock':'Sortie stock',item.name+' · '+(delta>0?'+':'')+delta,{
+      source:'inventory',inventoryStockItemId:item.id,inventoryProvider:normalizeProvider(item.provider),inventoryDelta:delta
+    })
+    await changed()
+  }
+
+  const setStockStatus=async(item:InventoryStockItem,status:InventoryStockStatus)=>{
+    if((item.status??'available')===status)return
+    await db.inventoryStock.update(item.id,{status,updatedAt:now()})
+    await logActivity('update','État matériel',item.name+' · '+STOCK_STATUS_LABELS[status],{
+      source:'inventory',inventoryStockItemId:item.id,inventoryProvider:normalizeProvider(item.provider)
+    })
+    await changed()
   }
 
   const deleteStock=async(item:InventoryStockItem)=>{
-    await db.inventoryStock.update(item.id,{deletedAt:now(),updatedAt:now()});await changed();toast('Élément retiré du stock.')
+    await db.inventoryStock.update(item.id,{deletedAt:now(),updatedAt:now()})
+    await logActivity('delete','Matériel retiré',item.name+' · '+item.quantity+' u.',{
+      source:'inventory',inventoryStockItemId:item.id,inventoryProvider:normalizeProvider(item.provider),inventoryDelta:-item.quantity
+    })
+    await changed();toast('Élément retiré du stock.')
   }
 
   const toggleCategory=(category:InventoryCategory)=>setOpenCategories(value=>({...value,[category]:!value[category]}))
-  const stockUnits=stock.reduce((sum,item)=>sum+item.quantity,0)
 
   return <>
     <section className="inventory-hero panel compact-inventory-hero">
-      <div><span className="eyebrow">Organisation matérielle</span><h1>Inventaire</h1><p>Programmes d’événements et stock réel au même endroit.</p></div>
+      <div><span className="eyebrow">Organisation matérielle</span><h1>Inventaire</h1><p>Programmes, stock multi-prestataires, réservations et suivi opérationnel.</p></div>
       <div className="inventory-tabs">
         <button className={tab==='programs'?'active':''} onClick={()=>setTab('programs')}><CalendarDays/>Programmes <span>{programs.length}</span></button>
         <button className={tab==='stock'?'active':''} onClick={()=>setTab('stock')}><Archive/>Stock <span>{stockUnits}</span></button>
@@ -461,52 +505,87 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
         {programs.length?programs.map(program=>{
           const active=program.items.filter(item=>item.quantity>0)
           const total=active.reduce((sum,item)=>sum+item.quantity,0)
-          return <button className="compact-program-row" key={program.id} onClick={()=>onOpen(program.id)}>
+          const conflicts=programs.filter(other=>programsOverlap(program,other))
+          return <button className={'compact-program-row '+(conflicts.length?'has-conflict':'')} key={program.id} onClick={()=>onOpen(program.id)}>
             <CalendarDays/>
             <b>{program.name}</b>
             <span className="program-row-frequency"><Repeat2/>{recurrenceText(program)}</span>
             {program.date&&<span>{new Date(program.date+'T00:00:00').toLocaleDateString('fr-FR')}</span>}
-            <span>{active.length} réf. · {total} u.</span>
+            <span>{active.length} réf. · {total} u.{conflicts.length?' · '+conflicts.length+' conflit'+(conflicts.length>1?'s':''):''}</span>
             <ChevronRight/>
           </button>
         }):<div className="panel inventory-empty"><PackagePlus/><b>Aucun programme</b><span>Créez votre premier événement.</span></div>}
       </div>
     </>:<>
-      <div className="stock-toolbar panel">
-        <select value={stockProvider} onChange={e=>setStockProvider(e.target.value)}>
-          {providers.map(provider=><option value={provider} key={provider}>{provider}</option>)}
-        </select>
-        <input value={providerName} onChange={e=>setProviderName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createProvider()}} placeholder="Nouveau prestataire / stockage…"/>
-        <button className="secondary" disabled={!providerName.trim()} onClick={()=>void createProvider()}><Plus/>Prestataire</button>
+      <div className="stock-view-switch panel">
+        <button className={stockView==='provider'?'active':''} onClick={()=>setStockView('provider')}><Archive/>Par stockage</button>
+        <button className={stockView==='global'?'active':''} onClick={()=>setStockView('global')}><LayoutGrid/>Vue globale</button>
+        <button className={stockView==='history'?'active':''} onClick={()=>setStockView('history')}><History/>Mouvements</button>
+        <span>{stockUnits} u. · {providers.length} stockage{providers.length>1?'s':''}{unavailableUnits?' · '+unavailableUnits+' indisponibles':''}</span>
       </div>
-      <div className="stock-toolbar panel">
-        <select value={stockCategory} onChange={e=>setStockCategory(e.target.value as InventoryCategory)}>
-          {CATEGORY_ORDER.map(category=><option value={category} key={category}>{CATEGORY_LABELS[category]}</option>)}
-        </select>
-        <input value={stockName} onChange={e=>setStockName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void addStock()}} placeholder={'Ajouter chez '+stockProvider+'…'}/>
-        <button className="primary" disabled={!stockName.trim()} onClick={()=>void addStock()}><Plus/>Ajouter</button>
-      </div>
-      <div className="inventory-category-stack planned-material-list">
+
+      {stockView==='provider'&&<>
+        <div className="stock-toolbar panel">
+          <select value={stockProvider} onChange={e=>setStockProvider(e.target.value)}>
+            {providers.map(provider=><option value={provider} key={provider}>{provider}</option>)}
+          </select>
+          <input value={providerName} onChange={e=>setProviderName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createProvider()}} placeholder="Nouveau prestataire / stockage…"/>
+          <button className="secondary" disabled={!providerName.trim()} onClick={()=>void createProvider()}><Plus/>Prestataire</button>
+        </div>
+        <div className="stock-toolbar panel">
+          <select value={stockCategory} onChange={e=>setStockCategory(e.target.value as InventoryCategory)}>
+            {CATEGORY_ORDER.map(category=><option value={category} key={category}>{CATEGORY_LABELS[category]}</option>)}
+          </select>
+          <input value={stockName} onChange={e=>setStockName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void addStock()}} placeholder={'Ajouter chez '+stockProvider+'…'}/>
+          <button className="primary" disabled={!stockName.trim()} onClick={()=>void addStock()}><Plus/>Ajouter</button>
+        </div>
+        <div className="inventory-category-stack planned-material-list">
+          {CATEGORY_ORDER.map(category=>{
+            const items=stock.filter(item=>normalizeProvider(item.provider)===stockProvider&&item.category===category)
+            return <CategorySection category={category} key={category} open={openCategories[category]} onToggle={()=>toggleCategory(category)} count={items.length}>
+              {items.map(item=><div className={'stock-row stock-row-with-status '+(item.quantity>0?'active':'empty-stock')} key={item.id}>
+                <b>{item.name}</b>
+                <select className={'stock-status-select status-'+(item.status??'available')} value={item.status??'available'} onChange={e=>void setStockStatus(item,e.target.value as InventoryStockStatus)}>
+                  {Object.entries(STOCK_STATUS_LABELS).map(([value,label])=><option value={value} key={value}>{label}</option>)}
+                </select>
+                <div className="compact-qty">
+                  <button disabled={item.quantity<=0} onClick={()=>void setStockQuantity(item,item.quantity-1)}><Minus/></button>
+                  <input type="number" min="0" max="999" inputMode="numeric" value={item.quantity} onChange={e=>void setStockQuantity(item,Number(e.target.value))}/>
+                  <button onClick={()=>void setStockQuantity(item,item.quantity+1)}><Plus/></button>
+                </div>
+                <button className="bare-action danger-icon compact-delete" aria-label={'Supprimer '+item.name} onClick={()=>void deleteStock(item)}><Trash2/></button>
+              </div>)}
+            </CategorySection>
+          })}
+        </div>
+      </>}
+
+      {stockView==='global'&&<div className="global-stock-dashboard">
         {CATEGORY_ORDER.map(category=>{
-          const items=stock.filter(item=>normalizeProvider(item.provider)===stockProvider&&item.category===category)
-          return <CategorySection category={category} key={category} open={openCategories[category]} onToggle={()=>toggleCategory(category)} count={items.length}>
-            {items.map(item=><div className={'stock-row '+(item.quantity>0?'active':'empty-stock')} key={item.id}>
-              <b>{item.name}</b>
-              <span className="stock-status">{item.quantity>0?'En stock':'0'}</span>
-              <div className="compact-qty">
-                <button disabled={item.quantity<=0} onClick={()=>void setStockQuantity(item,item.quantity-1)}><Minus/></button>
-                <input type="number" min="0" max="999" inputMode="numeric" value={item.quantity} onChange={e=>void setStockQuantity(item,Number(e.target.value))}/>
-                <button onClick={()=>void setStockQuantity(item,item.quantity+1)}><Plus/></button>
-              </div>
-              <button className="bare-action danger-icon compact-delete" aria-label={'Supprimer '+item.name} onClick={()=>void deleteStock(item)}><Trash2/></button>
+          const rows=globalStock.filter(row=>row.category===category)
+          if(!rows.length)return null
+          return <section className="panel global-stock-category" key={category}>
+            <div className="global-stock-category-head"><b>{CATEGORY_LABELS[category]}</b><span>{rows.reduce((sum,row)=>sum+row.total,0)} unités</span></div>
+            {rows.map(row=><div className="global-stock-row" key={category+'-'+row.name}>
+              <div><b>{row.name}</b><small>{row.providers.length} stockage{row.providers.length>1?'s':''}</small></div>
+              <div className="global-stock-providers">{row.providers.map(part=><span className={'provider-stock-chip status-'+part.status} key={part.id}><em>{part.provider}</em><b>{part.quantity}</b><small>{STOCK_STATUS_LABELS[part.status]}</small></span>)}</div>
+              <strong>{row.total}</strong>
             </div>)}
-          </CategorySection>
+          </section>
         })}
-      </div>
+      </div>}
+
+      {stockView==='history'&&<section className="panel inventory-movement-history">
+        <div className="inventory-history-head"><div><h2>Mouvements du stock</h2><small>Entrées, sorties, changements d’état et opérations de programme.</small></div><History/></div>
+        {history.length?history.map(entry=><div className="inventory-history-row" key={entry.id}>
+          <span><b>{entry.label}</b><small>{entry.details}{entry.inventoryProvider?' · '+entry.inventoryProvider:''}</small></span>
+          {typeof entry.inventoryDelta==='number'&&entry.inventoryDelta!==0&&<strong className={entry.inventoryDelta>0?'positive':'negative'}>{entry.inventoryDelta>0?'+':''}{entry.inventoryDelta}</strong>}
+          <time>{new Date(entry.createdAt).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</time>
+        </div>):<div className="inventory-overview-empty">Aucun mouvement enregistré pour le moment.</div>}
+      </section>}
     </>}
   </>
 }
-
 export function InventoryProgramPage({programId,onBack,onChanged,toast}:{programId:string;onBack:()=>void;onChanged:()=>void;toast:(text:string)=>void}){
   const [program,setProgram]=useState<InventoryProgram|null>(null)
   const [stock,setStock]=useState<InventoryStockItem[]>([])
