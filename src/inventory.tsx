@@ -1,25 +1,32 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
-  AlertTriangle, Archive, Boxes, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp,
-  ClipboardCheck, Eye, History, ImageDown, LayoutGrid, Minus, PackageCheck, PackagePlus,
-  PackageSearch, Plus, Repeat2, Save, Trash2, X
+  AlertTriangle, Archive, Boxes, BrainCircuit, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp,
+  ClipboardCheck, Eye, History, ImageDown, LayoutGrid, Link2, Minus, Network, PackageCheck, PackagePlus,
+  PackageSearch, Plus, Repeat2, Save, Settings2, Trash2, Wifi, WifiOff, X
 } from 'lucide-react'
 import { db, logActivity } from './db'
+import { analyzeInventoryInstallationWithAI } from './cloud'
 import type {
-  ActivityEntry, InventoryCategory, InventoryFrequency, InventoryKit, InventoryMaterial,
-  InventoryProgram, InventoryStockItem, InventoryStockStatus
+  ActivityEntry, InstallationSuggestion, InventoryCategory, InventoryCharacteristic, InventoryFrequency,
+  InventoryKit, InventoryMaterial, InventoryPort, InventoryPortDirection, InventoryProgram,
+  InventoryStockItem, InventoryStockStatus
 } from './types'
 
-const CATEGORY_ORDER: InventoryCategory[] = ['cable','prise','instrument','adaptateur']
-const CATEGORY_LABELS: Record<InventoryCategory,string> = {
-  cable:'Câbles',
-  prise:'Prises / alimentations',
-  instrument:'Instruments',
-  adaptateur:'Adaptateurs'
-}
+type InventoryCategoryDef={id:InventoryCategory;label:string}
+const DEFAULT_CATEGORIES:InventoryCategoryDef[]=[
+  {id:'cable',label:'Câbles'},
+  {id:'prise',label:'Prises / alimentations'},
+  {id:'instrument',label:'Instruments'},
+  {id:'adaptateur',label:'Adaptateurs'},
+  {id:'accessoire',label:'Accessoires'}
+]
+const DEFAULT_CATEGORY_ORDER:InventoryCategory[]=DEFAULT_CATEGORIES.map(item=>item.id)
+const DEFAULT_CATEGORY_LABELS:Record<string,string>=Object.fromEntries(DEFAULT_CATEGORIES.map(item=>[item.id,item.label]))
 const WEEKDAYS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi']
 const DEFAULT_PROVIDER = 'Mon stock'
 const INVENTORY_KITS_KEY = 'inventoryKitsV1'
+const INVENTORY_CATEGORIES_KEY = 'inventoryCategoriesV1'
+const CONNECTOR_OPTIONS=['XLR(F)','XLR(M)','JACK','minijack','RCA','Speakon','USB-A','USB-B','USB-C','Ethernet RJ45','IEC','MIDI DIN','HDMI','Autre']
 const STOCK_STATUS_LABELS:Record<InventoryStockStatus,string>={
   available:'Disponible',
   reserved:'Réservé',
@@ -30,7 +37,7 @@ const STOCK_STATUS_LABELS:Record<InventoryStockStatus,string>={
 }
 const BLOCKING_STOCK_STATUSES:InventoryStockStatus[]=['reserved','in_use','repair','maintenance','unavailable']
 
-const DEFAULT_CATALOG: Record<InventoryCategory,string[]> = {
+const DEFAULT_CATALOG: Record<string,string[]> = {
   cable:[
     'XLR-XLR','XLR(M) - JACK','XLR(F) - JACK','JACK-JACK','minijack-JACK',
     'Speakon-Speakon','USB-A - USB-B','USB-C - USB-C','Ethernet RJ45'
@@ -45,6 +52,10 @@ const DEFAULT_CATALOG: Record<InventoryCategory,string[]> = {
   adaptateur:[
     'minijack to JACK','RCA to JACK','RCA to minijack','JACK to minijack',
     'RCA to RCA','Multi-JACK','Multi-minijack','XLR to JACK','USB-C to USB-A','USB-C to minijack'
+  ],
+  accessoire:[
+    'Pied de micro','Pied de clavier','Pupitre','Stand guitare / basse','Support tablette',
+    'Pince micro','Flight case','Housse','Velcro / attache câble','Gaffer'
   ]
 }
 
@@ -66,12 +77,66 @@ function normalizeStockItem(item:InventoryStockItem):InventoryStockItem{
 }
 
 function normalizeCategory(value:unknown,name=''):InventoryCategory{
-  if(value==='cable'||value==='prise'||value==='instrument'||value==='adaptateur')return value
+  const raw=String(value??'').trim()
+  if(raw)return raw
   const key=name.trim().toLowerCase()
+  if(/pied|stand|pupitre|support|pince|flight|housse|velcro|gaffer/.test(key))return 'accessoire'
   if(/xlr|jack|speakon|usb|ethernet|câble|cable/.test(key))return 'cable'
   if(/alim|prise|chargeur|rallonge|iec|secteur/.test(key))return 'prise'
   if(/piano|guitare|basse|batterie|pad|micro|saxo|clavier|caj/.test(key))return 'instrument'
   return 'adaptateur'
+}
+
+function categoryLabel(category:InventoryCategory,defs:InventoryCategoryDef[]=DEFAULT_CATEGORIES):string{
+  return defs.find(item=>item.id===category)?.label??DEFAULT_CATEGORY_LABELS[category]??category.replace(/[-_]+/g,' ').replace(/^./,c=>c.toUpperCase())
+}
+
+function categorySlug(label:string):string{
+  return label.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'classe'
+}
+
+async function loadInventoryCategories():Promise<InventoryCategoryDef[]>{
+  const row=await db.settings.get(INVENTORY_CATEGORIES_KEY)
+  if(!row?.value)return DEFAULT_CATEGORIES
+  try{
+    const saved=JSON.parse(row.value) as InventoryCategoryDef[]
+    const map=new Map<string,InventoryCategoryDef>(DEFAULT_CATEGORIES.map(item=>[item.id,item]))
+    for(const item of Array.isArray(saved)?saved:[])if(item?.id&&item?.label)map.set(item.id,item)
+    return Array.from(map.values())
+  }catch{return DEFAULT_CATEGORIES}
+}
+
+async function saveInventoryCategories(defs:InventoryCategoryDef[]):Promise<void>{
+  await db.settings.put({key:INVENTORY_CATEGORIES_KEY,value:JSON.stringify(defs)})
+}
+
+function defaultTechnicalProfile(name:string):{characteristics:InventoryCharacteristic[];ports:InventoryPort[]}{
+  const key=name.trim().toLowerCase()
+  if(/\bbasse\b|guitare bass/.test(key))return {
+    characteristics:[{id:crypto.randomUUID(),label:'Sortie principale',value:'JACK 6,35 mm'}],
+    ports:[{id:crypto.randomUUID(),label:'Sortie instrument',connector:'JACK',direction:'output',count:1}]
+  }
+  if(/\bguitare\b/.test(key))return {
+    characteristics:[{id:crypto.randomUUID(),label:'Sortie principale',value:'JACK 6,35 mm'}],
+    ports:[{id:crypto.randomUUID(),label:'Sortie instrument',connector:'JACK',direction:'output',count:1}]
+  }
+  if(/micro/.test(key))return {
+    characteristics:[{id:crypto.randomUUID(),label:'Connexion audio',value:'XLR'}],
+    ports:[{id:crypto.randomUUID(),label:'Sortie micro',connector:'XLR(M)',direction:'output',count:1}]
+  }
+  if(/table de mix|console/.test(key))return {
+    characteristics:[
+      {id:crypto.randomUUID(),label:'Entrées XLR',value:'18 × XLR(F)'},
+      {id:crypto.randomUUID(),label:'Sorties AUX',value:'6 × XLR(M)'},
+      {id:crypto.randomUUID(),label:'Sorties MAIN',value:'2 × XLR(M)'}
+    ],
+    ports:[
+      {id:crypto.randomUUID(),label:'Entrées micro',connector:'XLR(F)',direction:'input',count:18},
+      {id:crypto.randomUUID(),label:'AUX',connector:'XLR(M)',direction:'output',count:6},
+      {id:crypto.randomUUID(),label:'MAIN',connector:'XLR(M)',direction:'output',count:2}
+    ]
+  }
+  return {characteristics:[],ports:[]}
 }
 
 function normalizeProgram(program:InventoryProgram):InventoryProgram{
