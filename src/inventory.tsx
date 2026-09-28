@@ -263,6 +263,88 @@ async function saveInventoryKits(kits:InventoryKit[]):Promise<void>{
   await db.settings.put({key:INVENTORY_KITS_KEY,value:JSON.stringify(kits)})
 }
 
+function connectorKey(value:string):string{
+  return value.trim().toLowerCase().replace(/\s+/g,'')
+}
+function cableSuggestionName(fromConnector:string,toConnector:string):{kind:InstallationSuggestion['kind'];name:string}{
+  const a=connectorKey(fromConnector),b=connectorKey(toConnector)
+  const pair=[a,b].sort().join('|')
+  if(a.startsWith('xlr')&&b.startsWith('xlr'))return {kind:'cable',name:'XLR-XLR'}
+  if(pair==='jack|minijack')return {kind:'cable',name:'minijack-JACK'}
+  if(a==='jack'&&b==='jack')return {kind:'cable',name:'JACK-JACK'}
+  if(pair==='jack|rca')return {kind:'adapter',name:'RCA to JACK'}
+  if(pair==='minijack|rca')return {kind:'adapter',name:'RCA to minijack'}
+  if(a.includes('speakon')&&b.includes('speakon'))return {kind:'cable',name:'Speakon-Speakon'}
+  if(a.includes('usb-a')&&b.includes('usb-b'))return {kind:'cable',name:'USB-A - USB-B'}
+  if(a.includes('usb-c')&&b.includes('usb-c'))return {kind:'cable',name:'USB-C - USB-C'}
+  if(a.includes('ethernet')&&b.includes('ethernet'))return {kind:'cable',name:'Ethernet RJ45'}
+  if(a===b)return {kind:'cable',name:fromConnector+' - '+toConnector}
+  return {kind:'adapter',name:fromConnector+' vers '+toConnector}
+}
+function findSuggestedStock(name:string,stock:InventoryStockItem[]):InventoryStockItem|undefined{
+  const key=name.toLowerCase().replace(/[^a-z0-9]+/g,' ')
+  const words=key.split(/\s+/).filter(Boolean)
+  return stock.find(item=>{
+    const target=item.name.toLowerCase().replace(/[^a-z0-9]+/g,' ')
+    return words.every(word=>target.includes(word))
+  })??stock.find(item=>item.name.toLowerCase().includes(name.toLowerCase()))
+}
+function localInstallationAnalysis(program:InventoryProgram,stock:InventoryStockItem[]):{summary:string;suggestions:InstallationSuggestion[]}{
+  const installation=program.installation??{nodes:[],links:[]}
+  const suggestions:InstallationSuggestion[]=[]
+  const add=(entry:Omit<InstallationSuggestion,'id'>)=>{
+    const existing=suggestions.find(item=>item.kind===entry.kind&&item.name.toLowerCase()===entry.name.toLowerCase()&&item.matchedStockItemId===entry.matchedStockItemId)
+    if(existing){existing.quantity+=entry.quantity;existing.reason+=' · '+entry.reason;return}
+    suggestions.push({id:crypto.randomUUID(),...entry})
+  }
+  const nodeStock=(nodeId:string)=>{
+    const node=installation.nodes.find(item=>item.id===nodeId)
+    return node?.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
+  }
+  for(const link of installation.links){
+    const fromNode=installation.nodes.find(item=>item.id===link.fromNodeId)
+    const toNode=installation.nodes.find(item=>item.id===link.toNodeId)
+    if(!fromNode||!toNode)continue
+    const fromStock=nodeStock(link.fromNodeId)
+    const toStock=nodeStock(link.toNodeId)
+    const fromPort=(fromStock?.ports??[]).find(port=>port.id===link.fromPort)??(fromStock?.ports??[]).find(port=>port.direction==='output'||port.direction==='bidirectional')
+    const toPort=(toStock?.ports??[]).find(port=>port.id===link.toPort)??(toStock?.ports??[]).find(port=>port.direction==='input'||port.direction==='bidirectional')
+    if(!fromPort||!toPort){
+      add({kind:'warning',name:'Connectique à préciser',quantity:1,reason:'Préciser les ports entre '+fromNode.name+' et '+toNode.name})
+      continue
+    }
+    const recommendation=cableSuggestionName(fromPort.connector,toPort.connector)
+    const match=findSuggestedStock(recommendation.name,stock)
+    add({
+      kind:recommendation.kind,name:recommendation.name,quantity:1,
+      reason:fromNode.name+' ('+fromPort.connector+') → '+toNode.name+' ('+toPort.connector+')',
+      category:recommendation.kind==='cable'?'cable':'adaptateur',matchedStockItemId:match?.id
+    })
+  }
+  for(const node of installation.nodes){
+    const key=node.name.toLowerCase()
+    const accessory=/micro/.test(key)?'Pied de micro':/piano|clavier/.test(key)?'Pied de clavier':/guitare|basse/.test(key)?'Stand guitare / basse':''
+    if(accessory){
+      const match=findSuggestedStock(accessory,stock)
+      add({kind:'accessory',name:accessory,quantity:1,reason:'Support conseillé pour '+node.name,category:'accessoire',matchedStockItemId:match?.id})
+    }
+  }
+  const powered=installation.nodes.filter(node=>{
+    const item=node.stockItemId?stock.find(value=>value.id===node.stockItemId):undefined
+    return (item?.ports??[]).some(port=>port.direction==='power')
+  }).length
+  if(powered>=2){
+    const match=findSuggestedStock('Prise multiple',stock)
+    add({kind:'power',name:'Prise multiple',quantity:Math.max(1,Math.ceil(powered/6)),reason:powered+' appareils alimentés dans le schéma',category:'prise',matchedStockItemId:match?.id})
+  }
+  return {
+    summary:installation.links.length
+      ?installation.links.length+' liaison'+(installation.links.length>1?'s':'')+' analysée'+(installation.links.length>1?'s':'')+' · '+suggestions.length+' proposition'+(suggestions.length>1?'s':'')
+      :'Ajoutez des liaisons entre les équipements pour obtenir des propositions automatiques.',
+    suggestions
+  }
+}
+
 function stableCatalogUuid(category:InventoryCategory,name:string):string{
   const source=category+':'+name.toLowerCase()
   const seeds=[2166136261,2246822519,3266489917,668265263]
