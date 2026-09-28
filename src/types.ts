@@ -121,6 +121,8 @@ export interface Setlist {
 export type InventoryCategory = string
 export type InventoryStockStatus = 'available'|'reserved'|'in_use'|'repair'|'maintenance'|'unavailable'
 export type InventoryPortDirection = 'input'|'output'|'bidirectional'|'power'
+export type InventorySignalLevel = 'mic'|'line'|'instrument'|'speaker'|'digital'|'midi'|'power'|'unknown'
+export type InventoryPhantomMode = 'none'|'required'|'supported'|'blocked'
 
 export interface InventoryCharacteristic {
   id: string
@@ -134,6 +136,10 @@ export interface InventoryPort {
   connector: string
   direction: InventoryPortDirection
   count: number
+  signalLevel?: InventorySignalLevel
+  balanced?: boolean
+  stereo?: boolean
+  phantom?: InventoryPhantomMode
 }
 
 export interface InventoryMaterial {
@@ -191,6 +197,10 @@ export interface InstallationLink {
   fromPort?: string
   toPort?: string
   label?: string
+  lengthMeters?: number
+  assignedChannel?: string
+  compatibility?: 'ok'|'adapter'|'di'|'phantom'|'warning'
+  compatibilityNotes?: string[]
 }
 
 export interface InstallationSuggestion {
@@ -201,6 +211,8 @@ export interface InstallationSuggestion {
   reason: string
   category?: InventoryCategory
   matchedStockItemId?: string
+  lengthMeters?: number
+  channelAssignment?: string
 }
 
 export interface InventoryInstallation {
