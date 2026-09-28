@@ -118,16 +118,35 @@ export interface Setlist {
   deletedAt: string | null
 }
 
+export type InventoryCategory = 'cable'|'prise'|'instrument'|'adaptateur'
+
 export interface InventoryMaterial {
   id: string
   name: string
   quantity: number
+  category: InventoryCategory
+  stockItemId?: string
 }
+
+export interface InventoryStockItem {
+  id: string
+  name: string
+  category: InventoryCategory
+  quantity: number
+  notes?: string
+  createdAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
+export type InventoryFrequency = 'once'|'weekly'|'monthly'
 
 export interface InventoryProgram {
   id: string
   name: string
   date: string
+  frequency?: InventoryFrequency
+  weekday?: number | null
   location: string
   notes: string
   items: InventoryMaterial[]
