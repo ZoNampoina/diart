@@ -151,7 +151,15 @@ function normalizeProgram(program:InventoryProgram):InventoryProgram{
       category:normalizeCategory(item.category,item.name),
       loaded:item.loaded??false,
       returned:item.returned??false
-    }))
+    })),
+    installation:{
+      nodes:program.installation?.nodes??[],
+      links:program.installation?.links??[],
+      suggestions:program.installation?.suggestions??[],
+      aiSummary:program.installation?.aiSummary??'',
+      analyzedAt:program.installation?.analyzedAt,
+      analysisMode:program.installation?.analysisMode
+    }
   }
 }
 
