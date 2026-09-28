@@ -465,24 +465,57 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   const [stockCategory,setStockCategory]=useState<InventoryCategory>('cable')
   const [providerName,setProviderName]=useState('')
   const [stockProvider,setStockProvider]=useState(DEFAULT_PROVIDER)
+  const [categories,setCategories]=useState<InventoryCategoryDef[]>(DEFAULT_CATEGORIES)
+  const [newCategoryName,setNewCategoryName]=useState('')
+  const [techDraft,setTechDraft]=useState<InventoryStockItem|null>(null)
   const [busy,setBusy]=useState(false)
-  const [openCategories,setOpenCategories]=useState<Record<InventoryCategory,boolean>>({cable:true,prise:true,instrument:true,adaptateur:true})
+  const [openCategories,setOpenCategories]=useState<Record<InventoryCategory,boolean>>(
+    Object.fromEntries(DEFAULT_CATEGORY_ORDER.map(category=>[category,true]))
+  )
 
   const refresh=async()=>{
     await ensureStockSeed()
-    const [p,s,h]=await Promise.all([
+    const [p,s,h,defs]=await Promise.all([
       db.programs.toArray(),
       db.inventoryStock.toArray(),
-      db.activity.orderBy('createdAt').reverse().limit(180).toArray()
+      db.activity.orderBy('createdAt').reverse().limit(180).toArray(),
+      loadInventoryCategories()
     ])
     setPrograms(p.filter(item=>!item.deletedAt).map(normalizeProgram).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)))
     setStock(s.filter(item=>!item.deletedAt).map(normalizeStockItem).sort((a,b)=>a.name.localeCompare(b.name,'fr')))
     setHistory(h.filter(item=>item.source==='inventory'))
+    setCategories(defs)
+    setOpenCategories(current=>({...Object.fromEntries(defs.map(item=>[item.id,true])),...current}))
   }
   useEffect(()=>{void refresh()},[])
 
   const changed=async()=>{await refresh();onChanged()}
   const providers=useMemo(()=>Array.from(new Set([DEFAULT_PROVIDER,...stock.map(item=>normalizeProvider(item.provider))])).sort((a,b)=>a===DEFAULT_PROVIDER?-1:b===DEFAULT_PROVIDER?1:a.localeCompare(b,'fr')),[stock])
+  const categoryOrder=useMemo(()=>Array.from(new Set([...categories.map(item=>item.id),...stock.map(item=>item.category)])),[categories,stock])
+
+  const createCategory=async()=>{
+    const label=newCategoryName.trim()
+    if(!label)return
+    let id=categorySlug(label)
+    let suffix=2
+    while(categories.some(item=>item.id===id)){id=categorySlug(label)+'-'+suffix;suffix++}
+    const next=[...categories,{id,label}]
+    setCategories(next);setNewCategoryName('');setStockCategory(id)
+    setOpenCategories(current=>({...current,[id]:true}))
+    await saveInventoryCategories(next)
+    toast('Classe « '+label+' » ajoutée.')
+  }
+
+  const saveTechnicalDraft=async()=>{
+    if(!techDraft)return
+    await db.inventoryStock.update(techDraft.id,{
+      characteristics:(techDraft.characteristics??[]).filter(item=>item.label.trim()||item.value.trim()),
+      ports:(techDraft.ports??[]).filter(item=>item.label.trim()||item.connector.trim()),
+      updatedAt:now()
+    })
+    await logActivity('update','Caractéristiques matériel',techDraft.name,{source:'inventory',inventoryStockItemId:techDraft.id,inventoryProvider:normalizeProvider(techDraft.provider)})
+    setTechDraft(null);await changed();toast('Caractéristiques enregistrées.')
+  }
   const stockUnits=stock.reduce((sum,item)=>sum+item.quantity,0)
   const unavailableUnits=stock.filter(item=>statusBlocksAvailability(item.status)).reduce((sum,item)=>sum+item.quantity,0)
 
@@ -515,9 +548,13 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
       return
     }
     const stamp=now()
-    const rows:InventoryStockItem[]=CATEGORY_ORDER.flatMap(category=>DEFAULT_CATALOG[category].map(name=>({
-      id:crypto.randomUUID(),name,category,quantity:0,provider:value,status:'available' as InventoryStockStatus,notes:'',createdAt:stamp,updatedAt:stamp,deletedAt:null
-    })))
+    const rows:InventoryStockItem[]=DEFAULT_CATEGORY_ORDER.flatMap(category=>(DEFAULT_CATALOG[category]??[]).map(name=>{
+      const technical=defaultTechnicalProfile(name)
+      return {
+        id:crypto.randomUUID(),name,category,quantity:0,provider:value,status:'available' as InventoryStockStatus,
+        characteristics:technical.characteristics,ports:technical.ports,notes:'',createdAt:stamp,updatedAt:stamp,deletedAt:null
+      }
+    }))
     await db.inventoryStock.bulkAdd(rows)
     await logActivity('create','Nouveau stockage',value,{source:'inventory',inventoryProvider:value})
     setProviderName('');setStockProvider(value);await changed();toast('Prestataire ajouté.')
@@ -533,7 +570,11 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     }else{
       const stamp=now()
       const id=crypto.randomUUID()
-      await db.inventoryStock.add({id,name:value,category:stockCategory,quantity:1,provider:stockProvider,status:'available',notes:'',createdAt:stamp,updatedAt:stamp,deletedAt:null})
+      const technical=defaultTechnicalProfile(value)
+      await db.inventoryStock.add({
+        id,name:value,category:stockCategory,quantity:1,provider:stockProvider,status:'available',
+        characteristics:technical.characteristics,ports:technical.ports,notes:'',createdAt:stamp,updatedAt:stamp,deletedAt:null
+      })
       await logActivity('create','Ajout matériel',value+' · +1',{source:'inventory',inventoryStockItemId:id,inventoryProvider:stockProvider,inventoryDelta:1})
     }
     setStockName('');await changed()
