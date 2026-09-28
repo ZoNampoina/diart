@@ -1114,9 +1114,9 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
       {stockPickerOpen&&<div className="stock-picker">
         <div className="stock-zone-label available"><span>MATÉRIELS DISPONIBLES</span><small>Disponibilité réelle sur le créneau choisi</small></div>
         <div className="stock-picker-title"><Archive/><span><b>Prendre depuis un stockage</b><small>Les réservations concurrentes sont déjà déduites.</small></span><select value={stockProvider} onChange={e=>setStockProvider(e.target.value)}>{stockProviders.map(provider=><option value={provider} key={provider}>{provider}</option>)}</select></div>
-        {CATEGORY_ORDER.map(category=>{
+        {categoryOrder.map(category=>{
           const group=stock.filter(item=>normalizeProvider(item.provider)===stockProvider&&item.category===category&&effectiveStockQuantity(item,program,programs)>0)
-          return <CategorySection category={category} key={category} open={stockPickerCategories[category]} onToggle={()=>setStockPickerCategories(v=>({...v,[category]:!v[category]}))} count={group.length}>
+          return <CategorySection category={category} label={categoryLabel(category,categories)} key={category} open={stockPickerCategories[category]??false} onToggle={()=>setStockPickerCategories(v=>({...v,[category]:!v[category]}))} count={group.length}>
             {group.length?group.map(item=>{
               const planned=items.find(p=>p.stockItemId===item.id)?.quantity??0
               const available=effectiveStockQuantity(item,program,programs)
@@ -1171,16 +1171,16 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
 
       <div className="stock-zone-label selected"><span>DANS CET INVENTAIRE</span><small>{missingOnly?'Affichage des éléments à compléter uniquement':'Quantités prévues pour le programme'}</small></div>
       <div className="material-add-row compact-material-add">
-        <select value={customCategory} onChange={e=>setCustomCategory(e.target.value as InventoryCategory)}>{CATEGORY_ORDER.map(category=><option value={category} key={category}>{CATEGORY_LABELS[category]}</option>)}</select>
+        <select value={customCategory} onChange={e=>setCustomCategory(e.target.value as InventoryCategory)}>{categoryOrder.map(category=><option value={category} key={category}>{categoryLabel(category,categories)}</option>)}</select>
         <input value={customName} onChange={e=>setCustomName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addCustom()}} placeholder="Ajouter un matériel…"/>
         <button className="primary" disabled={!customName.trim()} onClick={addCustom}><Plus/>Ajouter</button>
       </div>
 
       <div className="inventory-category-stack planned-material-list">
-        {CATEGORY_ORDER.map(category=>{
+        {categoryOrder.map(category=>{
           const baseGroup=items.filter(item=>normalizeCategory(item.category,item.name)===category)
           const group=missingOnly?baseGroup.filter(item=>item.quantity>0&&missingItems.some(missing=>missing.id===item.id)):baseGroup
-          return <CategorySection category={category} key={category} open={openCategories[category]} onToggle={()=>setOpenCategories(value=>({...value,[category]:!value[category]}))} count={group.length}>
+          return <CategorySection category={category} label={categoryLabel(category,categories)} key={category} open={openCategories[category]??true} onToggle={()=>setOpenCategories(value=>({...value,[category]:!value[category]}))} count={group.length}>
             {group.map(item=>{
               const source=stockFor(item)
               const available=availableFor(item)
@@ -1208,7 +1208,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
         {summaryOpen?<ChevronUp/>:<ChevronDown/>}
       </button>
       {summaryOpen&&<div className="technical-summary-list">
-        {selectedItems.length?selectedItems.map(item=><div key={item.id}><span><em>{CATEGORY_LABELS[item.category]}</em>{item.name}{stockFor(item)&&<small>{normalizeProvider(stockFor(item)?.provider)}</small>}</span><b>× {item.quantity}</b></div>):<span className="muted-copy">Aucune quantité renseignée.</span>}
+        {selectedItems.length?selectedItems.map(item=><div key={item.id}><span><em>{categoryLabel(item.category,categories)}</em>{item.name}{stockFor(item)&&<small>{normalizeProvider(stockFor(item)?.provider)}</small>}</span><b>× {item.quantity}</b></div>):<span className="muted-copy">Aucune quantité renseignée.</span>}
       </div>}
     </section>
 
