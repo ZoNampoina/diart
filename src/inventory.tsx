@@ -617,10 +617,14 @@ export async function exportTechnicalSheetImage(program:InventoryProgram,stock:I
   })).filter(group=>group.rows.length)
   const rowCount=Math.max(1,selected.length)
   const categoryCount=Math.max(1,grouped.length)
+  const exportLinks=enrichInstallationLinks(normalized,stock)
+  const exportInstallation={...(normalized.installation??{nodes:[],links:[]}),links:exportLinks}
+  const diagramRows=Math.ceil((exportInstallation.nodes?.length??0)/4)
+  const diagramHeight=exportInstallation.nodes?.length?170+diagramRows*160+exportLinks.length*48:0
   const width=1600
   const rowHeight=76
   const notesLinesEstimate=normalized.notes.trim()?Math.max(2,Math.ceil(normalized.notes.length/70)):0
-  const height=Math.max(1120,650+rowCount*rowHeight+categoryCount*62+notesLinesEstimate*42+170)
+  const height=Math.max(1120,650+rowCount*rowHeight+categoryCount*62+diagramHeight+notesLinesEstimate*42+210)
   const canvas=document.createElement('canvas')
   canvas.width=width;canvas.height=height
   const ctx=canvas.getContext('2d')
@@ -682,6 +686,78 @@ export async function exportTechnicalSheetImage(program:InventoryProgram,stock:I
         y+=rowHeight
       })
     }
+  }
+
+  if(exportInstallation.nodes?.length){
+    y+=58
+    ctx.fillStyle='#0f2f33';ctx.font='850 27px system-ui, -apple-system, Segoe UI, sans-serif'
+    ctx.fillText('SCHÉMA TECHNIQUE',left,y)
+    y+=28
+    ctx.fillStyle='#6a858a';ctx.font='500 18px system-ui, -apple-system, Segoe UI, sans-serif'
+    ctx.fillText('Chaîne de connexion · canaux · longueurs · compatibilité',left,y)
+    y+=34
+
+    const cols=4,nodeWidth=280,nodeHeight=92,hGap=((right-left)-cols*nodeWidth)/(cols-1),vGap=64
+    const positions=new Map<string,{x:number;y:number;cx:number;cy:number}>()
+    exportInstallation.nodes.forEach((node,index)=>{
+      const col=index%cols,row=Math.floor(index/cols)
+      const x=left+col*(nodeWidth+hGap),py=y+row*(nodeHeight+vGap)
+      positions.set(node.id,{x,y:py,cx:x+nodeWidth/2,cy:py+nodeHeight/2})
+    })
+
+    ctx.lineWidth=3
+    exportLinks.forEach(link=>{
+      const a=positions.get(link.fromNodeId),b=positions.get(link.toNodeId)
+      if(!a||!b)return
+      ctx.strokeStyle=link.compatibility==='warning'?'#b34d45':link.compatibility==='di'||link.compatibility==='adapter'?'#b57b1a':'#6f969b'
+      ctx.beginPath();ctx.moveTo(a.cx,a.cy);ctx.lineTo(b.cx,b.cy);ctx.stroke()
+      const angle=Math.atan2(b.cy-a.cy,b.cx-a.cx),size=11
+      const ax=b.cx-Math.cos(angle)*nodeWidth/2*.78,ay=b.cy-Math.sin(angle)*nodeHeight/2*.78
+      ctx.fillStyle=ctx.strokeStyle
+      ctx.beginPath()
+      ctx.moveTo(ax,ay)
+      ctx.lineTo(ax-Math.cos(angle-Math.PI/6)*size,ay-Math.sin(angle-Math.PI/6)*size)
+      ctx.lineTo(ax-Math.cos(angle+Math.PI/6)*size,ay-Math.sin(angle+Math.PI/6)*size)
+      ctx.closePath();ctx.fill()
+    })
+
+    exportInstallation.nodes.forEach(node=>{
+      const pos=positions.get(node.id);if(!pos)return
+      const source=node.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
+      ctx.fillStyle='#ffffff';ctx.strokeStyle='#a9c2c6';ctx.lineWidth=2
+      ctx.fillRect(pos.x,pos.y,nodeWidth,nodeHeight);ctx.strokeRect(pos.x,pos.y,nodeWidth,nodeHeight)
+      ctx.fillStyle='#0f2f33';ctx.font='800 20px system-ui, -apple-system, Segoe UI, sans-serif'
+      const nodeLines=wrapCanvasText(ctx,node.name,nodeWidth-28)
+      nodeLines.slice(0,2).forEach((line,i)=>ctx.fillText(line,pos.x+14,pos.y+30+i*23))
+      if(source){
+        ctx.fillStyle='#6b858a';ctx.font='600 14px system-ui, -apple-system, Segoe UI, sans-serif'
+        ctx.fillText(normalizeProvider(source.provider),pos.x+14,pos.y+78)
+      }
+    })
+    y+=diagramRows*(nodeHeight+vGap)+18
+
+    ctx.fillStyle='#dce9eb';ctx.fillRect(left,y,right-left,46)
+    ctx.fillStyle='#0f2f33';ctx.font='800 19px system-ui, -apple-system, Segoe UI, sans-serif'
+    ctx.fillText('PATCH / CONNEXIONS',left+18,y+30);y+=46
+    exportLinks.forEach((link,index)=>{
+      const from=exportInstallation.nodes.find(node=>node.id===link.fromNodeId)
+      const to=exportInstallation.nodes.find(node=>node.id===link.toNodeId)
+      const fromStock=from?.stockItemId?stock.find(item=>item.id===from.stockItemId):undefined
+      const toStock=to?.stockItemId?stock.find(item=>item.id===to.stockItemId):undefined
+      const fromPort=(fromStock?.ports??[]).find(port=>port.id===link.fromPort)??(fromStock?.ports??[]).find(port=>port.direction==='output'||port.direction==='bidirectional')
+      const toPort=(toStock?.ports??[]).find(port=>port.id===link.toPort)??(toStock?.ports??[]).find(port=>port.direction==='input'||port.direction==='bidirectional')
+      const cable=fromPort&&toPort?cableSuggestionName(fromPort.connector,toPort.connector).name:'Connectique à préciser'
+      ctx.fillStyle=index%2?'#f1f6f6':'#ffffff';ctx.fillRect(left,y,right-left,48)
+      ctx.fillStyle='#17383d';ctx.font='650 16px system-ui, -apple-system, Segoe UI, sans-serif'
+      ctx.fillText((from?.name??'?')+' → '+(to?.name??'?'),left+16,y+30)
+      ctx.fillStyle='#56757a';ctx.font='600 14px system-ui, -apple-system, Segoe UI, sans-serif'
+      const detail=[link.assignedChannel,cable,link.lengthMeters?link.lengthMeters+' m':null].filter(Boolean).join(' · ')
+      ctx.fillText(detail,left+610,y+30)
+      ctx.textAlign='right'
+      ctx.fillStyle=link.compatibility==='warning'?'#b34d45':link.compatibility==='di'||link.compatibility==='adapter'?'#9a6814':'#0f6f78'
+      ctx.fillText(link.compatibility==='di'?'DI':link.compatibility==='phantom'?'48V':link.compatibility==='adapter'?'ADAPT.':link.compatibility==='warning'?'À VÉRIFIER':'OK',right-16,y+30)
+      ctx.textAlign='left';y+=48
+    })
   }
 
   if(normalized.notes.trim()){
