@@ -1260,6 +1260,82 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
       </div>}
     </section>
 
+    <section className="panel installation-advanced-panel">
+      <button className="collapsible-program-head" onClick={()=>setInstallationOpen(value=>!value)}>
+        <span><b>Installation avancée</b><small>Schéma des équipements, liaisons et proposition automatique des matériels nécessaires.</small></span>
+        <span className="installation-mode-badges"><em>{online?<><Wifi/>En ligne</>:<><WifiOff/>Hors ligne</>}</em>{installation.analysisMode&&<em>{installation.analysisMode==='ai'?'IA':'Local'}</em>}{installationOpen?<ChevronUp/>:<ChevronDown/>}</span>
+      </button>
+      {installationOpen&&<div className="installation-advanced-body">
+        <div className="installation-builder">
+          <div className="installation-builder-head"><Network/><span><b>1. Équipements</b><small>Ajoutez les éléments de l’installation depuis le stock ou librement.</small></span></div>
+          <div className="installation-node-add">
+            <select value={installationStockId} onChange={e=>{setInstallationStockId(e.target.value);if(e.target.value)setInstallationNodeName('')}}>
+              <option value="">Matériel du stock…</option>
+              {stock.filter(item=>item.quantity>0&&!item.deletedAt).map(item=><option value={item.id} key={item.id}>{item.name} · {normalizeProvider(item.provider)}</option>)}
+            </select>
+            <input value={installationNodeName} onChange={e=>{setInstallationNodeName(e.target.value);if(e.target.value)setInstallationStockId('')}} placeholder="Ou équipement libre…"/>
+            <button className="primary" disabled={!installationStockId&&!installationNodeName.trim()} onClick={addInstallationNode}><Plus/>Ajouter</button>
+          </div>
+          <div className="installation-canvas">
+            {installation.nodes.length?installation.nodes.map((node,index)=>{
+              const source=node.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
+              return <div className="installation-node" key={node.id}>
+                <span className="installation-node-index">{index+1}</span>
+                <span><b>{node.name}</b><small>{source?normalizeProvider(source.provider)+' · '+categoryLabel(source.category,categories):'Équipement libre'}</small></span>
+                {source&&((source.ports?.length??0)>0||source.characteristics?.length)&&<div className="installation-node-tech">
+                  {(source.ports??[]).slice(0,4).map(port=><em key={port.id}>{port.count}× {port.connector} · {port.direction==='input'?'IN':port.direction==='output'?'OUT':port.direction==='power'?'POWER':'I/O'}</em>)}
+                </div>}
+                <button className="bare-action danger-icon" onClick={()=>removeInstallationNode(node.id)}><Trash2/></button>
+              </div>
+            }):<div className="installation-empty">Ajoutez les équipements de la scène ou de la chaîne audio.</div>}
+          </div>
+        </div>
+
+        <div className="installation-builder">
+          <div className="installation-builder-head"><Link2/><span><b>2. Liaisons</b><small>Reliez une sortie vers une entrée. Les connectiques renseignées sont utilisées automatiquement.</small></span></div>
+          <div className="installation-link-add">
+            <select value={linkFromNode} onChange={e=>{setLinkFromNode(e.target.value);setLinkFromPort('')}}><option value="">Depuis…</option>{installation.nodes.map(node=><option value={node.id} key={node.id}>{node.name}</option>)}</select>
+            <select value={linkFromPort} onChange={e=>setLinkFromPort(e.target.value)} disabled={!linkFromNode}><option value="">Sortie auto</option>{(stockByNode(linkFromNode)?.ports??[]).filter(port=>port.direction==='output'||port.direction==='bidirectional').map(port=><option value={port.id} key={port.id}>{port.label||'Sortie'} · {port.connector} ×{port.count}</option>)}</select>
+            <span className="installation-arrow">→</span>
+            <select value={linkToNode} onChange={e=>{setLinkToNode(e.target.value);setLinkToPort('')}}><option value="">Vers…</option>{installation.nodes.map(node=><option value={node.id} key={node.id}>{node.name}</option>)}</select>
+            <select value={linkToPort} onChange={e=>setLinkToPort(e.target.value)} disabled={!linkToNode}><option value="">Entrée auto</option>{(stockByNode(linkToNode)?.ports??[]).filter(port=>port.direction==='input'||port.direction==='bidirectional').map(port=><option value={port.id} key={port.id}>{port.label||'Entrée'} · {port.connector} ×{port.count}</option>)}</select>
+            <button className="primary" disabled={!linkFromNode||!linkToNode||linkFromNode===linkToNode} onClick={addInstallationLink}><Plus/>Relier</button>
+          </div>
+          <div className="installation-link-list">
+            {installation.links.length?installation.links.map((link,index)=>{
+              const from=installation.nodes.find(node=>node.id===link.fromNodeId)
+              const to=installation.nodes.find(node=>node.id===link.toNodeId)
+              const fromPort=(stockByNode(link.fromNodeId)?.ports??[]).find(port=>port.id===link.fromPort)
+              const toPort=(stockByNode(link.toNodeId)?.ports??[]).find(port=>port.id===link.toPort)
+              return <div className="installation-link-row" key={link.id}>
+                <span>{index+1}</span><b>{from?.name??'?'}</b><small>{fromPort?.connector??'auto'}</small><em>→</em><b>{to?.name??'?'}</b><small>{toPort?.connector??'auto'}</small>
+                <button className="bare-action danger-icon" onClick={()=>removeInstallationLink(link.id)}><Trash2/></button>
+              </div>
+            }):<div className="installation-empty">Aucune liaison définie.</div>}
+          </div>
+        </div>
+
+        <div className="installation-analysis">
+          <div className="installation-analysis-head">
+            <span><b>3. Analyse et proposition</b><small>L’analyse locale utilise les connectiques. L’IA en ligne peut aussi interpréter la chaîne complète et les besoins annexes.</small></span>
+            <div>
+              <button className="secondary" onClick={()=>void runLocalInstallationAnalysis()}><Settings2/>Analyse locale</button>
+              <button className="primary" disabled={!online||aiAnalyzing} onClick={()=>void runAIInstallationAnalysis()}><BrainCircuit/>{aiAnalyzing?'Analyse…':'Analyse IA'}</button>
+            </div>
+          </div>
+          {installation.aiSummary&&<div className={'installation-summary '+(installation.analysisMode==='ai'?'ai':'local')}><BrainCircuit/><span>{installation.aiSummary}</span></div>}
+          <div className="installation-suggestions">
+            {(installation.suggestions??[]).length?(installation.suggestions??[]).map(suggestion=><div className={'installation-suggestion kind-'+suggestion.kind} key={suggestion.id}>
+              <span><b>{suggestion.name}</b><small>{suggestion.reason}</small></span>
+              <em>× {suggestion.quantity}</em>
+              {suggestion.matchedStockItemId&&<small className="suggestion-stock">En stock</small>}
+              {suggestion.kind!=='warning'&&<button className="secondary" onClick={()=>void addInstallationSuggestion(suggestion)}><Plus/>Ajouter</button>}
+            </div>):<div className="installation-empty">Lancez une analyse après avoir défini les liaisons.</div>}
+          </div>
+        </div>
+      </div>}
+    </section>
+
     {conflictReservations.length>0&&<section className="panel inventory-conflict-panel">
       <div className="inventory-alert-head"><AlertTriangle/><span><b>Réservations concurrentes</b><small>{Array.from(new Set(conflictReservations.flatMap(conflict=>conflict.programs.map(item=>item.id)))).length} programme{Array.from(new Set(conflictReservations.flatMap(conflict=>conflict.programs.map(item=>item.id)))).length>1?'s':''} utilise{Array.from(new Set(conflictReservations.flatMap(conflict=>conflict.programs.map(item=>item.id)))).length>1?'nt':''} aussi ce matériel sur le créneau.</small></span></div>
       {conflictReservations.map(conflict=><div className={'inventory-conflict-row '+(conflict.item.quantity>conflict.available?'danger':'')} key={conflict.item.id}>
