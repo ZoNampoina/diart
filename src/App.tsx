@@ -6,7 +6,7 @@ import {
   Trash2, Upload, UserRound, UsersRound, Wifi, WifiOff, X, Pencil, Save, RotateCcw,
   Filter, ArrowUpDown, Check, AlertTriangle, Minus, ListMusic, Cloud, LogIn, LogOut,
   Play, Square, Gauge, Maximize2, ChevronUp, ChevronDown, ListPlus, BookMarked, ExternalLink, FileUp, Globe2,
-  History, GitMerge, Info, Wrench, BarChart3, Keyboard, Hand, Lock, Unlock, MonitorUp, Tag, ShieldCheck, RefreshCw, Eye
+  History, GitMerge, Info, Wrench, BarChart3, Keyboard, Hand, Lock, Unlock, MonitorUp, Tag, ShieldCheck, RefreshCw, Eye, Boxes
 } from 'lucide-react'
 import { db, createSong, ensureDemoSeed, getSetting, markViewed, setSetting, softDeleteSong, restoreSong, updateSong, createSetlist, updateSetlist, logActivity, markActivityRestored, listActivity } from './db'
 import type { ActivityEntry, ActivityKind, FavoriteStatus, ImportField, ImportMapping, ImportRowPreview, Song, SongDraft, Setlist, StageRole } from './types'
@@ -16,20 +16,21 @@ import { exportCsv, exportJson, exportXlsx, restoreJson } from './exporter'
 import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToLocal, resolveSyncConflict, resolveMergedSyncConflict, type SyncConflict } from './cloud'
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
+import { InventoryPage, InventoryProgramPage } from './inventory'
 
-const APP_VERSION='2.9.42'
+const APP_VERSION='2.10.0'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
   ['authors','Auteurs',UserRound], ['favorites','Favoris',Heart], ['recent','Récents',BookOpen],
-  ['setlists','Setlists',ListMusic], ['recueils','Recueils',BookMarked], ['tools','Outils',Wrench], ['import','Importer',Import], ['backup','Sauvegarde',Download], ['history','Historique',History], ['shortcuts','Raccourcis',Keyboard], ['gestures','Gestes',Hand], ['about','À propos',Info], ['settings','Paramètres',Settings]
+  ['setlists','Setlists',ListMusic], ['inventory','Inventaire',Boxes], ['recueils','Recueils',BookMarked], ['tools','Outils',Wrench], ['import','Importer',Import], ['backup','Sauvegarde',Download], ['history','Historique',History], ['shortcuts','Raccourcis',Keyboard], ['gestures','Gestes',Hand], ['about','À propos',Info], ['settings','Paramètres',Settings]
 ] as const
 
-type Page = typeof navItems[number][0] | 'song' | 'edit' | 'new' | 'artist' | 'author' | 'setlist'
+type Page = typeof navItems[number][0] | 'song' | 'edit' | 'new' | 'artist' | 'author' | 'setlist' | 'program'
 
 const navGroupDefs = [
   {label:'Bibliothèque',ids:['dashboard','library','artists','authors','favorites','recent']},
-  {label:'Organisation',ids:['setlists','recueils']},
+  {label:'Organisation',ids:['setlists','inventory','recueils']},
   {label:'Outils',ids:['tools','import','backup','history','shortcuts','gestures','about','settings']}
 ] as const
 type Toast = { id:number; text:string; action?:{label:string;run:()=>void} }
@@ -77,6 +78,7 @@ function CommandPalette({songs,onClose,onNavigate,onOpenSong,onNewSong}:{songs:S
     {label:'Nouveau morceau',hint:'Créer une fiche',icon:Plus,run:onNewSong},
     {label:'Bibliothèque',hint:'Tous les morceaux',icon:Library,run:()=>onNavigate('library')},
     {label:'Setlists',hint:'Préparer une prestation',icon:ListMusic,run:()=>onNavigate('setlists')},
+    {label:'Inventaire',hint:'Matériel et fiches techniques',icon:Boxes,run:()=>onNavigate('inventory')},
     {label:'Favoris',hint:'Morceaux favoris',icon:Heart,run:()=>onNavigate('favorites')},
     {label:'Importer',hint:'Excel / CSV',icon:Import,run:()=>onNavigate('import')},
     {label:'Recueils',hint:'Tononkira et sources externes',icon:BookMarked,run:()=>onNavigate('recueils')},
@@ -268,6 +270,7 @@ function App() {
   const [libraryScrollY,setLibraryScrollY]=useState(0)
   const [showScrollTop,setShowScrollTop]=useState(false)
   const [selectedSetlistId,setSelectedSetlistId]=useState('')
+  const [selectedProgramId,setSelectedProgramId]=useState('')
   const [setlistScrollY,setSetlistScrollY]=useState<Record<string,number>>({})
   const [setlistSongKeyDraft,setSetlistSongKeyDraft]=useState<{listId:string;songId:string;key:string}|null>(null)
   const [presetArtist,setPresetArtist]=useState('')
@@ -284,7 +287,7 @@ function App() {
   const [userId,setUserId]=useState('')
   const [userEmail,setUserEmail]=useState('')
   const [syncing,setSyncing]=useState(false)
-  const [cloudStats,setCloudStats]=useState<{songs:number;setlists:number}|null>(null)
+  const [cloudStats,setCloudStats]=useState<{songs:number;setlists:number;programs:number}|null>(null)
   const [lastSyncAt,setLastSyncAt]=useState('')
   const [syncMode,setSyncMode]=useState<SyncMode>('auto')
   const [syncIntervalMinutes,setSyncIntervalMinutes]=useState<SyncInterval>(15)
@@ -364,7 +367,7 @@ function App() {
     if(!userId||!navigator.onLine||syncLockRef.current)return
     syncLockRef.current=true
     setSyncing(true)
-    try{const r=await pullCloudToLocal(userId);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(userId)]);markSynced();toast(`Cloud récupéré : ${r.songs} morceau(x), ${r.setlists} setlist(s).`)}
+    try{const r=await pullCloudToLocal(userId);await Promise.all([refresh(),refreshSetlists(),refreshCloudStats(userId)]);markSynced();toast(`Cloud récupéré : ${r.songs} morceau(x), ${r.setlists} setlist(s), ${r.programs} programme(s).`)}
     catch(e){toast(e instanceof Error?e.message:'Récupération cloud impossible.')}
     finally{syncLockRef.current=false;setSyncing(false)}
   }
@@ -460,6 +463,7 @@ function App() {
   const openArtist=(name:string)=>{setArtistsScrollY(currentScrollY());setSelectedArtist(name);setPage('artist')}
   const openAuthor=(name:string)=>{setAuthorsScrollY(currentScrollY());setSelectedAuthor(name);setPage('author')}
   const openSetlist=(id:string)=>{setSelectedSetlistId(id);setPage('setlist')}
+  const openProgram=(id:string)=>{setSelectedProgramId(id);setPage('program');setSidebar(false)}
   const changeSyncMode=(mode:SyncMode)=>{setSyncMode(mode);void setSetting('syncMode',mode)}
   const changeSyncInterval=(minutes:SyncInterval)=>{setSyncIntervalMinutes(minutes);void setSetting('syncIntervalMinutes',String(minutes))}
   const createNamedArtist=()=>{const name=createName.trim();if(!name)return;startNewSong(name)}
@@ -574,6 +578,7 @@ function App() {
       if(p==='favorites')return 'FAVORIS'
       if(p==='recent')return 'RÉCENTS'
       if(p==='setlists'||p==='setlist')return 'SETLISTS'
+      if(p==='inventory'||p==='program')return 'INVENTAIRE'
       if(p==='recueils')return 'RECUEILS'
       if(p==='import')return 'IMPORTER'
       if(p==='backup')return 'SAUVEGARDE'
@@ -588,6 +593,7 @@ function App() {
     if(page==='artist')return {label:'ARTISTES',back:()=>go('artists')}
     if(page==='author')return {label:'AUTEUR',back:()=>go('authors')}
     if(page==='setlist')return {label:'SETLISTS',back:()=>go('setlists')}
+    if(page==='program')return {label:'INVENTAIRE',back:()=>go('inventory')}
     if(page==='song')return {label:parentLabel(songBack.page),back:()=>void returnFromSong()}
     if(page==='new'||page==='edit'){
       const backPage:Page=selected?'song':selectedArtist?'artist':selectedAuthor?'author':'library'
@@ -612,7 +618,7 @@ function App() {
     }
     window.addEventListener('popstate',onPop)
     return()=>window.removeEventListener('popstate',onPop)
-  },[page,selected?.id,selectedArtist,selectedAuthor,selectedSetlistId,sidebar])
+  },[page,selected?.id,selectedArtist,selectedAuthor,selectedSetlistId,selectedProgramId,sidebar])
 
 
   useEffect(()=>{
@@ -675,6 +681,8 @@ function App() {
         {page==='author'&&selectedAuthor&&<AuthorDetailPage author={selectedAuthor} songs={songs.filter(s=>s.authorComposer.trim()===selectedAuthor)} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go('authors')} onOpen={s=>openSong(s,{page:'author',label:selectedAuthor})} onFav={fav} onAdd={()=>startNewSong('',selectedAuthor)}/>} 
         {page==='favorites'&&<SimpleSongs title="Favoris" songs={favoriteSongs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={s=>openSong(s,{page:'favorites',label:'Favoris'})} onFav={fav}/>} 
         {page==='recent'&&<SimpleSongs title="Récents" songs={recentSongs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={s=>openSong(s,{page:'recent',label:'Récents'})} onFav={fav}/>} 
+        {page==='inventory'&&<InventoryPage onOpen={openProgram} onChanged={()=>scheduleSync(220)} toast={toast}/>} 
+        {page==='program'&&selectedProgramId&&<InventoryProgramPage programId={selectedProgramId} onBack={()=>go('inventory')} onChanged={()=>scheduleSync(220)} toast={toast}/>} 
         {page==='setlists'&&<SetlistsPage songs={songs} setlists={setlists} refresh={refreshSetlists} refreshSongs={refresh} toast={toast} onOpenDetail={openSetlist} onOpenSong={(s,context)=>context?openSong(s,{page:'setlist',label:context.list.name,stageMode:context.mode,setlist:context.list}):openSong(s,{page:'setlists',label:'Setlists'})}/>} 
         {page==='setlist'&&currentSetlist&&<SetlistDetailPage list={currentSetlist} songs={songs} refresh={refreshSetlists} refreshSongs={refresh} toast={toast} restoreY={setlistScrollY[currentSetlist.id]??0} onRememberPosition={y=>setSetlistScrollY(prev=>({...prev,[currentSetlist.id]:y}))} onBack={()=>go('setlists')} onOpenSong={(s,stageMode)=>openSong(s,{page:'setlist',label:currentSetlist.name,stageMode,setlist:currentSetlist})}/>} 
         {page==='song'&&selected&&<SongDetail song={songs.find(s=>s.id===selected.id)||selected} backLabel={songBack.label} setlists={setlists} refreshSetlists={refreshSetlists} refreshSongs={refresh} toast={toast} suppressOpenSetlistId={songBack.page==='setlist'?currentSetlist?.id:undefined} onBack={()=>go(songBack.page)} onEdit={()=>go('edit')} onQuickDelete={field=>void quickDeleteSongField(songs.find(s=>s.id===selected.id)||selected,field)} onArtist={name=>{setSelectedArtist(name);setPage('artist')}} onFav={()=>void fav(songs.find(s=>s.id===selected.id)||selected)} setlistKey={songBack.page==='setlist'&&setlistSongKeyDraft?.songId===selected.id?setlistSongKeyDraft.key:undefined} onSetlistKey={key=>{if(currentSetlist&&selected)setSetlistSongKeyDraft({listId:currentSetlist.id,songId:selected.id,key})}} setlistContext={songBack.page==='setlist'&&currentSetlist?{list:currentSetlist,songs:currentSetlist.songIds.map(id=>songs.find(s=>s.id===id)).filter(Boolean) as Song[],mode:songBack.stageMode}:undefined} onStageOpenSong={(s,mode)=>{if(currentSetlist)openSong(s,{page:'setlist',label:currentSetlist.name,stageMode:mode,setlist:currentSetlist})}} onRecueilSearch={prefill=>openRecueilSearch(prefill)} onLyricsSave={async lyrics=>{const id=selected.id;const updatedAt=new Date().toISOString();patchLocal(id,{lyrics,updatedAt});setSelected(prev=>prev&&prev.id===id?{...prev,lyrics,updatedAt}:prev);await updateSong(id,{lyrics});await recordActivity('update','Paroles modifiées','Paroles mises à jour depuis la fiche morceau',{songId:id,songTitle:selected.title});toast('Paroles enregistrées.')}} onDelete={async()=>{const id=selected.id;const title=selected.title;await softDeleteSong(id);removeLocal(id);await recordActivity('delete','Morceau supprimé',title,{songId:id,songTitle:title});toast('Morceau placé dans la corbeille',{label:'Annuler',run:async()=>{await db.songs.update(id,{deletedAt:null});await recordActivity('restore','Suppression annulée',title,{songId:id,songTitle:title});await refresh()}});go('library')}}/>}
@@ -699,7 +707,7 @@ function App() {
       <button onClick={()=>go('setlists')}><ListMusic/><span>Setlists</span></button>
     </nav>
     {commandOpen&&<CommandPalette songs={songs} onClose={()=>setCommandOpen(false)} onNavigate={p=>go(p)} onOpenSong={s=>openSong(s,{page:'library',label:'Bibliothèque'})} onNewSong={()=>startNewSong()}/>} 
-    {createMode==='menu'&&<Modal title="Créer" onClose={()=>setCreateMode(null)}><div className="create-choice-grid"><button onClick={()=>startNewSong(page==='artist'?selectedArtist:'',page==='author'?selectedAuthor:'')}><Music2/><span><b>Nouveau morceau</b><small>Créer une nouvelle fiche musicale</small></span></button><button onClick={()=>{setCreateMode('artist');setCreateName('')}}><UsersRound/><span><b>Nouvel artiste</b><small>Créer son premier morceau</small></span></button><button onClick={()=>{setCreateMode('setlist');setCreateName('')}}><ListMusic/><span><b>Nouvelle setlist</b><small>Créer une liste vide</small></span></button><button onClick={()=>{setCreateMode(null);go('import')}}><Import/><span><b>Nouvel import</b><small>Importer Excel ou CSV</small></span></button><button onClick={()=>{setCreateMode(null);setRecueilEntry(null);setRecueilPrefill(null);setPage('recueils')}}><BookMarked/><span><b>Importer depuis recueil</b><small>Choisir Tononkira, Ultimate Guitar, Chordify ou ChordPro</small></span></button></div></Modal>}
+    {createMode==='menu'&&<Modal title="Créer" onClose={()=>setCreateMode(null)}><div className="create-choice-grid"><button onClick={()=>startNewSong(page==='artist'?selectedArtist:'',page==='author'?selectedAuthor:'')}><Music2/><span><b>Nouveau morceau</b><small>Créer une nouvelle fiche musicale</small></span></button><button onClick={()=>{setCreateMode('artist');setCreateName('')}}><UsersRound/><span><b>Nouvel artiste</b><small>Créer son premier morceau</small></span></button><button onClick={()=>{setCreateMode('setlist');setCreateName('')}}><ListMusic/><span><b>Nouvelle setlist</b><small>Créer une liste vide</small></span></button><button onClick={()=>{setCreateMode(null);go('inventory')}}><Boxes/><span><b>Nouveau programme</b><small>Créer un événement et sa fiche matériel</small></span></button><button onClick={()=>{setCreateMode(null);go('import')}}><Import/><span><b>Nouvel import</b><small>Importer Excel ou CSV</small></span></button><button onClick={()=>{setCreateMode(null);setRecueilEntry(null);setRecueilPrefill(null);setPage('recueils')}}><BookMarked/><span><b>Importer depuis recueil</b><small>Choisir Tononkira, Ultimate Guitar, Chordify ou ChordPro</small></span></button></div></Modal>}
     {createMode==='artist'&&<Modal title="Nouvel artiste" onClose={()=>setCreateMode(null)}><div className="create-name-form"><label>Nom de l’artiste<input autoFocus value={createName} onChange={e=>setCreateName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')createNamedArtist()}}/></label><div className="modal-actions"><button className="secondary" onClick={()=>setCreateMode('menu')}>Retour</button><button className="primary" disabled={!createName.trim()} onClick={createNamedArtist}><Plus/>Continuer</button></div></div></Modal>}
     {createMode==='setlist'&&<Modal title="Nouvelle setlist" onClose={()=>setCreateMode(null)}><div className="create-name-form"><label>Nom de la setlist<input className="new-setlist-name-input" autoFocus value={createName} onChange={e=>setCreateName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createNamedSetlist()}}/></label><div className="modal-actions"><button className="secondary" onClick={()=>setCreateMode('menu')}>Retour</button><button className="primary" disabled={!createName.trim()} onClick={()=>void createNamedSetlist()}><Plus/>Créer</button></div></div></Modal>}
     {syncConflicts.length>0&&<Modal className="sync-conflict-modal sync-conflict-detail-modal" title="Conflits de synchronisation" onClose={()=>setSyncConflicts([])}><div className="sync-conflict-intro"><AlertTriangle/><div><b>{syncConflicts.length} conflit{syncConflicts.length>1?'s':''} réel{syncConflicts.length>1?'s':''} à résoudre</b><p className="muted-copy">Choisissez Local ou Cloud pour chaque champ différent, puis fusionnez. Les champs identiques sont conservés automatiquement.</p></div></div><div className="sync-conflict-list">{syncConflicts.map(conflict=>{const changes=conflictDiff(conflict);const key=conflictChoiceKey(conflict);const localNewer=conflict.localUpdatedAt>=conflict.remoteUpdatedAt;return <article className="sync-conflict-card" key={key}><div className="sync-conflict-head"><div><b>{conflict.kind==='song'?(conflict.local as Song).title:(conflict.local as Setlist).name}</b><small>{changes.length} champ{changes.length>1?'s':''} différent{changes.length>1?'s':''}</small></div><span>{conflict.kind==='song'?'Morceau':'Setlist'}</span></div><div className="sync-conflict-times"><div className={localNewer?'newer':''}><span>LOCAL</span><b>{new Date(conflict.localUpdatedAt).toLocaleString()}</b>{localNewer&&<small>Plus récent</small>}</div><div className={!localNewer?'newer':''}><span>CLOUD</span><b>{new Date(conflict.remoteUpdatedAt).toLocaleString()}</b>{!localNewer&&<small>Plus récent</small>}</div></div><div className="sync-conflict-diff"><div className="sync-conflict-diff-head"><span>Champ</span><b>Local</b><b>Cloud</b></div>{changes.map(change=>{const choice=conflictChoices[key]?.[change.field]??'local';return <div className="sync-conflict-diff-row selectable" key={change.field}><span>{change.label}</span><button type="button" className={choice==='local'?'selected':''} onClick={()=>chooseConflictField(conflict,change.field,'local')}><i>{choice==='local'&&<Check/>}</i><em>{change.local}</em></button><button type="button" className={choice==='remote'?'selected':''} onClick={()=>chooseConflictField(conflict,change.field,'remote')}><i>{choice==='remote'&&<Check/>}</i><em>{change.remote}</em></button></div>})}</div><div className="sync-conflict-actions enhanced"><button className="secondary" onClick={()=>void resolveSyncConflict(userId,conflict,'remote').then(()=>finishConflictResolution(conflict,'Version cloud conservée.'))}>Tout Cloud</button><button className="secondary" onClick={()=>void resolveSyncConflict(userId,conflict,'local').then(()=>finishConflictResolution(conflict,'Version locale conservée.'))}>Tout Local</button><button className="primary" onClick={()=>void mergeSyncConflict(conflict)}><GitMerge/>Fusionner et synchroniser</button></div></article>})}</div></Modal>}
@@ -1622,7 +1630,7 @@ function ImportWizard({songs,refresh,toast,onRecord,onLibrary}:{songs:Song[];ref
   </>
 }
 
-function AboutPage({songs,setlists,cloudStats}:{songs:Song[];setlists:Setlist[];cloudStats:{songs:number;setlists:number}|null}) {
+function AboutPage({songs,setlists,cloudStats}:{songs:Song[];setlists:Setlist[];cloudStats:{songs:number;setlists:number;programs:number}|null}) {
   const [historyCount,setHistoryCount]=useState(0)
   useEffect(()=>{void db.activity.count().then(setHistoryCount)},[])
   const artists=new Set(songs.map(s=>s.artist.trim()).filter(Boolean)).size
@@ -1740,7 +1748,7 @@ function BackupPage({songs,refresh,toast,onRecord}:{songs:Song[];refresh:()=>Pro
   return <><div className="backup-grid"><section className="panel"><Download/><h2>Sauvegarde JSON</h2><p>Format recommandé pour restaurer DI’ART.</p><button className="primary" onClick={()=>void exportJson().then(()=>onRecord('export','Export JSON',`${songs.length} morceaux exportés`,{source:'JSON'}))}>Télécharger</button></section><section className="panel"><FileSpreadsheet/><h2>Exports tableur</h2><p>{songs.length} morceaux actifs.</p><button className="secondary" onClick={()=>void exportXlsx().then(()=>onRecord('export','Export Excel',`${songs.length} morceaux exportés`,{source:'XLSX'}))}>Excel</button><button className="secondary" onClick={()=>void exportCsv().then(()=>onRecord('export','Export CSV',`${songs.length} morceaux exportés`,{source:'CSV'}))}>CSV</button></section><section className="panel"><RotateCcw/><h2>Restaurer</h2><label className="secondary file-btn">Choisir un JSON<input type="file" accept=".json" onChange={e=>e.target.files?.[0]&&setFile(e.target.files[0])}/></label></section></div>{file&&<Modal title="Restaurer cette sauvegarde ?" onClose={()=>setFile(null)}><p>La base locale actuelle sera remplacée.</p><div className="modal-actions"><button className="secondary" onClick={()=>setFile(null)}>Annuler</button><button className="danger" onClick={()=>void restore()}>Restaurer</button></div></Modal>}</>
 }
 
-function SettingsPage({theme,setTheme,songs,refresh,toast,userEmail,localCount,cloudStats,lastSyncAt,syncing,syncMode,syncIntervalMinutes,onSyncMode,onSyncInterval,onSync,onPull,onSignedIn}:{theme:string;setTheme:(t:'dark'|'light'|'system')=>void;songs:Song[];refresh:()=>Promise<void>;toast:(s:string)=>void;userEmail:string;localCount:number;cloudStats:{songs:number;setlists:number}|null;lastSyncAt:string;syncing:boolean;syncMode:SyncMode;syncIntervalMinutes:SyncInterval;onSyncMode:(mode:SyncMode)=>void;onSyncInterval:(minutes:SyncInterval)=>void;onSync:()=>void;onPull:()=>void;onSignedIn:()=>Promise<void>}) {
+function SettingsPage({theme,setTheme,songs,refresh,toast,userEmail,localCount,cloudStats,lastSyncAt,syncing,syncMode,syncIntervalMinutes,onSyncMode,onSyncInterval,onSync,onPull,onSignedIn}:{theme:string;setTheme:(t:'dark'|'light'|'system')=>void;songs:Song[];refresh:()=>Promise<void>;toast:(s:string)=>void;userEmail:string;localCount:number;cloudStats:{songs:number;setlists:number;programs:number}|null;lastSyncAt:string;syncing:boolean;syncMode:SyncMode;syncIntervalMinutes:SyncInterval;onSyncMode:(mode:SyncMode)=>void;onSyncInterval:(minutes:SyncInterval)=>void;onSync:()=>void;onPull:()=>void;onSignedIn:()=>Promise<void>}) {
   const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[authBusy,setAuthBusy]=useState(false)
   const [offlineReady,setOfflineReady]=useState(Boolean(navigator.serviceWorker?.controller))
   const [persistentStorage,setPersistentStorage]=useState(false)
@@ -1751,7 +1759,7 @@ function SettingsPage({theme,setTheme,songs,refresh,toast,userEmail,localCount,c
   const auth=async(mode:'login'|'signup')=>{try{setAuthBusy(true);const r=mode==='login'?await signIn(email,password):await signUp(email,password);if(r.error)throw r.error;toast(mode==='login'?'Connexion réussie.':'Compte créé. Vérifiez votre e-mail si une confirmation est demandée.');await onSignedIn()}catch(e){toast(e instanceof Error?e.message:'Authentification impossible.')}finally{setAuthBusy(false)}}
   const logout=async()=>{await signOut();toast('Déconnecté du cloud DI’ART.');location.reload()}
   return <>
-  <section className="panel cloud-panel"><div className="cloud-heading"><Cloud/><div><h2>Cloud DI’ART</h2><p>{userEmail?`Connecté : ${userEmail}`:'Connectez le même compte sur PC, tablette et Android pour retrouver automatiquement votre bibliothèque.'}</p></div></div>{userEmail?<><div className="cloud-stats"><div><span>Sur cet appareil</span><b>{localCount}</b><small>morceaux</small></div><div><span>Dans le cloud</span><b>{cloudStats?.songs??'—'}</b><small>morceaux</small></div><div><span>Setlists cloud</span><b>{cloudStats?.setlists??'—'}</b><small>listes</small></div></div><div className="cloud-help"><b>Synchronisation multi-appareils active.</b><span> Vérifiez que cette adresse e-mail est exactement la même sur le PC, la tablette et Android.</span>{lastSyncAt&&<small>Dernière synchro réussie : {new Date(lastSyncAt).toLocaleString('fr-FR')}</small>}</div><div className="cloud-actions"><button className="primary" disabled={syncing} onClick={onPull}><Download/>{syncing?'Récupération…':'Récupérer depuis le cloud'}</button><button className="secondary" disabled={syncing} onClick={onSync}>{syncing?'Synchronisation…':'Synchroniser maintenant'}</button><button className="secondary" onClick={()=>void logout()}><LogOut/>Déconnexion</button></div></>:<div className="cloud-auth"><input type="email" autoComplete="username" placeholder="Adresse e-mail" value={email} onChange={e=>setEmail(e.target.value)}/><input type="password" autoComplete="current-password" placeholder="Mot de passe" value={password} onChange={e=>setPassword(e.target.value)}/><button className="primary" disabled={authBusy||!email||password.length<6} onClick={()=>void auth('login')}><LogIn/>Connexion</button><button className="secondary" disabled={authBusy||!email||password.length<6} onClick={()=>void auth('signup')}>Créer un compte</button></div>}</section>
+  <section className="panel cloud-panel"><div className="cloud-heading"><Cloud/><div><h2>Cloud DI’ART</h2><p>{userEmail?`Connecté : ${userEmail}`:'Connectez le même compte sur PC, tablette et Android pour retrouver automatiquement votre bibliothèque.'}</p></div></div>{userEmail?<><div className="cloud-stats"><div><span>Sur cet appareil</span><b>{localCount}</b><small>morceaux</small></div><div><span>Dans le cloud</span><b>{cloudStats?.songs??'—'}</b><small>morceaux</small></div><div><span>Setlists cloud</span><b>{cloudStats?.setlists??'—'}</b><small>listes</small></div><div><span>Programmes cloud</span><b>{cloudStats?.programs??'—'}</b><small>événements</small></div></div><div className="cloud-help"><b>Synchronisation multi-appareils active.</b><span> Vérifiez que cette adresse e-mail est exactement la même sur le PC, la tablette et Android.</span>{lastSyncAt&&<small>Dernière synchro réussie : {new Date(lastSyncAt).toLocaleString('fr-FR')}</small>}</div><div className="cloud-actions"><button className="primary" disabled={syncing} onClick={onPull}><Download/>{syncing?'Récupération…':'Récupérer depuis le cloud'}</button><button className="secondary" disabled={syncing} onClick={onSync}>{syncing?'Synchronisation…':'Synchroniser maintenant'}</button><button className="secondary" onClick={()=>void logout()}><LogOut/>Déconnexion</button></div></>:<div className="cloud-auth"><input type="email" autoComplete="username" placeholder="Adresse e-mail" value={email} onChange={e=>setEmail(e.target.value)}/><input type="password" autoComplete="current-password" placeholder="Mot de passe" value={password} onChange={e=>setPassword(e.target.value)}/><button className="primary" disabled={authBusy||!email||password.length<6} onClick={()=>void auth('login')}><LogIn/>Connexion</button><button className="secondary" disabled={authBusy||!email||password.length<6} onClick={()=>void auth('signup')}>Créer un compte</button></div>}</section>
   <section className="panel offline-panel"><div className="cloud-heading"><ShieldCheck/><div><h2>Mode hors ligne</h2><p>DI’ART conserve sa bibliothèque localement et met en cache l’application pour les répétitions sans réseau.</p></div></div><div className="offline-status-grid"><div><span>Application</span><b>{offlineReady?'Disponible hors ligne':'Préparation…'}</b></div><div><span>Stockage</span><b>{persistentStorage?'Persistant':'Standard'}</b></div><div><span>Connexion</span><b>{navigator.onLine?'En ligne':'Hors ligne'}</b></div></div><button className="secondary" disabled={persistentStorage} onClick={()=>void requestPersistence()}><ShieldCheck/>{persistentStorage?'Stockage protégé':'Protéger les données hors ligne'}</button></section>
   <section className="panel settings-list"><div><span><b>Thème</b><small>{theme==='system'?'Suit automatiquement le thème clair/sombre de cet appareil.':'Mode manuel : choisissez Système pour suivre automatiquement l’appareil.'}</small></span><select value={theme} onChange={e=>setTheme(e.target.value as 'dark'|'light'|'system')}><option value="system">Système · automatique</option><option value="dark">Sombre · manuel</option><option value="light">Clair · manuel</option></select></div><div><span><b>Mode de synchronisation</b><small>Automatique selon une fréquence définie, ou uniquement à votre demande.</small></span><select value={syncMode} onChange={e=>onSyncMode(e.target.value as SyncMode)}><option value="auto">Automatique</option><option value="manual">Manuel</option></select></div><div><span><b>Fréquence automatique</b><small>{syncMode==='auto'?`Toutes les ${syncIntervalMinutes} minutes`:'Inactive en mode manuel'}</small></span><select value={syncIntervalMinutes} disabled={syncMode!=='auto'} onChange={e=>onSyncInterval(Number(e.target.value) as SyncInterval)}>{([5,15,30,60] as SyncInterval[]).map(n=><option key={n} value={n}>{n} min</option>)}</select></div><div><span><b>Données de démonstration</b><small>{demos.length} morceau(x)</small></span><button className="danger" disabled={!demos.length} onClick={()=>void remove()}><Trash2/>Supprimer les démos</button></div><div><span><b>Synchronisation cloud</b><small>Bibliothèque et setlists synchronisées entre appareils connectés au même compte.</small></span><em>{userEmail?(syncMode==='auto'?`Auto · ${syncIntervalMinutes} min`:'Manuel'):'Connexion requise'}</em></div><div><span><b>DI’ART v{APP_VERSION}</b><small>Versioning des paroles, fusion intelligente, répétitions à résoudre, transitions, recherche naturelle et palette Ctrl+K.</small></span><em>Actif</em></div></section></>
 }
