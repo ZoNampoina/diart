@@ -8,8 +8,8 @@ import { db, logActivity } from './db'
 import { analyzeInventoryInstallationWithAI } from './cloud'
 import type {
   ActivityEntry, InstallationSuggestion, InventoryCategory, InventoryCharacteristic, InventoryFrequency,
-  InventoryKit, InventoryMaterial, InventoryPort, InventoryPortDirection, InventoryProgram,
-  InventoryStockItem, InventoryStockStatus
+  InventoryKit, InventoryMaterial, InventoryPhantomMode, InventoryPort, InventoryPortDirection,
+  InventoryProgram, InventorySignalLevel, InventoryStockItem, InventoryStockStatus
 } from './types'
 
 type InventoryCategoryDef={id:InventoryCategory;label:string}
@@ -51,7 +51,7 @@ const DEFAULT_CATALOG: Record<string,string[]> = {
   ],
   adaptateur:[
     'minijack to JACK','RCA to JACK','RCA to minijack','JACK to minijack',
-    'RCA to RCA','Multi-JACK','Multi-minijack','XLR to JACK','USB-C to USB-A','USB-C to minijack'
+    'RCA to RCA','Multi-JACK','Multi-minijack','XLR to JACK','USB-C to USB-A','USB-C to minijack','DI Box'
   ],
   accessoire:[
     'Pied de micro','Pied de clavier','Pupitre','Stand guitare / basse','Support tablette',
@@ -113,16 +113,23 @@ async function saveInventoryCategories(defs:InventoryCategoryDef[]):Promise<void
 function defaultTechnicalProfile(name:string):{characteristics:InventoryCharacteristic[];ports:InventoryPort[]}{
   const key=name.trim().toLowerCase()
   if(/\bbasse\b|guitare bass/.test(key))return {
-    characteristics:[{id:crypto.randomUUID(),label:'Sortie principale',value:'JACK 6,35 mm'}],
-    ports:[{id:crypto.randomUUID(),label:'Sortie instrument',connector:'JACK',direction:'output',count:1}]
+    characteristics:[{id:crypto.randomUUID(),label:'Sortie principale',value:'JACK 6,35 mm · niveau instrument'}],
+    ports:[{id:crypto.randomUUID(),label:'Sortie instrument',connector:'JACK',direction:'output',count:1,signalLevel:'instrument',balanced:false,stereo:false,phantom:'blocked'}]
   }
   if(/\bguitare\b/.test(key))return {
-    characteristics:[{id:crypto.randomUUID(),label:'Sortie principale',value:'JACK 6,35 mm'}],
-    ports:[{id:crypto.randomUUID(),label:'Sortie instrument',connector:'JACK',direction:'output',count:1}]
+    characteristics:[{id:crypto.randomUUID(),label:'Sortie principale',value:'JACK 6,35 mm · niveau instrument'}],
+    ports:[{id:crypto.randomUUID(),label:'Sortie instrument',connector:'JACK',direction:'output',count:1,signalLevel:'instrument',balanced:false,stereo:false,phantom:'blocked'}]
   }
   if(/micro/.test(key))return {
-    characteristics:[{id:crypto.randomUUID(),label:'Connexion audio',value:'XLR'}],
-    ports:[{id:crypto.randomUUID(),label:'Sortie micro',connector:'XLR(M)',direction:'output',count:1}]
+    characteristics:[{id:crypto.randomUUID(),label:'Connexion audio',value:'XLR · niveau micro'}],
+    ports:[{id:crypto.randomUUID(),label:'Sortie micro',connector:'XLR(M)',direction:'output',count:1,signalLevel:'mic',balanced:true,stereo:false,phantom:'none'}]
+  }
+  if(/di box|bo[iî]te de direct/.test(key))return {
+    characteristics:[{id:crypto.randomUUID(),label:'Conversion',value:'Instrument / ligne asymétrique → micro XLR symétrique'}],
+    ports:[
+      {id:crypto.randomUUID(),label:'Entrée instrument',connector:'JACK',direction:'input',count:1,signalLevel:'instrument',balanced:false,stereo:false,phantom:'blocked'},
+      {id:crypto.randomUUID(),label:'Sortie XLR',connector:'XLR(M)',direction:'output',count:1,signalLevel:'mic',balanced:true,stereo:false,phantom:'supported'}
+    ]
   }
   if(/table de mix|console/.test(key))return {
     characteristics:[
@@ -131,9 +138,9 @@ function defaultTechnicalProfile(name:string):{characteristics:InventoryCharacte
       {id:crypto.randomUUID(),label:'Sorties MAIN',value:'2 × XLR(M)'}
     ],
     ports:[
-      {id:crypto.randomUUID(),label:'Entrées micro',connector:'XLR(F)',direction:'input',count:18},
-      {id:crypto.randomUUID(),label:'AUX',connector:'XLR(M)',direction:'output',count:6},
-      {id:crypto.randomUUID(),label:'MAIN',connector:'XLR(M)',direction:'output',count:2}
+      {id:crypto.randomUUID(),label:'Entrées micro',connector:'XLR(F)',direction:'input',count:18,signalLevel:'mic',balanced:true,stereo:false,phantom:'supported'},
+      {id:crypto.randomUUID(),label:'AUX',connector:'XLR(M)',direction:'output',count:6,signalLevel:'line',balanced:true,stereo:false,phantom:'none'},
+      {id:crypto.randomUUID(),label:'MAIN',connector:'XLR(M)',direction:'output',count:2,signalLevel:'line',balanced:true,stereo:false,phantom:'none'}
     ]
   }
   return {characteristics:[],ports:[]}
