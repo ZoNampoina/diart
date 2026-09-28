@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   AlertTriangle, Archive, Boxes, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp,
   ClipboardCheck, Eye, History, ImageDown, LayoutGrid, Minus, PackageCheck, PackagePlus,
-  PackageSearch, Plus, Repeat2, Save, Trash2, Wrench, X
+  PackageSearch, Plus, Repeat2, Save, Trash2, X
 } from 'lucide-react'
 import { db, logActivity } from './db'
 import type {
@@ -672,11 +672,6 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
       return !source||item.quantity>effectiveStockQuantity(source,program,programs)
     })
   },[selectedItems,stock,program,programs])
-
-  const overlappingPrograms=useMemo(()=>{
-    if(!program)return []
-    return programs.filter(other=>programsOverlap(program,other))
-  },[program,programs])
 
   const conflictReservations=useMemo(()=>{
     if(!program)return []
