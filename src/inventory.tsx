@@ -288,19 +288,163 @@ function cableSuggestionName(fromConnector:string,toConnector:string):{kind:Inst
   if(a===b)return {kind:'cable',name:fromConnector+' - '+toConnector}
   return {kind:'adapter',name:fromConnector+' vers '+toConnector}
 }
-function findSuggestedStock(name:string,stock:InventoryStockItem[]):InventoryStockItem|undefined{
+function stockCableLengthMeters(item:InventoryStockItem):number|undefined{
+  const characteristic=(item.characteristics??[]).find(entry=>/longueur|distance/i.test(entry.label))
+  const text=(characteristic?.value??'')+' '+item.name
+  const match=text.match(/(\d+(?:[.,]\d+)?)\s*m(?:\b|ètre)/i)
+  return match?Number(match[1].replace(',','.')):undefined
+}
+function findSuggestedStock(name:string,stock:InventoryStockItem[],requiredLength?:number):InventoryStockItem|undefined{
   const key=name.toLowerCase().replace(/[^a-z0-9]+/g,' ')
   const words=key.split(/\s+/).filter(Boolean)
-  return stock.find(item=>{
+  const matches=stock.filter(item=>{
     const target=item.name.toLowerCase().replace(/[^a-z0-9]+/g,' ')
-    return words.every(word=>target.includes(word))
-  })??stock.find(item=>item.name.toLowerCase().includes(name.toLowerCase()))
+    return words.every(word=>target.includes(word))||item.name.toLowerCase().includes(name.toLowerCase())
+  })
+  const usable=matches.filter(item=>item.quantity>0&&!statusBlocksAvailability(item.status))
+  const pool=usable.length?usable:matches
+  if(requiredLength&&requiredLength>0){
+    const adequate=pool
+      .map(item=>({item,length:stockCableLengthMeters(item)}))
+      .filter(value=>value.length!==undefined&&value.length>=requiredLength)
+      .sort((a,b)=>(a.length??9999)-(b.length??9999))
+    if(adequate[0])return adequate[0].item
+  }
+  return pool[0]
+}
+function inferredSignalLevel(port:InventoryPort):InventorySignalLevel{
+  if(port.signalLevel)return port.signalLevel
+  const key=(port.label+' '+port.connector).toLowerCase()
+  if(/midi/.test(key))return 'midi'
+  if(/usb|ethernet|hdmi/.test(key))return 'digital'
+  if(/speakon|speaker|haut.?parleur/.test(key))return 'speaker'
+  if(port.direction==='power'||/iec|secteur|power|alim/.test(key))return 'power'
+  if(/micro|mic/.test(key))return 'mic'
+  if(/instrument|guitare|basse/.test(key))return 'instrument'
+  if(/line|aux|main|rca/.test(key))return 'line'
+  return 'unknown'
+}
+function isMixerItem(item:InventoryStockItem|undefined):boolean{
+  if(!item)return false
+  return /table de mix|console|mixer/i.test(item.name)||(item.ports??[]).some(port=>port.direction==='input'&&port.count>4)
+}
+function autoAssignInstallationChannels(program:InventoryProgram,stock:InventoryStockItem[]){
+  const installation=program.installation??{nodes:[],links:[]}
+  const inputUse=new Map<string,number>()
+  const outputUse=new Map<string,number>()
+  const nodeStock=(nodeId:string)=>{
+    const node=installation.nodes.find(item=>item.id===nodeId)
+    return node?.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
+  }
+  return installation.links.map(link=>{
+    const source=nodeStock(link.fromNodeId)
+    const target=nodeStock(link.toNodeId)
+    const fromPort=(source?.ports??[]).find(port=>port.id===link.fromPort)??(source?.ports??[]).find(port=>port.direction==='output'||port.direction==='bidirectional')
+    const toPort=(target?.ports??[]).find(port=>port.id===link.toPort)??(target?.ports??[]).find(port=>port.direction==='input'||port.direction==='bidirectional')
+    const labels:string[]=[]
+    if(toPort&&(isMixerItem(target)||toPort.count>1)){
+      const key=link.toNodeId+'|'+toPort.id
+      const index=(inputUse.get(key)??0)+1
+      inputUse.set(key,index)
+      if(index<=Math.max(1,toPort.count))labels.push('CH '+index)
+      else labels.push('CH ? (capacité dépassée)')
+    }
+    if(fromPort&&(isMixerItem(source)||fromPort.count>1)){
+      const key=link.fromNodeId+'|'+fromPort.id
+      const index=(outputUse.get(key)??0)+1
+      outputUse.set(key,index)
+      const label=fromPort.label.toLowerCase()
+      if(/aux|monitor|bus/.test(label))labels.push('AUX '+index)
+      else if(/main|master/.test(label)&&fromPort.count===2)labels.push(index===1?'MAIN L':index===2?'MAIN R':'MAIN '+index)
+      else labels.push(fromPort.label+' '+index)
+    }
+    return {...link,assignedChannel:labels.join(' → ')||link.assignedChannel||''}
+  })
+}
+function linkCompatibility(link:InventoryProgram['installation'] extends infer _T ? any : never,program:InventoryProgram,stock:InventoryStockItem[]):{
+  compatibility:'ok'|'adapter'|'di'|'phantom'|'warning'
+  notes:string[]
+  suggestions:Array<Omit<InstallationSuggestion,'id'>>
+}{
+  const installation=program.installation??{nodes:[],links:[]}
+  const fromNode=installation.nodes.find(item=>item.id===link.fromNodeId)
+  const toNode=installation.nodes.find(item=>item.id===link.toNodeId)
+  const fromStock=fromNode?.stockItemId?stock.find(item=>item.id===fromNode.stockItemId):undefined
+  const toStock=toNode?.stockItemId?stock.find(item=>item.id===toNode.stockItemId):undefined
+  const fromPort=(fromStock?.ports??[]).find(port=>port.id===link.fromPort)??(fromStock?.ports??[]).find(port=>port.direction==='output'||port.direction==='bidirectional')
+  const toPort=(toStock?.ports??[]).find(port=>port.id===link.toPort)??(toStock?.ports??[]).find(port=>port.direction==='input'||port.direction==='bidirectional')
+  const notes:string[]=[]
+  const suggestions:Array<Omit<InstallationSuggestion,'id'>>=[]
+  if(!fromPort||!toPort)return {compatibility:'warning',notes:['Connectiques ou sens de port à préciser.'],suggestions}
+  const fromLevel=inferredSignalLevel(fromPort),toLevel=inferredSignalLevel(toPort)
+  let compatibility:'ok'|'adapter'|'di'|'phantom'|'warning'='ok'
+
+  if(connectorKey(fromPort.connector)!==connectorKey(toPort.connector)){
+    const cable=cableSuggestionName(fromPort.connector,toPort.connector)
+    if(cable.kind==='adapter'){compatibility='adapter';notes.push('Adaptation de connecteur nécessaire.')}
+  }
+  if(fromLevel==='instrument'&&(toLevel==='mic'||toLevel==='line')){
+    const di=findSuggestedStock('DI Box',stock)
+    compatibility='di'
+    notes.push('Niveau instrument : DI Box recommandée pour adaptation niveau/impédance et symétrisation.')
+    suggestions.push({kind:'equipment',name:'DI Box',quantity:1,reason:(fromNode?.name??'Instrument')+' → '+(toNode?.name??'entrée console'),category:'adaptateur',matchedStockItemId:di?.id,channelAssignment:link.assignedChannel})
+  }
+  if(fromLevel==='line'&&toLevel==='mic'){
+    compatibility=compatibility==='ok'?'warning':compatibility
+    notes.push('Niveau ligne vers entrée micro : prévoir PAD/atténuation pour éviter la saturation.')
+    suggestions.push({kind:'equipment',name:'PAD / atténuateur ligne',quantity:1,reason:'Adapter niveau ligne vers préampli micro',category:'adaptateur',channelAssignment:link.assignedChannel})
+  }
+  if(fromLevel==='mic'&&toLevel==='line'){
+    compatibility='warning'
+    notes.push('Niveau micro vers entrée ligne : préamplification nécessaire.')
+    suggestions.push({kind:'equipment',name:'Préampli micro',quantity:1,reason:'Élever le niveau micro vers niveau ligne',category:'adaptateur',channelAssignment:link.assignedChannel})
+  }
+  if(fromLevel==='speaker'&&toLevel!=='speaker'){
+    compatibility='warning'
+    notes.push('Signal haut-parleur vers entrée non prévue : connexion potentiellement dangereuse.')
+  }
+  if((fromLevel==='digital')!==(toLevel==='digital')&&(fromLevel==='digital'||toLevel==='digital')){
+    compatibility='warning'
+    notes.push('Conversion numérique/analogique nécessaire.')
+    suggestions.push({kind:'equipment',name:'Convertisseur audio numérique / analogique',quantity:1,reason:'Formats de signal incompatibles',category:'adaptateur',channelAssignment:link.assignedChannel})
+  }
+  if(fromPort.stereo===true&&toPort.stereo===false){
+    compatibility='warning'
+    notes.push('Source stéréo vers entrée mono : utiliser une sommation adaptée, pas un simple Y passif.')
+    suggestions.push({kind:'equipment',name:'Sommateur stéréo vers mono',quantity:1,reason:'Préserver la source stéréo sans court-circuiter les sorties',category:'adaptateur',channelAssignment:link.assignedChannel})
+  }
+  if(fromPort.balanced===false&&toPort.balanced===true&&(link.lengthMeters??0)>=6){
+    if(compatibility==='ok')compatibility='di'
+    notes.push('Liaison asymétrique longue : symétrisation recommandée pour réduire le bruit.')
+    const di=findSuggestedStock('DI Box',stock)
+    suggestions.push({kind:'equipment',name:'DI Box',quantity:1,reason:'Liaison asymétrique de '+link.lengthMeters+' m',category:'adaptateur',matchedStockItemId:di?.id,channelAssignment:link.assignedChannel})
+  }
+  if(fromPort.phantom==='required'){
+    if(toPort.phantom==='supported'){
+      if(compatibility==='ok')compatibility='phantom'
+      notes.push('Activer l’alimentation phantom 48 V sur '+(link.assignedChannel||'ce canal')+'.')
+      suggestions.push({kind:'warning',name:'Activer 48 V',quantity:1,reason:(fromNode?.name??'Source')+' nécessite une alimentation phantom',channelAssignment:link.assignedChannel})
+    }else{
+      compatibility='warning'
+      notes.push('La source nécessite 48 V mais l’entrée ne le fournit pas.')
+      suggestions.push({kind:'equipment',name:'Alimentation phantom 48 V externe',quantity:1,reason:'Phantom requis mais non disponible sur l’entrée',category:'prise',channelAssignment:link.assignedChannel})
+    }
+  }
+  return {compatibility,notes,suggestions}
+}
+function enrichInstallationLinks(program:InventoryProgram,stock:InventoryStockItem[]){
+  const assigned=autoAssignInstallationChannels(program,stock)
+  const temp={...program,installation:{...(program.installation??{nodes:[],links:[]}),links:assigned}}
+  return assigned.map(link=>{
+    const result=linkCompatibility(link,temp,stock)
+    return {...link,compatibility:result.compatibility,compatibilityNotes:result.notes}
+  })
 }
 function localInstallationAnalysis(program:InventoryProgram,stock:InventoryStockItem[]):{summary:string;suggestions:InstallationSuggestion[]}{
   const installation=program.installation??{nodes:[],links:[]}
   const suggestions:InstallationSuggestion[]=[]
   const add=(entry:Omit<InstallationSuggestion,'id'>)=>{
-    const existing=suggestions.find(item=>item.kind===entry.kind&&item.name.toLowerCase()===entry.name.toLowerCase()&&item.matchedStockItemId===entry.matchedStockItemId)
+    const existing=suggestions.find(item=>item.kind===entry.kind&&item.name.toLowerCase()===entry.name.toLowerCase()&&item.matchedStockItemId===entry.matchedStockItemId&&item.lengthMeters===entry.lengthMeters)
     if(existing){existing.quantity+=entry.quantity;existing.reason+=' · '+entry.reason;return}
     suggestions.push({id:crypto.randomUUID(),...entry})
   }
@@ -317,16 +461,27 @@ function localInstallationAnalysis(program:InventoryProgram,stock:InventoryStock
     const fromPort=(fromStock?.ports??[]).find(port=>port.id===link.fromPort)??(fromStock?.ports??[]).find(port=>port.direction==='output'||port.direction==='bidirectional')
     const toPort=(toStock?.ports??[]).find(port=>port.id===link.toPort)??(toStock?.ports??[]).find(port=>port.direction==='input'||port.direction==='bidirectional')
     if(!fromPort||!toPort){
-      add({kind:'warning',name:'Connectique à préciser',quantity:1,reason:'Préciser les ports entre '+fromNode.name+' et '+toNode.name})
+      add({kind:'warning',name:'Connectique à préciser',quantity:1,reason:'Préciser les ports entre '+fromNode.name+' et '+toNode.name,channelAssignment:link.assignedChannel})
       continue
     }
     const recommendation=cableSuggestionName(fromPort.connector,toPort.connector)
-    const match=findSuggestedStock(recommendation.name,stock)
+    const requiredLength=(link.lengthMeters??0)>0?link.lengthMeters:undefined
+    const match=findSuggestedStock(recommendation.name,stock,requiredLength)
+    const matchLength=match?stockCableLengthMeters(match):undefined
     add({
       kind:recommendation.kind,name:recommendation.name,quantity:1,
-      reason:fromNode.name+' ('+fromPort.connector+') → '+toNode.name+' ('+toPort.connector+')',
-      category:recommendation.kind==='cable'?'cable':'adaptateur',matchedStockItemId:match?.id
+      reason:fromNode.name+' ('+fromPort.connector+') → '+toNode.name+' ('+toPort.connector+')'+(requiredLength?' · '+requiredLength+' m':'')+(link.assignedChannel?' · '+link.assignedChannel:''),
+      category:recommendation.kind==='cable'?'cable':'adaptateur',matchedStockItemId:match?.id,
+      lengthMeters:requiredLength,channelAssignment:link.assignedChannel
     })
+    if(requiredLength&&match&&matchLength!==undefined&&matchLength<requiredLength){
+      add({kind:'warning',name:'Câble trop court',quantity:1,reason:match.name+' = '+matchLength+' m, besoin '+requiredLength+' m',channelAssignment:link.assignedChannel})
+    }
+    const compatibility=linkCompatibility(link,program,stock)
+    compatibility.suggestions.forEach(add)
+    if(compatibility.notes.length&&compatibility.compatibility==='warning'){
+      add({kind:'warning',name:'Compatibilité audio à vérifier',quantity:1,reason:compatibility.notes.join(' · '),channelAssignment:link.assignedChannel})
+    }
   }
   for(const node of installation.nodes){
     const key=node.name.toLowerCase()
@@ -344,9 +499,10 @@ function localInstallationAnalysis(program:InventoryProgram,stock:InventoryStock
     const match=findSuggestedStock('Prise multiple',stock)
     add({kind:'power',name:'Prise multiple',quantity:Math.max(1,Math.ceil(powered/6)),reason:powered+' appareils alimentés dans le schéma',category:'prise',matchedStockItemId:match?.id})
   }
+  const warningCount=suggestions.filter(item=>item.kind==='warning').length
   return {
     summary:installation.links.length
-      ?installation.links.length+' liaison'+(installation.links.length>1?'s':'')+' analysée'+(installation.links.length>1?'s':'')+' · '+suggestions.length+' proposition'+(suggestions.length>1?'s':'')
+      ?installation.links.length+' liaison'+(installation.links.length>1?'s':'')+' · '+suggestions.length+' proposition'+(suggestions.length>1?'s':'')+(warningCount?' · '+warningCount+' point'+(warningCount>1?'s':'')+' à vérifier':'')
       :'Ajoutez des liaisons entre les équipements pour obtenir des propositions automatiques.',
     suggestions
   }
