@@ -271,7 +271,7 @@ function stableCatalogUuid(category:InventoryCategory,name:string):string{
 }
 
 function catalogMaterials(quantity=0):InventoryMaterial[]{
-  return CATEGORY_ORDER.flatMap(category=>DEFAULT_CATALOG[category].map(name=>({
+  return DEFAULT_CATEGORY_ORDER.flatMap(category=>(DEFAULT_CATALOG[category]??[]).map(name=>({
     id:crypto.randomUUID(),name,quantity,category
   })))
 }
@@ -283,8 +283,8 @@ async function ensureStockSeed():Promise<void>{
   const existing=await db.inventoryStock.toArray()
   const existingNames=new Set(existing.map(item=>normalizeProvider(item.provider)+'|'+normalizeCategory(item.category,item.name)+':'+item.name.trim().toLowerCase()))
   const rows:InventoryStockItem[]=[]
-  for(const category of CATEGORY_ORDER){
-    for(const name of DEFAULT_CATALOG[category]){
+  for(const category of DEFAULT_CATEGORY_ORDER){
+    for(const name of DEFAULT_CATALOG[category]??[]){
       const key=DEFAULT_PROVIDER+'|'+category+':'+name.toLowerCase()
       if(existingNames.has(key))continue
       rows.push({
@@ -355,7 +355,8 @@ function wrapCanvasText(ctx:CanvasRenderingContext2D,text:string,maxWidth:number
 export async function exportTechnicalSheetImage(program:InventoryProgram,stock:InventoryStockItem[]):Promise<void>{
   const normalized=normalizeProgram(program)
   const selected=normalized.items.filter(item=>item.quantity>0)
-  const grouped=CATEGORY_ORDER.map(category=>({
+  const exportCategoryOrder=Array.from(new Set([...DEFAULT_CATEGORY_ORDER,...selected.map(item=>item.category)]))
+  const grouped=exportCategoryOrder.map(category=>({
     category,
     rows:selected.filter(item=>item.category===category)
   })).filter(group=>group.rows.length)
@@ -405,7 +406,7 @@ export async function exportTechnicalSheetImage(program:InventoryProgram,stock:I
       y+=18
       ctx.fillStyle='#dce9eb';ctx.fillRect(left,y,right-left,52)
       ctx.fillStyle='#0f2f33';ctx.font='800 22px system-ui, -apple-system, Segoe UI, sans-serif'
-      ctx.fillText(CATEGORY_LABELS[group.category].toUpperCase(),left+24,y+34)
+      ctx.fillText(categoryLabel(group.category).toUpperCase(),left+24,y+34)
       ctx.textAlign='right';ctx.fillText('QTÉ',right-24,y+34);ctx.textAlign='left';y+=52
 
       group.rows.forEach((item,index)=>{
@@ -441,10 +442,10 @@ export async function exportTechnicalSheetImage(program:InventoryProgram,stock:I
   setTimeout(()=>URL.revokeObjectURL(url),0)
 }
 
-function CategorySection({category,open,onToggle,children,count}:{category:InventoryCategory;open:boolean;onToggle:()=>void;children:ReactNode;count:number}){
+function CategorySection({category,label,open,onToggle,children,count}:{category:InventoryCategory;label?:string;open:boolean;onToggle:()=>void;children:ReactNode;count:number}){
   return <section className="inventory-category">
     <button type="button" className="inventory-category-head" onClick={onToggle}>
-      <span><b>{CATEGORY_LABELS[category]}</b><small>{count} élément{count>1?'s':''}</small></span>
+      <span><b>{label??categoryLabel(category)}</b><small>{count} élément{count>1?'s':''}</small></span>
       {open?<ChevronUp/>:<ChevronDown/>}
     </button>
     {open&&<div className="inventory-category-body">{children}</div>}
@@ -1108,5 +1109,5 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
   </>
 }
 function CATALOG_FLAT():{name:string;category:InventoryCategory}[]{
-  return CATEGORY_ORDER.flatMap(category=>DEFAULT_CATALOG[category].map(name=>({name,category})))
+  return DEFAULT_CATEGORY_ORDER.flatMap(category=>(DEFAULT_CATALOG[category]??[]).map(name=>({name,category})))
 }
