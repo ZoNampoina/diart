@@ -277,7 +277,7 @@ function catalogMaterials(quantity=0):InventoryMaterial[]{
 }
 
 async function ensureStockSeed():Promise<void>{
-  const seeded=await db.settings.get('inventoryStockSeedV1')
+  const seeded=await db.settings.get('inventoryStockSeedV2')
   if(seeded)return
   const stamp=now()
   const existing=await db.inventoryStock.toArray()
@@ -287,15 +287,17 @@ async function ensureStockSeed():Promise<void>{
     for(const name of DEFAULT_CATALOG[category]??[]){
       const key=DEFAULT_PROVIDER+'|'+category+':'+name.toLowerCase()
       if(existingNames.has(key))continue
+      const technical=defaultTechnicalProfile(name)
       rows.push({
         id:stableCatalogUuid(category,name),
-        name,category,quantity:0,provider:DEFAULT_PROVIDER,status:'available',notes:'',
+        name,category,quantity:0,provider:DEFAULT_PROVIDER,status:'available',
+        characteristics:technical.characteristics,ports:technical.ports,notes:'',
         createdAt:stamp,updatedAt:'1970-01-01T00:00:00.000Z',deletedAt:null
       })
     }
   }
   if(rows.length)await db.inventoryStock.bulkPut(rows)
-  await db.settings.put({key:'inventoryStockSeedV1',value:'1'})
+  await db.settings.put({key:'inventoryStockSeedV2',value:'1'})
 }
 
 async function createProgram(name:string):Promise<InventoryProgram>{
