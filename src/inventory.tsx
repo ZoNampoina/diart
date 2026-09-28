@@ -377,27 +377,29 @@ export async function exportTechnicalSheetImage(program:InventoryProgram,stock:I
   ctx.fillStyle='#0f2f33';ctx.fillRect(0,0,width,24)
 
   const left=120,right=width-120
-  let y=100
-  ctx.fillStyle='#0f2f33';ctx.font='700 32px system-ui, -apple-system, Segoe UI, sans-serif'
-  ctx.fillText("DI'ART by ARIZONA",left,y)
-  ctx.fillStyle='#558087';ctx.font='700 20px system-ui, -apple-system, Segoe UI, sans-serif';ctx.textAlign='right'
-  ctx.fillText('FICHE TECHNIQUE · INVENTAIRE',right,y);ctx.textAlign='left'
+  let y=105
+  ctx.fillStyle='#0f2f33';ctx.font='850 29px system-ui, -apple-system, Segoe UI, sans-serif'
+  ctx.fillText('FICHE TECHNIQUE-INVENTAIRE',left,y)
+  ctx.strokeStyle='#b9cacc';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(left,y+28);ctx.lineTo(right,y+28);ctx.stroke()
 
-  y+=86
-  ctx.fillStyle='#0b2024';ctx.font='800 58px system-ui, -apple-system, Segoe UI, sans-serif'
+  y+=105
+  ctx.fillStyle='#0b2024';ctx.font='850 58px system-ui, -apple-system, Segoe UI, sans-serif'
   const titleLines=wrapCanvasText(ctx,normalized.name||'Événement',right-left)
   for(const line of titleLines.slice(0,2)){ctx.fillText(line,left,y);y+=68}
 
   const meta=[
-    normalized.date?new Date(normalized.date+'T00:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}):'',
-    normalized.startTime?(normalized.startTime+(normalized.endTime?'–'+normalized.endTime:'')):'',
-    recurrenceText(normalized),
-    normalized.location.trim()
-  ].filter(Boolean).join('  ·  ')
-  ctx.fillStyle='#58757a';ctx.font='500 25px system-ui, -apple-system, Segoe UI, sans-serif'
-  const metaLines=wrapCanvasText(ctx,meta,right-left)
-  for(const line of metaLines){ctx.fillText(line,left,y);y+=34}
-  y+=32
+    normalized.date?'Date : '+new Date(normalized.date+'T00:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}):'Date : non définie',
+    normalized.startTime?'Horaire : '+normalized.startTime+(normalized.endTime?' – '+normalized.endTime:''):'',
+    'Fréquence : '+recurrenceText(normalized),
+    normalized.location.trim()?'Lieu : '+normalized.location.trim():''
+  ].filter(Boolean)
+  y+=8
+  ctx.fillStyle='#58757a';ctx.font='600 23px system-ui, -apple-system, Segoe UI, sans-serif'
+  for(const metaItem of meta){
+    const metaLines=wrapCanvasText(ctx,metaItem,right-left)
+    for(const line of metaLines){ctx.fillText(line,left,y);y+=32}
+  }
+  y+=28
 
   if(!selected.length){
     ctx.fillStyle='#e5eeee';ctx.fillRect(left,y,right-left,86)
@@ -435,8 +437,13 @@ export async function exportTechnicalSheetImage(program:InventoryProgram,stock:I
     for(const line of wrapCanvasText(ctx,normalized.notes,right-left)){ctx.fillText(line,left,y);y+=37}
   }
 
-  ctx.fillStyle='#789096';ctx.font='500 18px system-ui, -apple-system, Segoe UI, sans-serif'
-  ctx.fillText('Généré avec DI’ART · '+new Date().toLocaleDateString('fr-FR'),left,height-70)
+  ctx.strokeStyle='#d4e0e2';ctx.beginPath();ctx.moveTo(left,height-105);ctx.lineTo(right,height-105);ctx.stroke()
+  ctx.fillStyle='#789096';ctx.font='600 18px system-ui, -apple-system, Segoe UI, sans-serif'
+  const exportedAt=new Date()
+  ctx.fillText('DI’ART',left,height-70)
+  ctx.textAlign='right'
+  ctx.fillText('Exporté le '+exportedAt.toLocaleDateString('fr-FR')+' à '+exportedAt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),right,height-70)
+  ctx.textAlign='left'
 
   const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error('Création de l’image impossible.')),'image/png',1))
   const url=URL.createObjectURL(blob)
