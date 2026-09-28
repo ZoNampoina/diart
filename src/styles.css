@@ -10657,3 +10657,93 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
   .installation-node{min-width:190px}
   .installation-suggestion{grid-template-columns:minmax(0,1fr) 35px 30px}.installation-suggestion button{font-size:0!important;width:30px!important;padding:0!important}
 }
+
+
+/* DI'ART 2.16 — channels, cable lengths and audio compatibility */
+.stock-port-row.advanced{
+  grid-template-columns:minmax(130px,1.2fr) 105px 105px 100px 110px 62px 62px 58px 30px
+}
+.port-flag{
+  min-height:32px;border:1px solid var(--line);border-radius:8px;background:var(--surface);
+  display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer
+}
+.port-flag input{position:absolute;opacity:0;pointer-events:none}
+.port-flag span{font-size:8px;color:var(--muted);font-weight:800}
+.port-flag:has(input:checked){border-color:color-mix(in srgb,var(--accent2) 40%,var(--line));background:color-mix(in srgb,var(--accent2) 8%,var(--surface))}
+.port-flag:has(input:checked) span{color:var(--accent2)}
+.port-count{min-width:0!important}
+
+.installation-link-add{
+  grid-template-columns:minmax(120px,1fr) minmax(115px,.8fr) 22px minmax(120px,1fr) minmax(115px,.8fr) 86px auto!important
+}
+.installation-length-field,.link-length-edit{
+  min-height:34px;border:1px solid var(--line);border-radius:8px;background:var(--surface);
+  display:grid;grid-template-columns:minmax(0,1fr) 22px;align-items:center;overflow:hidden
+}
+.installation-length-field input,.link-length-edit input{
+  min-height:32px!important;height:32px!important;border:0!important;background:transparent!important;
+  padding:4px 4px 4px 7px!important;font-size:9px!important;min-width:0
+}
+.installation-length-field span,.link-length-edit span{font-size:8px;color:var(--muted);text-align:center}
+
+.installation-link-row.detailed{
+  grid-template-columns:22px minmax(130px,1fr) 22px minmax(130px,1fr) 74px 108px 62px 28px!important;
+  gap:6px!important
+}
+.link-endpoint{min-width:0}
+.link-endpoint b{display:block;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.link-endpoint small{display:block;font-size:7px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.link-channel{
+  width:auto!important;height:auto!important;border-radius:7px!important;background:color-mix(in srgb,var(--accent2) 8%,var(--surface2))!important;
+  color:var(--accent2)!important;padding:5px 6px!important;font-size:8px!important;white-space:nowrap;text-align:center
+}
+.link-compat-badge{
+  width:auto!important;height:auto!important;border-radius:999px!important;padding:4px 6px!important;font-size:8px!important;
+  font-weight:850;text-align:center;white-space:nowrap
+}
+.link-compat-badge.ok{background:color-mix(in srgb,var(--accent2) 9%,var(--surface2))!important;color:var(--accent2)!important}
+.link-compat-badge.di,.link-compat-badge.adapter{background:color-mix(in srgb,#ad7b1c 10%,var(--surface2))!important;color:#ad7b1c!important}
+.link-compat-badge.phantom{background:color-mix(in srgb,#7b63c8 10%,var(--surface2))!important;color:#7b63c8!important}
+.link-compat-badge.warning{background:color-mix(in srgb,var(--danger) 9%,var(--surface2))!important;color:var(--danger)!important}
+.installation-link-row.compatibility-warning{border-color:color-mix(in srgb,var(--danger) 35%,var(--line))}
+.installation-link-row.compatibility-di,.installation-link-row.compatibility-adapter{border-color:color-mix(in srgb,#ad7b1c 35%,var(--line))}
+.installation-link-row.compatibility-phantom{border-color:color-mix(in srgb,#7b63c8 35%,var(--line))}
+.link-compat-notes{
+  grid-column:2/-1;display:flex;gap:4px;flex-wrap:wrap;padding-top:3px;border-top:1px dashed var(--line)
+}
+.link-compat-notes small{
+  font-size:7px;color:var(--muted);padding:2px 5px;border-radius:999px;background:var(--surface2)
+}
+.suggestion-tech-meta{color:var(--accent2)!important;font-weight:750}
+
+@media(max-width:1100px){
+  .stock-port-row.advanced{grid-template-columns:minmax(130px,1fr) 90px 90px 90px 100px 55px 55px 50px 30px}
+  .installation-link-row.detailed{grid-template-columns:22px minmax(100px,1fr) 20px minmax(100px,1fr) 68px 90px 56px 28px!important}
+}
+@media(max-width:900px){
+  .stock-port-row.advanced{grid-template-columns:1fr 95px 95px 95px}
+  .stock-port-row.advanced .port-flag{min-height:30px}
+  .stock-port-row.advanced .port-count{width:100%}
+  .installation-link-add{grid-template-columns:1fr 1fr 20px 1fr 1fr 76px!important}
+  .installation-link-add>button{grid-column:1/-1}
+  .installation-link-row.detailed{grid-template-columns:22px minmax(0,1fr) 20px minmax(0,1fr) 64px 80px 54px 28px!important}
+}
+@media(max-width:640px){
+  .stock-port-row.advanced{grid-template-columns:1fr 1fr}
+  .stock-port-row.advanced>button{grid-column:2;justify-self:end}
+  .installation-link-add{grid-template-columns:1fr 1fr!important}
+  .installation-link-add .installation-arrow{display:none}
+  .installation-link-add .installation-length-field{grid-column:1}
+  .installation-link-add>button{grid-column:2}
+  .installation-link-row.detailed{grid-template-columns:20px minmax(0,1fr) 18px minmax(0,1fr) 58px 28px!important}
+  .installation-link-row.detailed .link-channel{grid-column:2/4;justify-self:start}
+  .installation-link-row.detailed .link-compat-badge{grid-column:4/6;justify-self:end}
+  .installation-link-row.detailed>button{grid-column:6}
+  .link-compat-notes{grid-column:2/-1}
+}
+@media(max-width:430px){
+  .installation-link-row.detailed{grid-template-columns:18px minmax(0,1fr) 16px minmax(0,1fr) 52px 26px!important}
+  .link-endpoint small{display:none}
+  .link-channel{font-size:7px!important;padding:4px!important}
+  .link-compat-badge{font-size:7px!important;padding:3px 4px!important}
+}
