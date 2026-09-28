@@ -1097,6 +1097,94 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
     void persist({date,weekday})
   }
 
+  const installation=program?.installation??{nodes:[],links:[],suggestions:[],aiSummary:''}
+  const stockByNode=(nodeId:string)=>{
+    const node=installation.nodes.find(item=>item.id===nodeId)
+    return node?.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
+  }
+  const addInstallationNode=()=>{
+    if(!program)return
+    const stockItem=installationStockId?stock.find(item=>item.id===installationStockId):undefined
+    const name=(stockItem?.name??installationNodeName).trim()
+    if(!name){toast('Choisissez un matériel ou saisissez un nom.');return}
+    const node={id:crypto.randomUUID(),name,stockItemId:stockItem?.id}
+    void persist({installation:{...installation,nodes:[...installation.nodes,node]}})
+    setInstallationNodeName('');setInstallationStockId('')
+  }
+  const removeInstallationNode=(id:string)=>{
+    void persist({installation:{
+      ...installation,
+      nodes:installation.nodes.filter(node=>node.id!==id),
+      links:installation.links.filter(link=>link.fromNodeId!==id&&link.toNodeId!==id),
+      suggestions:[]
+    }})
+  }
+  const addInstallationLink=()=>{
+    if(!program||!linkFromNode||!linkToNode||linkFromNode===linkToNode){toast('Choisissez deux équipements différents.');return}
+    const link={id:crypto.randomUUID(),fromNodeId:linkFromNode,toNodeId:linkToNode,fromPort:linkFromPort||undefined,toPort:linkToPort||undefined}
+    void persist({installation:{...installation,links:[...installation.links,link],suggestions:[]}})
+    setLinkFromPort('');setLinkToPort('')
+  }
+  const removeInstallationLink=(id:string)=>void persist({installation:{...installation,links:installation.links.filter(link=>link.id!==id),suggestions:[]}})
+  const runLocalInstallationAnalysis=async()=>{
+    if(!program)return
+    const result=localInstallationAnalysis(program,stock)
+    await persist({installation:{...installation,suggestions:result.suggestions,aiSummary:result.summary,analyzedAt:now(),analysisMode:'local'}})
+    toast('Analyse locale terminée.')
+  }
+  const runAIInstallationAnalysis=async()=>{
+    if(!program)return
+    if(!online){toast('Connexion requise pour l’analyse IA.');return}
+    setAiAnalyzing(true)
+    try{
+      const data=await analyzeInventoryInstallationWithAI({
+        program:{name:program.name,date:program.date,startTime:program.startTime,endTime:program.endTime,location:program.location},
+        installation,
+        stock:stock.map(item=>({
+          id:item.id,name:item.name,category:item.category,provider:normalizeProvider(item.provider),
+          quantity:item.quantity,status:item.status,characteristics:item.characteristics??[],ports:item.ports??[]
+        })),
+        currentItems:selectedItems.map(item=>({name:item.name,quantity:item.quantity,category:item.category,stockItemId:item.stockItemId}))
+      })
+      const raw=Array.isArray(data?.suggestions)?data.suggestions:[]
+      const suggestions:InstallationSuggestion[]=raw.map((value:any)=>({
+        id:crypto.randomUUID(),
+        kind:['cable','adapter','power','accessory','equipment','warning'].includes(value?.kind)?value.kind:'warning',
+        name:String(value?.name??'Suggestion'),
+        quantity:Math.max(1,Number(value?.quantity)||1),
+        reason:String(value?.reason??'Analyse IA'),
+        category:value?.category?String(value.category):undefined,
+        matchedStockItemId:value?.matchedStockItemId?String(value.matchedStockItemId):undefined
+      }))
+      await persist({installation:{...installation,suggestions,aiSummary:String(data?.summary??'Analyse IA terminée.'),analyzedAt:now(),analysisMode:'ai'}})
+      toast('Analyse IA terminée.')
+    }catch(error){
+      const fallback=localInstallationAnalysis(program,stock)
+      await persist({installation:{...installation,suggestions:fallback.suggestions,aiSummary:'IA distante indisponible · '+fallback.summary,analyzedAt:now(),analysisMode:'local'}})
+      toast('IA distante indisponible : analyse locale utilisée.')
+    }finally{setAiAnalyzing(false)}
+  }
+  const addInstallationSuggestion=async(suggestion:InstallationSuggestion)=>{
+    if(!program)return
+    const source=suggestion.matchedStockItemId?stock.find(item=>item.id===suggestion.matchedStockItemId):undefined
+    if(source){
+      let next=[...items]
+      const existing=next.find(item=>item.stockItemId===source.id)
+      if(existing)next=next.map(item=>item.id===existing.id?{...item,quantity:item.quantity+suggestion.quantity,returned:false}:item)
+      else next.push({id:crypto.randomUUID(),name:source.name,category:source.category,quantity:suggestion.quantity,stockItemId:source.id,loaded:false,returned:false})
+      await persist({items:next})
+      toast(suggestion.name+' ajouté depuis le stock.')
+      return
+    }
+    const category=suggestion.category??(suggestion.kind==='accessory'?'accessoire':suggestion.kind==='power'?'prise':suggestion.kind==='cable'?'cable':suggestion.kind==='adapter'?'adaptateur':'instrument')
+    const existing=items.find(item=>!item.stockItemId&&item.category===category&&item.name.trim().toLowerCase()===suggestion.name.trim().toLowerCase())
+    const next=existing
+      ?items.map(item=>item.id===existing.id?{...item,quantity:item.quantity+suggestion.quantity}:item)
+      :[...items,{id:crypto.randomUUID(),name:suggestion.name,category,quantity:suggestion.quantity,loaded:false,returned:false}]
+    await persist({items:next})
+    toast(suggestion.name+' ajouté au programme.')
+  }
+
   if(!program)return <section className="panel inventory-empty"><span>Chargement du programme…</span></section>
 
   return <>
