@@ -1498,6 +1498,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
             <span className="installation-arrow">→</span>
             <select value={linkToNode} onChange={e=>{setLinkToNode(e.target.value);setLinkToPort('')}}><option value="">Vers…</option>{installation.nodes.map(node=><option value={node.id} key={node.id}>{node.name}</option>)}</select>
             <select value={linkToPort} onChange={e=>setLinkToPort(e.target.value)} disabled={!linkToNode}><option value="">Entrée auto</option>{(stockByNode(linkToNode)?.ports??[]).filter(port=>port.direction==='input'||port.direction==='bidirectional').map(port=><option value={port.id} key={port.id}>{port.label||'Entrée'} · {port.connector} ×{port.count}</option>)}</select>
+            <label className="installation-length-field"><input type="number" min="0" step="0.5" inputMode="decimal" value={linkLengthMeters} onChange={e=>setLinkLengthMeters(e.target.value)} placeholder="Distance"/><span>m</span></label>
             <button className="primary" disabled={!linkFromNode||!linkToNode||linkFromNode===linkToNode} onClick={addInstallationLink}><Plus/>Relier</button>
           </div>
           <div className="installation-link-list">
@@ -1506,9 +1507,16 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
               const to=installation.nodes.find(node=>node.id===link.toNodeId)
               const fromPort=(stockByNode(link.fromNodeId)?.ports??[]).find(port=>port.id===link.fromPort)
               const toPort=(stockByNode(link.toNodeId)?.ports??[]).find(port=>port.id===link.toPort)
-              return <div className="installation-link-row" key={link.id}>
-                <span>{index+1}</span><b>{from?.name??'?'}</b><small>{fromPort?.connector??'auto'}</small><em>→</em><b>{to?.name??'?'}</b><small>{toPort?.connector??'auto'}</small>
+              return <div className={'installation-link-row detailed compatibility-'+(link.compatibility??'ok')} key={link.id}>
+                <span>{index+1}</span>
+                <div className="link-endpoint"><b>{from?.name??'?'}</b><small>{fromPort?.connector??'auto'}{fromPort?.signalLevel?' · '+fromPort.signalLevel:''}</small></div>
+                <em>→</em>
+                <div className="link-endpoint"><b>{to?.name??'?'}</b><small>{toPort?.connector??'auto'}{toPort?.signalLevel?' · '+toPort.signalLevel:''}</small></div>
+                <label className="link-length-edit"><input type="number" min="0" step="0.5" value={link.lengthMeters??''} onChange={e=>updateInstallationLink(link.id,{lengthMeters:Number(e.target.value)>0?Number(e.target.value):undefined})}/><span>m</span></label>
+                <span className="link-channel">{link.assignedChannel||'Canal auto'}</span>
+                <span className={'link-compat-badge '+(link.compatibility??'ok')}>{link.compatibility==='di'?'DI':link.compatibility==='phantom'?'48V':link.compatibility==='adapter'?'Adapt.':link.compatibility==='warning'?'À vérifier':'OK'}</span>
                 <button className="bare-action danger-icon" onClick={()=>removeInstallationLink(link.id)}><Trash2/></button>
+                {(link.compatibilityNotes?.length??0)>0&&<div className="link-compat-notes">{link.compatibilityNotes?.map((note,n)=><small key={n}>{note}</small>)}</div>}
               </div>
             }):<div className="installation-empty">Aucune liaison définie.</div>}
           </div>
@@ -1518,6 +1526,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
           <div className="installation-analysis-head">
             <span><b>3. Analyse et proposition</b><small>L’analyse locale utilise les connectiques. L’IA en ligne peut aussi interpréter la chaîne complète et les besoins annexes.</small></span>
             <div>
+              <button className="secondary" onClick={autoAssignChannels}><Network/>Affecter canaux</button>
               <button className="secondary" onClick={()=>void runLocalInstallationAnalysis()}><Settings2/>Analyse locale</button>
               <button className="primary" disabled={!online||aiAnalyzing} onClick={()=>void runAIInstallationAnalysis()}><BrainCircuit/>{aiAnalyzing?'Analyse…':'Analyse IA'}</button>
             </div>
@@ -1525,7 +1534,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
           {installation.aiSummary&&<div className={'installation-summary '+(installation.analysisMode==='ai'?'ai':'local')}><BrainCircuit/><span>{installation.aiSummary}</span></div>}
           <div className="installation-suggestions">
             {(installation.suggestions??[]).length?(installation.suggestions??[]).map(suggestion=><div className={'installation-suggestion kind-'+suggestion.kind} key={suggestion.id}>
-              <span><b>{suggestion.name}</b><small>{suggestion.reason}</small></span>
+              <span><b>{suggestion.name}</b><small>{suggestion.reason}</small>{(suggestion.lengthMeters||suggestion.channelAssignment)&&<small className="suggestion-tech-meta">{suggestion.lengthMeters?suggestion.lengthMeters+' m':''}{suggestion.lengthMeters&&suggestion.channelAssignment?' · ':''}{suggestion.channelAssignment??''}</small>}</span>
               <em>× {suggestion.quantity}</em>
               {suggestion.matchedStockItemId&&<small className="suggestion-stock">En stock</small>}
               {suggestion.kind!=='warning'&&<button className="secondary" onClick={()=>void addInstallationSuggestion(suggestion)}><Plus/>Ajouter</button>}
