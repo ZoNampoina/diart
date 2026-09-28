@@ -150,6 +150,18 @@ function programsOverlap(a:InventoryProgram,b:InventoryProgram):boolean{
   return false
 }
 
+function programsHaveStockShortage(a:InventoryProgram,b:InventoryProgram,stock:InventoryStockItem[]):boolean{
+  if(!programsOverlap(a,b))return false
+  for(const item of a.items.filter(value=>value.quantity>0&&value.stockItemId)){
+    const source=stock.find(value=>value.id===item.stockItemId)
+    if(!source)continue
+    const otherQuantity=b.items.filter(value=>value.stockItemId===item.stockItemId).reduce((sum,value)=>sum+value.quantity,0)
+    if(otherQuantity<=0)continue
+    if(statusBlocksAvailability(source.status)||item.quantity+otherQuantity>source.quantity)return true
+  }
+  return false
+}
+
 function conflictingReservation(stockItemId:string,current:InventoryProgram,programs:InventoryProgram[]):{quantity:number;programs:InventoryProgram[]}{
   const conflicts=programs.filter(other=>programsOverlap(current,other)&&other.items.some(item=>item.stockItemId===stockItemId&&item.quantity>0))
   return {
@@ -309,6 +321,7 @@ export async function exportTechnicalSheetImage(program:InventoryProgram,stock:I
 
   const meta=[
     normalized.date?new Date(normalized.date+'T00:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}):'',
+    normalized.startTime?(normalized.startTime+(normalized.endTime?'–'+normalized.endTime:'')):'',
     recurrenceText(normalized),
     normalized.location.trim()
   ].filter(Boolean).join('  ·  ')
@@ -505,7 +518,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
         {programs.length?programs.map(program=>{
           const active=program.items.filter(item=>item.quantity>0)
           const total=active.reduce((sum,item)=>sum+item.quantity,0)
-          const conflicts=programs.filter(other=>programsOverlap(program,other))
+          const conflicts=programs.filter(other=>programsHaveStockShortage(program,other,stock))
           return <button className={'compact-program-row '+(conflicts.length?'has-conflict':'')} key={program.id} onClick={()=>onOpen(program.id)}>
             <CalendarDays/>
             <b>{program.name}</b>
@@ -894,7 +907,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
     </section>
 
     {conflictReservations.length>0&&<section className="panel inventory-conflict-panel">
-      <div className="inventory-alert-head"><AlertTriangle/><span><b>Réservations concurrentes</b><small>{overlappingPrograms.length} autre{overlappingPrograms.length>1?'s':''} programme{overlappingPrograms.length>1?'s':''} se chevauche{overlappingPrograms.length>1?'nt':''} avec ce créneau.</small></span></div>
+      <div className="inventory-alert-head"><AlertTriangle/><span><b>Réservations concurrentes</b><small>{Array.from(new Set(conflictReservations.flatMap(conflict=>conflict.programs.map(item=>item.id)))).length} programme{Array.from(new Set(conflictReservations.flatMap(conflict=>conflict.programs.map(item=>item.id)))).length>1?'s':''} utilise{Array.from(new Set(conflictReservations.flatMap(conflict=>conflict.programs.map(item=>item.id)))).length>1?'nt':''} aussi ce matériel sur le créneau.</small></span></div>
       {conflictReservations.map(conflict=><div className={'inventory-conflict-row '+(conflict.item.quantity>conflict.available?'danger':'')} key={conflict.item.id}>
         <span><b>{conflict.item.name}</b><small>{conflict.programs.map(item=>item.name).join(', ')}</small></span>
         <span>Réservé ailleurs <b>{conflict.reserved}</b></span>
