@@ -1,360 +1,542 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, ChevronRight, ImageDown, MapPin, Minus, PackagePlus, Plus, Save, Trash2, X } from 'lucide-react'
+import {
+  Archive, CalendarDays, ChevronDown, ChevronRight, ChevronUp, ImageDown, MapPin,
+  Minus, PackageCheck, PackagePlus, Plus, Repeat2, Trash2, X
+} from 'lucide-react'
 import { db } from './db'
-import type { InventoryMaterial, InventoryProgram } from './types'
+import type {
+  InventoryCategory, InventoryFrequency, InventoryMaterial, InventoryProgram, InventoryStockItem
+} from './types'
 
-export const DEFAULT_INVENTORY_MATERIALS = [
-  'XLR-XLR',
-  'XLR(M) - JACK',
-  'XLR(F) - JACK',
-  'JACK-JACK',
-  'ALIMENTATION',
-  'SUSTAIN',
-  'PEDAL',
-  'minijack-JACK',
-  'RCL-minijack'
-] as const
+const CATEGORY_ORDER: InventoryCategory[] = ['cable','prise','instrument','adaptateur']
+const CATEGORY_LABELS: Record<InventoryCategory,string> = {
+  cable:'Câbles',
+  prise:'Prises / alimentations',
+  instrument:'Instruments',
+  adaptateur:'Adaptateurs'
+}
+const WEEKDAYS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi']
 
-const now = () => new Date().toISOString()
-
-function starterMaterials(): InventoryMaterial[] {
-  return DEFAULT_INVENTORY_MATERIALS.map(name => ({ id: crypto.randomUUID(), name, quantity: 0 }))
+const DEFAULT_CATALOG: Record<InventoryCategory,string[]> = {
+  cable:[
+    'XLR-XLR','XLR(M) - JACK','XLR(F) - JACK','JACK-JACK','minijack-JACK',
+    'Speakon-Speakon','USB-A - USB-B','USB-C - USB-C','Ethernet RJ45'
+  ],
+  prise:[
+    'Alimentation','Prise multiple','Alim PC','Alim Clavier','Chargeur téléphone',
+    'Rallonge électrique','Adaptateur secteur universel','Câble IEC'
+  ],
+  instrument:[
+    'Piano','Guitare','Basse','Batterie','Pad','Micro','Saxophone','Clavier maître','Cajón'
+  ],
+  adaptateur:[
+    'minijack to JACK','RCA to JACK','RCA to minijack','JACK to minijack',
+    'RCA to RCA','Multi-JACK','Multi-minijack','XLR to JACK','USB-C to USB-A','USB-C to minijack'
+  ]
 }
 
-async function createProgram(name: string): Promise<InventoryProgram> {
-  const stamp = now()
-  const program: InventoryProgram = {
-    id: crypto.randomUUID(),
-    name: name.trim() || 'Nouvel événement',
-    date: '',
-    location: '',
-    notes: '',
-    items: starterMaterials(),
-    createdAt: stamp,
-    updatedAt: stamp,
-    deletedAt: null
+const now = () => new Date().toISOString()
+const clampQuantity = (value:number) => Math.max(0,Math.min(999,Math.floor(Number.isFinite(value)?value:0)))
+
+function normalizeCategory(value:unknown,name=''):InventoryCategory{
+  if(value==='cable'||value==='prise'||value==='instrument'||value==='adaptateur')return value
+  const key=name.trim().toLowerCase()
+  if(/xlr|jack|speakon|usb|ethernet|câble|cable/.test(key))return 'cable'
+  if(/alim|prise|chargeur|rallonge|iec|secteur/.test(key))return 'prise'
+  if(/piano|guitare|basse|batterie|pad|micro|saxo|clavier|caj/.test(key))return 'instrument'
+  return 'adaptateur'
+}
+
+function normalizeProgram(program:InventoryProgram):InventoryProgram{
+  return {
+    ...program,
+    frequency:program.frequency??'once',
+    weekday:program.weekday??(program.date?new Date(program.date+'T00:00:00').getDay():null),
+    items:(program.items??[]).map(item=>({...item,category:normalizeCategory(item.category,item.name)}))
+  }
+}
+
+function stableCatalogUuid(category:InventoryCategory,name:string):string{
+  const source=category+':'+name.toLowerCase()
+  const seeds=[2166136261,2246822519,3266489917,668265263]
+  const chunks=seeds.map(seed=>{
+    let h=seed>>>0
+    for(let i=0;i<source.length;i++){
+      h^=source.charCodeAt(i)
+      h=Math.imul(h,16777619)>>>0
+      h^=h>>>13
+    }
+    return h.toString(16).padStart(8,'0')
+  }).join('')
+  return chunks.slice(0,8)+'-'+chunks.slice(8,12)+'-4'+chunks.slice(13,16)+'-a'+chunks.slice(17,20)+'-'+chunks.slice(20,32)
+}
+
+function catalogMaterials(quantity=0):InventoryMaterial[]{
+  return CATEGORY_ORDER.flatMap(category=>DEFAULT_CATALOG[category].map(name=>({
+    id:crypto.randomUUID(),name,quantity,category
+  })))
+}
+
+async function ensureStockSeed():Promise<void>{
+  const seeded=await db.settings.get('inventoryStockSeedV1')
+  if(seeded)return
+  const stamp=now()
+  const existing=await db.inventoryStock.toArray()
+  const existingNames=new Set(existing.map(item=>item.category+':'+item.name.trim().toLowerCase()))
+  const rows:InventoryStockItem[]=[]
+  for(const category of CATEGORY_ORDER){
+    for(const name of DEFAULT_CATALOG[category]){
+      const key=category+':'+name.toLowerCase()
+      if(existingNames.has(key))continue
+      rows.push({
+        id:stableCatalogUuid(category,name),
+        name,category,quantity:0,notes:'',
+        createdAt:stamp,updatedAt:stamp,deletedAt:null
+      })
+    }
+  }
+  if(rows.length)await db.inventoryStock.bulkPut(rows)
+  await db.settings.put({key:'inventoryStockSeedV1',value:'1'})
+}
+
+async function createProgram(name:string):Promise<InventoryProgram>{
+  const stamp=now()
+  const program:InventoryProgram={
+    id:crypto.randomUUID(),
+    name:name.trim()||'Nouvel événement',
+    date:'',
+    frequency:'once',
+    weekday:null,
+    location:'',
+    notes:'',
+    items:catalogMaterials(0),
+    createdAt:stamp,
+    updatedAt:stamp,
+    deletedAt:null
   }
   await db.programs.add(program)
   return program
 }
 
-async function patchProgram(id: string, patch: Partial<Omit<InventoryProgram, 'id' | 'createdAt'>>): Promise<void> {
-  await db.programs.update(id, { ...patch, updatedAt: now() })
-}
-
-function sanitizeFilename(value: string): string {
-  return value.trim().replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').slice(0, 80) || 'fiche-technique'
-}
-
-function wrapCanvasText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const words = text.trim().split(/\s+/).filter(Boolean)
-  const lines: string[] = []
-  let line = ''
-  for (const word of words) {
-    const next = line ? line + ' ' + word : word
-    if (ctx.measureText(next).width <= maxWidth || !line) line = next
-    else { lines.push(line); line = word }
+function recurrenceText(program:InventoryProgram):string{
+  const frequency=program.frequency??'once'
+  if(frequency==='weekly'){
+    const day=program.weekday??(program.date?new Date(program.date+'T00:00:00').getDay():null)
+    return day===null?'Chaque semaine':'Tous les '+WEEKDAYS[day]+'s'
   }
-  if (line) lines.push(line)
+  if(frequency==='monthly'){
+    if(program.date){
+      const d=new Date(program.date+'T00:00:00').getDate()
+      return 'Tous les mois · le '+d
+    }
+    return 'Tous les mois'
+  }
+  return program.date?'Événement ponctuel':'Une fois'
+}
+
+function sanitizeFilename(value:string):string{
+  return value.trim().replace(/[\\/:*?"<>|]+/g,'-').replace(/\s+/g,' ').slice(0,80)||'fiche-technique'
+}
+
+function wrapCanvasText(ctx:CanvasRenderingContext2D,text:string,maxWidth:number):string[]{
+  const words=text.trim().split(/\s+/).filter(Boolean)
+  const lines:string[]=[]
+  let line=''
+  for(const word of words){
+    const next=line?line+' '+word:word
+    if(ctx.measureText(next).width<=maxWidth||!line)line=next
+    else{lines.push(line);line=word}
+  }
+  if(line)lines.push(line)
   return lines
 }
 
-export async function exportTechnicalSheetImage(program: InventoryProgram): Promise<void> {
-  const selected = program.items.filter(item => item.quantity > 0)
-  const rows = selected.length ? selected : [{ id: 'empty', name: 'Aucun matériel renseigné', quantity: 0 }]
-  const width = 1600
-  const rowHeight = 104
-  const notesLinesEstimate = program.notes.trim() ? Math.max(2, Math.ceil(program.notes.length / 70)) : 0
-  const height = Math.max(1200, 690 + rows.length * rowHeight + notesLinesEstimate * 46 + 170)
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Export image indisponible sur cet appareil.')
+export async function exportTechnicalSheetImage(program:InventoryProgram,stock:InventoryStockItem[]):Promise<void>{
+  const normalized=normalizeProgram(program)
+  const selected=normalized.items.filter(item=>item.quantity>0)
+  const grouped=CATEGORY_ORDER.map(category=>({
+    category,
+    rows:selected.filter(item=>item.category===category)
+  })).filter(group=>group.rows.length)
+  const rowCount=Math.max(1,selected.length)
+  const categoryCount=Math.max(1,grouped.length)
+  const width=1600
+  const rowHeight=76
+  const notesLinesEstimate=normalized.notes.trim()?Math.max(2,Math.ceil(normalized.notes.length/70)):0
+  const height=Math.max(1120,650+rowCount*rowHeight+categoryCount*62+notesLinesEstimate*42+170)
+  const canvas=document.createElement('canvas')
+  canvas.width=width;canvas.height=height
+  const ctx=canvas.getContext('2d')
+  if(!ctx)throw new Error('Export image indisponible sur cet appareil.')
 
-  ctx.fillStyle = '#f8fbfb'
-  ctx.fillRect(0, 0, width, height)
-  ctx.fillStyle = '#0f2f33'
-  ctx.fillRect(0, 0, width, 26)
+  ctx.fillStyle='#f8fbfb';ctx.fillRect(0,0,width,height)
+  ctx.fillStyle='#0f2f33';ctx.fillRect(0,0,width,24)
 
-  const left = 120
-  const right = width - 120
-  let y = 110
+  const left=120,right=width-120
+  let y=100
+  ctx.fillStyle='#0f2f33';ctx.font='700 32px system-ui, -apple-system, Segoe UI, sans-serif'
+  ctx.fillText("DI'ART by ARIZONA",left,y)
+  ctx.fillStyle='#558087';ctx.font='700 20px system-ui, -apple-system, Segoe UI, sans-serif';ctx.textAlign='right'
+  ctx.fillText('FICHE TECHNIQUE · INVENTAIRE',right,y);ctx.textAlign='left'
 
-  ctx.fillStyle = '#0f2f33'
-  ctx.font = '700 34px system-ui, -apple-system, Segoe UI, sans-serif'
-  ctx.fillText("DI'ART by ARIZONA", left, y)
-  ctx.fillStyle = '#558087'
-  ctx.font = '700 22px system-ui, -apple-system, Segoe UI, sans-serif'
-  ctx.textAlign = 'right'
-  ctx.fillText('INVENTAIRE · PROGRAMME', right, y)
-  ctx.textAlign = 'left'
+  y+=86
+  ctx.fillStyle='#0b2024';ctx.font='800 58px system-ui, -apple-system, Segoe UI, sans-serif'
+  const titleLines=wrapCanvasText(ctx,normalized.name||'Événement',right-left)
+  for(const line of titleLines.slice(0,2)){ctx.fillText(line,left,y);y+=68}
 
-  y += 96
-  ctx.fillStyle = '#0b2024'
-  ctx.font = '800 66px system-ui, -apple-system, Segoe UI, sans-serif'
-  const titleLines = wrapCanvasText(ctx, program.name || 'Événement', right - left)
-  for (const line of titleLines.slice(0, 2)) { ctx.fillText(line, left, y); y += 78 }
-
-  const meta = [
-    program.date ? new Date(program.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '',
-    program.location.trim()
+  const meta=[
+    normalized.date?new Date(normalized.date+'T00:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}):'',
+    recurrenceText(normalized),
+    normalized.location.trim()
   ].filter(Boolean).join('  ·  ')
-  if (meta) {
-    ctx.fillStyle = '#58757a'
-    ctx.font = '500 28px system-ui, -apple-system, Segoe UI, sans-serif'
-    ctx.fillText(meta, left, y + 8)
-    y += 66
-  } else y += 28
+  ctx.fillStyle='#58757a';ctx.font='500 25px system-ui, -apple-system, Segoe UI, sans-serif'
+  const metaLines=wrapCanvasText(ctx,meta,right-left)
+  for(const line of metaLines){ctx.fillText(line,left,y);y+=34}
+  y+=32
 
-  y += 22
-  ctx.fillStyle = '#0f2f33'
-  ctx.font = '800 28px system-ui, -apple-system, Segoe UI, sans-serif'
-  ctx.fillText('FICHE TECHNIQUE · MATÉRIEL', left, y)
-  y += 40
+  if(!selected.length){
+    ctx.fillStyle='#e5eeee';ctx.fillRect(left,y,right-left,86)
+    ctx.fillStyle='#58757a';ctx.font='600 26px system-ui, -apple-system, Segoe UI, sans-serif'
+    ctx.fillText('Aucun matériel renseigné',left+26,y+54);y+=86
+  }else{
+    for(const group of grouped){
+      y+=18
+      ctx.fillStyle='#dce9eb';ctx.fillRect(left,y,right-left,52)
+      ctx.fillStyle='#0f2f33';ctx.font='800 22px system-ui, -apple-system, Segoe UI, sans-serif'
+      ctx.fillText(CATEGORY_LABELS[group.category].toUpperCase(),left+24,y+34)
+      ctx.textAlign='right';ctx.fillText('QTÉ',right-24,y+34);ctx.textAlign='left';y+=52
 
-  ctx.fillStyle = '#dfeaec'
-  ctx.fillRect(left, y, right - left, 68)
-  ctx.fillStyle = '#0f2f33'
-  ctx.font = '800 24px system-ui, -apple-system, Segoe UI, sans-serif'
-  ctx.fillText('MATÉRIEL', left + 28, y + 44)
-  ctx.textAlign = 'right'
-  ctx.fillText('QTÉ', right - 28, y + 44)
-  ctx.textAlign = 'left'
-  y += 68
-
-  rows.forEach((item, index) => {
-    ctx.fillStyle = index % 2 ? '#f0f5f5' : '#ffffff'
-    ctx.fillRect(left, y, right - left, rowHeight)
-    ctx.strokeStyle = '#d8e5e7'
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.moveTo(left, y + rowHeight)
-    ctx.lineTo(right, y + rowHeight)
-    ctx.stroke()
-
-    ctx.fillStyle = '#17383d'
-    ctx.font = '650 30px system-ui, -apple-system, Segoe UI, sans-serif'
-    ctx.fillText(item.name, left + 28, y + 64)
-    ctx.fillStyle = '#0f6f78'
-    ctx.font = '800 34px system-ui, -apple-system, Segoe UI, sans-serif'
-    ctx.textAlign = 'right'
-    ctx.fillText(String(item.quantity), right - 34, y + 66)
-    ctx.textAlign = 'left'
-    y += rowHeight
-  })
-
-  if (program.notes.trim()) {
-    y += 72
-    ctx.fillStyle = '#0f2f33'
-    ctx.font = '800 26px system-ui, -apple-system, Segoe UI, sans-serif'
-    ctx.fillText('NOTES', left, y)
-    y += 46
-    ctx.fillStyle = '#4d6f74'
-    ctx.font = '500 25px system-ui, -apple-system, Segoe UI, sans-serif'
-    const noteLines = wrapCanvasText(ctx, program.notes, right - left)
-    for (const line of noteLines) { ctx.fillText(line, left, y); y += 40 }
+      group.rows.forEach((item,index)=>{
+        ctx.fillStyle=index%2?'#f1f6f6':'#ffffff';ctx.fillRect(left,y,right-left,rowHeight)
+        const stockItem=item.stockItemId?stock.find(s=>s.id===item.stockItemId&&!s.deletedAt):undefined
+        ctx.fillStyle='#17383d';ctx.font='650 27px system-ui, -apple-system, Segoe UI, sans-serif'
+        ctx.fillText(item.name,left+24,y+48)
+        if(stockItem){
+          ctx.fillStyle=item.quantity>stockItem.quantity?'#b34d45':'#5f7c80'
+          ctx.font='600 18px system-ui, -apple-system, Segoe UI, sans-serif'
+          ctx.fillText('Stock '+stockItem.quantity,left+720,y+47)
+        }
+        ctx.fillStyle='#0f6f78';ctx.font='800 30px system-ui, -apple-system, Segoe UI, sans-serif';ctx.textAlign='right'
+        ctx.fillText(String(item.quantity),right-30,y+50);ctx.textAlign='left'
+        ctx.strokeStyle='#d8e5e7';ctx.beginPath();ctx.moveTo(left,y+rowHeight);ctx.lineTo(right,y+rowHeight);ctx.stroke()
+        y+=rowHeight
+      })
+    }
   }
 
-  ctx.fillStyle = '#789096'
-  ctx.font = '500 20px system-ui, -apple-system, Segoe UI, sans-serif'
-  ctx.fillText('Généré avec DI’ART · ' + new Date().toLocaleDateString('fr-FR'), left, height - 80)
+  if(normalized.notes.trim()){
+    y+=50;ctx.fillStyle='#0f2f33';ctx.font='800 24px system-ui, -apple-system, Segoe UI, sans-serif';ctx.fillText('NOTES',left,y);y+=40
+    ctx.fillStyle='#4d6f74';ctx.font='500 23px system-ui, -apple-system, Segoe UI, sans-serif'
+    for(const line of wrapCanvasText(ctx,normalized.notes,right-left)){ctx.fillText(line,left,y);y+=37}
+  }
 
-  const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Création de l’image impossible.')), 'image/png', 1))
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = sanitizeFilename(program.name) + '-fiche-technique.png'
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 0)
+  ctx.fillStyle='#789096';ctx.font='500 18px system-ui, -apple-system, Segoe UI, sans-serif'
+  ctx.fillText('Généré avec DI’ART · '+new Date().toLocaleDateString('fr-FR'),left,height-70)
+
+  const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error('Création de l’image impossible.')),'image/png',1))
+  const url=URL.createObjectURL(blob)
+  const a=document.createElement('a');a.href=url;a.download=sanitizeFilename(normalized.name)+'-fiche-technique.png';a.click()
+  setTimeout(()=>URL.revokeObjectURL(url),0)
 }
 
-export function InventoryPage({ onOpen, onChanged, toast }: {
-  onOpen: (id: string) => void
-  onChanged: () => void
-  toast: (text: string) => void
-}) {
-  const [programs, setPrograms] = useState<InventoryProgram[]>([])
-  const [name, setName] = useState('')
-  const [busy, setBusy] = useState(false)
+function CategorySection({category,open,onToggle,children,count}:{category:InventoryCategory;open:boolean;onToggle:()=>void;children:React.ReactNode;count:number}){
+  return <section className="inventory-category">
+    <button type="button" className="inventory-category-head" onClick={onToggle}>
+      <span><b>{CATEGORY_LABELS[category]}</b><small>{count} élément{count>1?'s':''}</small></span>
+      {open?<ChevronUp/>:<ChevronDown/>}
+    </button>
+    {open&&<div className="inventory-category-body">{children}</div>}
+  </section>
+}
 
-  const refresh = async () => setPrograms((await db.programs.toArray()).filter(item => !item.deletedAt).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)))
-  useEffect(() => { void refresh() }, [])
+export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void;onChanged:()=>void;toast:(text:string)=>void}){
+  const [programs,setPrograms]=useState<InventoryProgram[]>([])
+  const [stock,setStock]=useState<InventoryStockItem[]>([])
+  const [tab,setTab]=useState<'programs'|'stock'>('programs')
+  const [name,setName]=useState('')
+  const [stockName,setStockName]=useState('')
+  const [stockCategory,setStockCategory]=useState<InventoryCategory>('cable')
+  const [busy,setBusy]=useState(false)
+  const [openCategories,setOpenCategories]=useState<Record<InventoryCategory,boolean>>({cable:true,prise:true,instrument:true,adaptateur:true})
 
-  const create = async () => {
-    if (!name.trim() || busy) return
+  const refresh=async()=>{
+    await ensureStockSeed()
+    const [p,s]=await Promise.all([db.programs.toArray(),db.inventoryStock.toArray()])
+    setPrograms(p.filter(item=>!item.deletedAt).map(normalizeProgram).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)))
+    setStock(s.filter(item=>!item.deletedAt).map(item=>({...item,category:normalizeCategory(item.category,item.name)})).sort((a,b)=>a.name.localeCompare(b.name,'fr')))
+  }
+  useEffect(()=>{void refresh()},[])
+
+  const changed=async()=>{await refresh();onChanged()}
+
+  const create=async()=>{
+    if(!name.trim()||busy)return
     setBusy(true)
-    try {
-      const item = await createProgram(name)
-      setName('')
-      await refresh()
-      onChanged()
-      toast('Programme créé.')
-      onOpen(item.id)
-    } finally { setBusy(false) }
+    try{
+      const item=await createProgram(name);setName('');await changed();toast('Programme créé.');onOpen(item.id)
+    }finally{setBusy(false)}
   }
 
+  const addStock=async()=>{
+    const value=stockName.trim()
+    if(!value)return
+    const existing=stock.find(item=>item.category===stockCategory&&item.name.trim().toLowerCase()===value.toLowerCase())
+    if(existing){
+      await db.inventoryStock.update(existing.id,{quantity:existing.quantity+1,updatedAt:now()})
+    }else{
+      const stamp=now()
+      await db.inventoryStock.add({id:crypto.randomUUID(),name:value,category:stockCategory,quantity:1,notes:'',createdAt:stamp,updatedAt:stamp,deletedAt:null})
+    }
+    setStockName('');await changed()
+  }
+
+  const setStockQuantity=async(item:InventoryStockItem,quantity:number)=>{
+    await db.inventoryStock.update(item.id,{quantity:clampQuantity(quantity),updatedAt:now()});await changed()
+  }
+
+  const deleteStock=async(item:InventoryStockItem)=>{
+    await db.inventoryStock.update(item.id,{deletedAt:now(),updatedAt:now()});await changed();toast('Élément retiré du stock.')
+  }
+
+  const toggleCategory=(category:InventoryCategory)=>setOpenCategories(value=>({...value,[category]:!value[category]}))
+  const stockUnits=stock.reduce((sum,item)=>sum+item.quantity,0)
+
   return <>
-    <section className="inventory-hero panel">
-      <div>
-        <span className="eyebrow">Organisation matérielle</span>
-        <h1>Inventaire</h1>
-        <p>Créez un programme par événement, préparez le matériel nécessaire et exportez la fiche technique en image.</p>
-      </div>
-      <div className="inventory-create">
-        <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void create() }} placeholder="Nom de l’événement / programme" />
-        <button className="primary" disabled={!name.trim() || busy} onClick={() => void create()}><Plus />Créer</button>
+    <section className="inventory-hero panel compact-inventory-hero">
+      <div><span className="eyebrow">Organisation matérielle</span><h1>Inventaire</h1><p>Programmes d’événements et stock réel au même endroit.</p></div>
+      <div className="inventory-tabs">
+        <button className={tab==='programs'?'active':''} onClick={()=>setTab('programs')}><CalendarDays/>Programmes <span>{programs.length}</span></button>
+        <button className={tab==='stock'?'active':''} onClick={()=>setTab('stock')}><Archive/>Stock <span>{stockUnits}</span></button>
       </div>
     </section>
 
-    <div className="inventory-section-head">
-      <div><h2>Programmes</h2><span>{programs.length} événement{programs.length > 1 ? 's' : ''}</span></div>
-    </div>
-
-    <div className="program-grid">
-      {programs.length ? programs.map(program => {
-        const total = program.items.reduce((sum, item) => sum + Math.max(0, item.quantity || 0), 0)
-        const active = program.items.filter(item => item.quantity > 0).length
-        return <button className="program-card panel" key={program.id} onClick={() => onOpen(program.id)}>
-          <div className="program-card-icon"><CalendarDays /></div>
-          <div className="program-card-main">
+    {tab==='programs'?<>
+      <div className="inventory-inline-create">
+        <input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void create()}} placeholder="Nouvel événement / programme"/>
+        <button className="primary" disabled={!name.trim()||busy} onClick={()=>void create()}><Plus/>Créer</button>
+      </div>
+      <div className="compact-program-list">
+        {programs.length?programs.map(program=>{
+          const active=program.items.filter(item=>item.quantity>0)
+          const total=active.reduce((sum,item)=>sum+item.quantity,0)
+          return <button className="compact-program-row" key={program.id} onClick={()=>onOpen(program.id)}>
+            <CalendarDays/>
             <b>{program.name}</b>
-            <div className="program-meta">
-              {program.date && <span><CalendarDays />{new Date(program.date + 'T00:00:00').toLocaleDateString('fr-FR')}</span>}
-              {program.location && <span><MapPin />{program.location}</span>}
-            </div>
-            <small>{active} type{active > 1 ? 's' : ''} de matériel · {total} unité{total > 1 ? 's' : ''}</small>
-          </div>
-          <ChevronRight />
-        </button>
-      }) : <div className="panel inventory-empty"><PackagePlus /><b>Aucun programme</b><span>Créez votre premier événement ci-dessus.</span></div>}
-    </div>
+            <span className="program-row-frequency"><Repeat2/>{recurrenceText(program)}</span>
+            {program.date&&<span>{new Date(program.date+'T00:00:00').toLocaleDateString('fr-FR')}</span>}
+            <span>{active.length} réf. · {total} u.</span>
+            <ChevronRight/>
+          </button>
+        }):<div className="panel inventory-empty"><PackagePlus/><b>Aucun programme</b><span>Créez votre premier événement.</span></div>}
+      </div>
+    </>:<>
+      <div className="stock-toolbar panel">
+        <select value={stockCategory} onChange={e=>setStockCategory(e.target.value as InventoryCategory)}>
+          {CATEGORY_ORDER.map(category=><option value={category} key={category}>{CATEGORY_LABELS[category]}</option>)}
+        </select>
+        <input value={stockName} onChange={e=>setStockName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void addStock()}} placeholder="Ajouter au stock…"/>
+        <button className="primary" disabled={!stockName.trim()} onClick={()=>void addStock()}><Plus/>Ajouter</button>
+      </div>
+      <div className="inventory-category-stack">
+        {CATEGORY_ORDER.map(category=>{
+          const items=stock.filter(item=>item.category===category)
+          return <CategorySection category={category} key={category} open={openCategories[category]} onToggle={()=>toggleCategory(category)} count={items.length}>
+            {items.map(item=><div className={'stock-row '+(item.quantity>0?'active':'empty-stock')} key={item.id}>
+              <b>{item.name}</b>
+              <span className="stock-status">{item.quantity>0?'En stock':'0'}</span>
+              <div className="compact-qty">
+                <button disabled={item.quantity<=0} onClick={()=>void setStockQuantity(item,item.quantity-1)}><Minus/></button>
+                <input type="number" min="0" max="999" inputMode="numeric" value={item.quantity} onChange={e=>void setStockQuantity(item,Number(e.target.value))}/>
+                <button onClick={()=>void setStockQuantity(item,item.quantity+1)}><Plus/></button>
+              </div>
+              <button className="bare-action danger-icon compact-delete" aria-label={'Supprimer '+item.name} onClick={()=>void deleteStock(item)}><Trash2/></button>
+            </div>)}
+          </CategorySection>
+        })}
+      </div>
+    </>}
   </>
 }
 
-export function InventoryProgramPage({ programId, onBack, onChanged, toast }: {
-  programId: string
-  onBack: () => void
-  onChanged: () => void
-  toast: (text: string) => void
-}) {
-  const [program, setProgram] = useState<InventoryProgram | null>(null)
-  const [customName, setCustomName] = useState('')
-  const [exporting, setExporting] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
+export function InventoryProgramPage({programId,onBack,onChanged,toast}:{programId:string;onBack:()=>void;onChanged:()=>void;toast:(text:string)=>void}){
+  const [program,setProgram]=useState<InventoryProgram|null>(null)
+  const [stock,setStock]=useState<InventoryStockItem[]>([])
+  const [detailsOpen,setDetailsOpen]=useState(false)
+  const [stockPickerOpen,setStockPickerOpen]=useState(false)
+  const [customName,setCustomName]=useState('')
+  const [customCategory,setCustomCategory]=useState<InventoryCategory>('cable')
+  const [exporting,setExporting]=useState(false)
+  const [confirmDelete,setConfirmDelete]=useState(false)
+  const [openCategories,setOpenCategories]=useState<Record<InventoryCategory,boolean>>({cable:true,prise:true,instrument:true,adaptateur:true})
+  const [stockPickerCategories,setStockPickerCategories]=useState<Record<InventoryCategory,boolean>>({cable:true,prise:false,instrument:false,adaptateur:false})
 
-  const refresh = async () => setProgram((await db.programs.get(programId)) ?? null)
-  useEffect(() => { void refresh() }, [programId])
+  const refresh=async()=>{
+    await ensureStockSeed()
+    const [p,s]=await Promise.all([db.programs.get(programId),db.inventoryStock.toArray()])
+    setProgram(p?normalizeProgram(p):null)
+    setStock(s.filter(item=>!item.deletedAt).map(item=>({...item,category:normalizeCategory(item.category,item.name)})).sort((a,b)=>a.name.localeCompare(b.name,'fr')))
+  }
+  useEffect(()=>{void refresh()},[programId])
 
-  const persist = async (patch: Partial<Omit<InventoryProgram, 'id' | 'createdAt'>>) => {
-    if (!program) return
-    const updatedAt = now()
-    const next = { ...program, ...patch, updatedAt }
+  const persist=async(patch:Partial<Omit<InventoryProgram,'id'|'createdAt'>>)=>{
+    if(!program)return
+    const updatedAt=now()
+    const next=normalizeProgram({...program,...patch,updatedAt})
     setProgram(next)
-    await db.programs.update(program.id, { ...patch, updatedAt })
+    await db.programs.update(program.id,{...patch,updatedAt})
     onChanged()
   }
 
-  const items = program?.items ?? []
-  const selectedItems = useMemo(() => items.filter(item => item.quantity > 0), [items])
-  const totalQuantity = useMemo(() => selectedItems.reduce((sum, item) => sum + item.quantity, 0), [selectedItems])
+  const items=program?.items??[]
+  const selectedItems=useMemo(()=>items.filter(item=>item.quantity>0),[items])
+  const totalQuantity=useMemo(()=>selectedItems.reduce((sum,item)=>sum+item.quantity,0),[selectedItems])
 
-  const setQuantity = (id: string, quantity: number) => {
-    const next = items.map(item => item.id === id ? { ...item, quantity: Math.max(0, Math.min(999, Math.floor(Number.isFinite(quantity) ? quantity : 0))) } : item)
-    void persist({ items: next })
+  const setQuantity=(id:string,quantity:number)=>{
+    const next=items.map(item=>item.id===id?{...item,quantity:clampQuantity(quantity)}:item)
+    void persist({items:next})
   }
 
-  const addCustom = () => {
-    const value = customName.trim()
-    if (!value || !program) return
-    const existing = items.find(item => item.name.trim().toLowerCase() === value.toLowerCase())
-    const next = existing
-      ? items.map(item => item.id === existing.id ? { ...item, quantity: item.quantity + 1 } : item)
-      : [...items, { id: crypto.randomUUID(), name: value, quantity: 1 }]
-    setCustomName('')
-    void persist({ items: next })
+  const addCustom=()=>{
+    const value=customName.trim()
+    if(!value||!program)return
+    const existing=items.find(item=>item.category===customCategory&&item.name.trim().toLowerCase()===value.toLowerCase())
+    const next=existing
+      ?items.map(item=>item.id===existing.id?{...item,quantity:item.quantity+1}:item)
+      :[...items,{id:crypto.randomUUID(),name:value,quantity:1,category:customCategory}]
+    setCustomName('');void persist({items:next})
   }
 
-  const removeItem = (id: string) => void persist({ items: items.filter(item => item.id !== id) })
-
-  const restoreDefaults = () => {
-    const names = new Set(items.map(item => item.name.trim().toLowerCase()))
-    const missing = DEFAULT_INVENTORY_MATERIALS.filter(name => !names.has(name.toLowerCase())).map(name => ({ id: crypto.randomUUID(), name, quantity: 0 }))
-    if (!missing.length) { toast('Tous les matériels par défaut sont déjà présents.'); return }
-    void persist({ items: [...items, ...missing] })
-    toast('Matériels par défaut restaurés.')
+  const addFromStock=(stockItem:InventoryStockItem)=>{
+    const existing=items.find(item=>item.stockItemId===stockItem.id)
+    const byName=items.find(item=>!item.stockItemId&&item.category===stockItem.category&&item.name.trim().toLowerCase()===stockItem.name.trim().toLowerCase())
+    let next:InventoryMaterial[]
+    if(existing)next=items.map(item=>item.id===existing.id?{...item,quantity:item.quantity+1}:item)
+    else if(byName)next=items.map(item=>item.id===byName.id?{...item,stockItemId:stockItem.id,quantity:Math.max(1,item.quantity)}:item)
+    else next=[...items,{id:crypto.randomUUID(),name:stockItem.name,category:stockItem.category,quantity:1,stockItemId:stockItem.id}]
+    void persist({items:next})
   }
 
-  const removeProgram = async () => {
-    if (!program) return
-    await db.programs.update(program.id, { deletedAt: now(), updatedAt: now() })
-    onChanged()
-    toast('Programme supprimé.')
-    onBack()
+  const removeItem=(id:string)=>void persist({items:items.filter(item=>item.id!==id)})
+
+  const restoreDefaults=()=>{
+    const existing=new Set(items.map(item=>item.category+':'+item.name.trim().toLowerCase()))
+    const missing=CATALOG_FLAT().filter(item=>!existing.has(item.category+':'+item.name.toLowerCase())).map(item=>({...item,id:crypto.randomUUID(),quantity:0}))
+    if(!missing.length){toast('Tous les matériels par défaut sont déjà présents.');return}
+    void persist({items:[...items,...missing]});toast('Matériels par défaut restaurés.')
   }
 
-  if (!program) return <section className="panel inventory-empty"><span>Chargement du programme…</span></section>
+  const removeProgram=async()=>{
+    if(!program)return
+    await db.programs.update(program.id,{deletedAt:now(),updatedAt:now()})
+    onChanged();toast('Programme supprimé.');onBack()
+  }
+
+  const updateDate=(date:string)=>{
+    const weekday=date?new Date(date+'T00:00:00').getDay():program?.weekday??null
+    void persist({date,weekday})
+  }
+
+  if(!program)return <section className="panel inventory-empty"><span>Chargement du programme…</span></section>
 
   return <>
-    <section className="program-detail-head panel">
+    <section className="program-detail-head panel compact-program-head">
       <div className="program-title-block">
         <span className="eyebrow">Programme · événement</span>
-        <input className="program-title-input" value={program.name} onChange={e => setProgram({ ...program, name: e.target.value })} onBlur={() => void persist({ name: program.name.trim() || 'Événement' })} />
-        <div className="program-summary"><span>{selectedItems.length} type{selectedItems.length > 1 ? 's' : ''}</span><span>{totalQuantity} unité{totalQuantity > 1 ? 's' : ''}</span></div>
+        <input className="program-title-input" value={program.name} onChange={e=>setProgram({...program,name:e.target.value})} onBlur={()=>void persist({name:program.name.trim()||'Événement'})}/>
+        <div className="program-summary"><span>{selectedItems.length} réf.</span><span>{totalQuantity} unité{totalQuantity>1?'s':''}</span><span>{recurrenceText(program)}</span></div>
       </div>
       <div className="program-head-actions">
-        <button className="secondary" disabled={exporting} onClick={() => {
+        <button className="secondary" disabled={exporting} onClick={()=>{
           setExporting(true)
-          void exportTechnicalSheetImage(program).then(() => toast('Fiche technique exportée en image.')).catch(error => toast(error instanceof Error ? error.message : 'Export impossible.')).finally(() => setExporting(false))
-        }}><ImageDown />{exporting ? 'Export…' : 'Exporter en image'}</button>
-        <button className="bare-action danger-icon" aria-label="Supprimer le programme" title="Supprimer" onClick={() => setConfirmDelete(true)}><Trash2 /></button>
+          void exportTechnicalSheetImage(program,stock).then(()=>toast('Fiche technique exportée en image.')).catch(error=>toast(error instanceof Error?error.message:'Export impossible.')).finally(()=>setExporting(false))
+        }}><ImageDown/>{exporting?'Export…':'Exporter'}</button>
+        <button className="bare-action danger-icon" aria-label="Supprimer le programme" onClick={()=>setConfirmDelete(true)}><Trash2/></button>
       </div>
     </section>
 
-    <section className="program-fields panel">
-      <label><span>Date</span><input type="date" value={program.date} onChange={e => void persist({ date: e.target.value })} /></label>
-      <label><span>Lieu</span><input value={program.location} onChange={e => setProgram({ ...program, location: e.target.value })} onBlur={() => void persist({ location: program.location })} placeholder="Lieu de l’événement" /></label>
-      <label className="program-notes-field"><span>Notes</span><textarea value={program.notes} onChange={e => setProgram({ ...program, notes: e.target.value })} onBlur={() => void persist({ notes: program.notes })} rows={3} placeholder="Consignes, besoins particuliers, remarques…" /></label>
+    <section className="panel collapsible-program-details">
+      <button className="collapsible-program-head" onClick={()=>setDetailsOpen(value=>!value)}>
+        <span><b>Détails de l’événement</b><small>{program.date?new Date(program.date+'T00:00:00').toLocaleDateString('fr-FR'):'Date non définie'} · {recurrenceText(program)}{program.location?' · '+program.location:''}</small></span>
+        {detailsOpen?<ChevronUp/>:<ChevronDown/>}
+      </button>
+      {detailsOpen&&<div className="program-fields compact-program-fields">
+        <label><span>Date / début</span><input type="date" value={program.date} onChange={e=>updateDate(e.target.value)}/></label>
+        <label><span>Fréquence</span><select value={program.frequency??'once'} onChange={e=>void persist({frequency:e.target.value as InventoryFrequency})}><option value="once">Une fois</option><option value="weekly">Chaque semaine</option><option value="monthly">Chaque mois</option></select></label>
+        {(program.frequency??'once')==='weekly'&&<label><span>Jour fixe</span><select value={program.weekday??5} onChange={e=>void persist({weekday:Number(e.target.value)})}>{WEEKDAYS.map((day,index)=><option value={index} key={day}>{day[0].toUpperCase()+day.slice(1)}</option>)}</select></label>}
+        <label><span>Lieu</span><input value={program.location} onChange={e=>setProgram({...program,location:e.target.value})} onBlur={()=>void persist({location:program.location})} placeholder="Lieu"/></label>
+        <label className="program-notes-field"><span>Notes</span><textarea value={program.notes} onChange={e=>setProgram({...program,notes:e.target.value})} onBlur={()=>void persist({notes:program.notes})} rows={2} placeholder="Consignes, remarques…"/></label>
+      </div>}
     </section>
 
-    <section className="panel inventory-material-panel">
-      <div className="panel-title-row inventory-material-title">
-        <div><h2>Matériels</h2><span>Réglez la quantité avec − / + ou saisissez directement le nombre.</span></div>
-        <button className="secondary" onClick={restoreDefaults}><Save />Matériels par défaut</button>
+    <section className="panel inventory-material-panel compact-material-panel">
+      <div className="inventory-material-toolbar">
+        <div><h2>Matériels</h2><small>Une ligne par élément · catégories repliables</small></div>
+        <div className="inventory-material-actions">
+          <button className={'secondary '+(stockPickerOpen?'active':'')} onClick={()=>setStockPickerOpen(value=>!value)}><PackageCheck/>Depuis le stock</button>
+          <button className="secondary" onClick={restoreDefaults}><Plus/>Défauts</button>
+        </div>
       </div>
 
-      <div className="material-add-row">
-        <input value={customName} onChange={e => setCustomName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addCustom() }} placeholder="Ajouter un autre matériel…" />
-        <button className="primary" disabled={!customName.trim()} onClick={addCustom}><Plus />Ajouter</button>
+      {stockPickerOpen&&<div className="stock-picker">
+        <div className="stock-picker-title"><Archive/><span><b>Prendre depuis mon stock</b><small>Ajoute l’élément au programme sans diminuer le stock réel.</small></span></div>
+        {CATEGORY_ORDER.map(category=>{
+          const group=stock.filter(item=>item.category===category&&item.quantity>0)
+          return <CategorySection category={category} key={category} open={stockPickerCategories[category]} onToggle={()=>setStockPickerCategories(v=>({...v,[category]:!v[category]}))} count={group.length}>
+            {group.length?group.map(item=>{
+              const planned=items.find(p=>p.stockItemId===item.id)?.quantity??0
+              return <button className="stock-pick-row" key={item.id} onClick={()=>addFromStock(item)}>
+                <b>{item.name}</b><span>Stock {item.quantity}</span>{planned>0&&<span>Prévu {planned}</span>}<Plus/>
+              </button>
+            }):<div className="stock-picker-empty">Aucun élément disponible dans cette catégorie.</div>}
+          </CategorySection>
+        })}
+      </div>}
+
+      <div className="material-add-row compact-material-add">
+        <select value={customCategory} onChange={e=>setCustomCategory(e.target.value as InventoryCategory)}>{CATEGORY_ORDER.map(category=><option value={category} key={category}>{CATEGORY_LABELS[category]}</option>)}</select>
+        <input value={customName} onChange={e=>setCustomName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addCustom()}} placeholder="Ajouter un matériel…"/>
+        <button className="primary" disabled={!customName.trim()} onClick={addCustom}><Plus/>Ajouter</button>
       </div>
 
-      <div className="material-list">
-        {items.map(item => <div className={'material-row ' + (item.quantity > 0 ? 'active' : '')} key={item.id}>
-          <div className="material-name"><b>{item.name}</b>{item.quantity > 0 && <small>Prévu pour cet événement</small>}</div>
-          <div className="qty-stepper">
-            <button className="icon-btn" aria-label={'Retirer un ' + item.name} onClick={() => setQuantity(item.id, item.quantity - 1)} disabled={item.quantity <= 0}><Minus /></button>
-            <input type="number" min="0" max="999" inputMode="numeric" value={item.quantity} aria-label={'Quantité ' + item.name} onChange={e => setQuantity(item.id, Number(e.target.value))} />
-            <button className="icon-btn" aria-label={'Ajouter un ' + item.name} onClick={() => setQuantity(item.id, item.quantity + 1)}><Plus /></button>
-          </div>
-          <button className="bare-action danger-icon material-delete" aria-label={'Supprimer ' + item.name} onClick={() => removeItem(item.id)}><Trash2 /></button>
-        </div>)}
+      <div className="inventory-category-stack">
+        {CATEGORY_ORDER.map(category=>{
+          const group=items.filter(item=>normalizeCategory(item.category,item.name)===category)
+          return <CategorySection category={category} key={category} open={openCategories[category]} onToggle={()=>setOpenCategories(value=>({...value,[category]:!value[category]}))} count={group.length}>
+            {group.map(item=>{
+              const stockItem=item.stockItemId?stock.find(s=>s.id===item.stockItemId):undefined
+              const shortage=Boolean(stockItem&&item.quantity>stockItem.quantity)
+              return <div className={'program-material-row '+(item.quantity>0?'active ':'')+(shortage?'shortage':'')} key={item.id}>
+                <b>{item.name}</b>
+                <span className="program-material-source">{stockItem?(shortage?'Stock insuffisant':'Stock '+stockItem.quantity):''}</span>
+                <div className="compact-qty">
+                  <button disabled={item.quantity<=0} onClick={()=>setQuantity(item.id,item.quantity-1)}><Minus/></button>
+                  <input type="number" min="0" max="999" inputMode="numeric" value={item.quantity} onChange={e=>setQuantity(item.id,Number(e.target.value))}/>
+                  <button onClick={()=>setQuantity(item.id,item.quantity+1)}><Plus/></button>
+                </div>
+                <button className="bare-action danger-icon compact-delete" aria-label={'Supprimer '+item.name} onClick={()=>removeItem(item.id)}><Trash2/></button>
+              </div>
+            })}
+          </CategorySection>
+        })}
       </div>
     </section>
 
-    <section className="panel technical-summary">
-      <div><span className="eyebrow">Aperçu fiche technique</span><h2>{program.name}</h2>{program.date && <p>{new Date(program.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>}{program.location && <p>{program.location}</p>}</div>
+    <section className="panel technical-summary compact-technical-summary">
+      <button className="collapsible-program-head" onClick={()=>setDetailsOpen(value=>!value)}>
+        <span><b>Aperçu fiche technique</b><small>{selectedItems.length} référence{selectedItems.length>1?'s':''} · {totalQuantity} unité{totalQuantity>1?'s':''}</small></span>
+        <ImageDown/>
+      </button>
       <div className="technical-summary-list">
-        {selectedItems.length ? selectedItems.map(item => <div key={item.id}><span>{item.name}</span><b>× {item.quantity}</b></div>) : <span className="muted-copy">Aucune quantité renseignée pour l’instant.</span>}
+        {selectedItems.length?selectedItems.map(item=><div key={item.id}><span><em>{CATEGORY_LABELS[item.category]}</em>{item.name}</span><b>× {item.quantity}</b></div>):<span className="muted-copy">Aucune quantité renseignée.</span>}
       </div>
     </section>
 
-    {confirmDelete && <div className="inventory-confirm-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setConfirmDelete(false) }}>
-      <div className="inventory-confirm panel">
-        <button className="bare-action inventory-confirm-close" onClick={() => setConfirmDelete(false)}><X /></button>
-        <h3>Supprimer ce programme ?</h3>
-        <p>Le programme sera retiré de la liste Inventaire.</p>
-        <div className="modal-actions"><button className="secondary" onClick={() => setConfirmDelete(false)}>Annuler</button><button className="danger" onClick={() => void removeProgram()}><Trash2 />Supprimer</button></div>
-      </div>
+    {confirmDelete&&<div className="inventory-confirm-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setConfirmDelete(false)}}>
+      <div className="inventory-confirm panel"><button className="bare-action inventory-confirm-close" onClick={()=>setConfirmDelete(false)}><X/></button><h3>Supprimer ce programme ?</h3><p>Le programme sera retiré de la liste Inventaire.</p><div className="modal-actions"><button className="secondary" onClick={()=>setConfirmDelete(false)}>Annuler</button><button className="danger" onClick={()=>void removeProgram()}><Trash2/>Supprimer</button></div></div>
     </div>}
   </>
+}
+
+function CATALOG_FLAT():{name:string;category:InventoryCategory}[]{
+  return CATEGORY_ORDER.flatMap(category=>DEFAULT_CATALOG[category].map(name=>({name,category})))
 }
