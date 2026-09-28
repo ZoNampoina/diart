@@ -32,7 +32,7 @@ function newer(a:string|undefined|null,b:string|undefined|null){
 
 function sameSyncContent(a:Song|Setlist|InventoryProgram|undefined,b:Song|Setlist|InventoryProgram|undefined){
   if(!a||!b)return false
-  const clean=(value:Song|Setlist)=>{
+  const clean=(value:Song|Setlist|InventoryProgram)=>{
     const copy={...value} as Record<string,unknown>
     delete copy.updatedAt
     return copy
