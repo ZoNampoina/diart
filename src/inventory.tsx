@@ -588,14 +588,21 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
 }
 export function InventoryProgramPage({programId,onBack,onChanged,toast}:{programId:string;onBack:()=>void;onChanged:()=>void;toast:(text:string)=>void}){
   const [program,setProgram]=useState<InventoryProgram|null>(null)
+  const [programs,setPrograms]=useState<InventoryProgram[]>([])
   const [stock,setStock]=useState<InventoryStockItem[]>([])
+  const [kits,setKits]=useState<InventoryKit[]>([])
   const [stockProvider,setStockProvider]=useState(DEFAULT_PROVIDER)
   const [overviewOpen,setOverviewOpen]=useState(false)
+  const [overviewGroupMode,setOverviewGroupMode]=useState<'category'|'provider'>('category')
   const [detailsOpen,setDetailsOpen]=useState(false)
   const [summaryOpen,setSummaryOpen]=useState(false)
   const [stockPickerOpen,setStockPickerOpen]=useState(false)
+  const [kitPanelOpen,setKitPanelOpen]=useState(false)
+  const [checklistOpen,setChecklistOpen]=useState(false)
+  const [missingOnly,setMissingOnly]=useState(false)
   const [customName,setCustomName]=useState('')
   const [customCategory,setCustomCategory]=useState<InventoryCategory>('cable')
+  const [kitName,setKitName]=useState('')
   const [exporting,setExporting]=useState(false)
   const [confirmDelete,setConfirmDelete]=useState(false)
   const [openCategories,setOpenCategories]=useState<Record<InventoryCategory,boolean>>({cable:true,prise:true,instrument:true,adaptateur:true})
@@ -603,10 +610,18 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
 
   const refresh=async()=>{
     await ensureStockSeed()
-    const [p,s]=await Promise.all([db.programs.get(programId),db.inventoryStock.toArray()])
-    setProgram(p?normalizeProgram(p):null)
+    const [p,s,allPrograms,savedKits]=await Promise.all([
+      db.programs.get(programId),
+      db.inventoryStock.toArray(),
+      db.programs.toArray(),
+      loadInventoryKits()
+    ])
+    const normalizedProgram=p?normalizeProgram(p):null
     const normalizedStock=s.filter(item=>!item.deletedAt).map(normalizeStockItem).sort((a,b)=>a.name.localeCompare(b.name,'fr'))
+    setProgram(normalizedProgram)
+    setPrograms(allPrograms.filter(item=>!item.deletedAt).map(normalizeProgram))
     setStock(normalizedStock)
+    setKits(savedKits)
     setStockProvider(current=>{
       if(normalizedStock.some(item=>normalizeProvider(item.provider)===current&&item.quantity>0))return current
       return normalizeProvider(normalizedStock.find(item=>item.quantity>0)?.provider)
@@ -619,6 +634,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
     const updatedAt=now()
     const next=normalizeProgram({...program,...patch,updatedAt})
     setProgram(next)
+    setPrograms(list=>list.map(item=>item.id===program.id?next:item))
     await db.programs.update(program.id,{...patch,updatedAt})
     onChanged()
   }
@@ -627,9 +643,64 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
   const stockProviders=useMemo(()=>Array.from(new Set(stock.map(item=>normalizeProvider(item.provider)))).sort((a,b)=>a===DEFAULT_PROVIDER?-1:b===DEFAULT_PROVIDER?1:a.localeCompare(b,'fr')),[stock])
   const selectedItems=useMemo(()=>items.filter(item=>item.quantity>0),[items])
   const totalQuantity=useMemo(()=>selectedItems.reduce((sum,item)=>sum+item.quantity,0),[selectedItems])
+  const loadedCount=useMemo(()=>selectedItems.filter(item=>item.loaded).length,[selectedItems])
+  const returnedCount=useMemo(()=>selectedItems.filter(item=>item.returned).length,[selectedItems])
+
+  const stockFor=(item:InventoryMaterial)=>item.stockItemId?stock.find(value=>value.id===item.stockItemId):undefined
+  const availableFor=(item:InventoryMaterial)=>{
+    if(!program)return 0
+    const source=stockFor(item)
+    return source?effectiveStockQuantity(source,program,programs):0
+  }
+  const missingItems=useMemo(()=>{
+    if(!program)return []
+    return selectedItems.filter(item=>{
+      const source=item.stockItemId?stock.find(value=>value.id===item.stockItemId):undefined
+      return !source||item.quantity>effectiveStockQuantity(source,program,programs)
+    })
+  },[selectedItems,stock,program,programs])
+
+  const overlappingPrograms=useMemo(()=>{
+    if(!program)return []
+    return programs.filter(other=>programsOverlap(program,other))
+  },[program,programs])
+
+  const conflictReservations=useMemo(()=>{
+    if(!program)return []
+    return selectedItems.flatMap(item=>{
+      if(!item.stockItemId)return []
+      const source=stock.find(value=>value.id===item.stockItemId)
+      if(!source)return []
+      const reserved=conflictingReservation(source.id,program,programs)
+      if(!reserved.quantity)return []
+      return [{item,source,reserved:reserved.quantity,programs:reserved.programs,available:effectiveStockQuantity(source,program,programs)}]
+    })
+  },[selectedItems,stock,program,programs])
+
+  const overviewGroups=useMemo(()=>{
+    if(overviewGroupMode==='category'){
+      return CATEGORY_ORDER.map(category=>({
+        key:category,
+        label:CATEGORY_LABELS[category],
+        items:selectedItems.filter(item=>item.category===category)
+      })).filter(group=>group.items.length)
+    }
+    const map=new Map<string,InventoryMaterial[]>()
+    for(const item of selectedItems){
+      const source=item.stockItemId?stock.find(value=>value.id===item.stockItemId):undefined
+      const provider=source?normalizeProvider(source.provider):'À trouver'
+      map.set(provider,[...(map.get(provider)??[]),item])
+    }
+    return Array.from(map.entries()).map(([provider,group])=>({key:provider,label:provider,items:group}))
+  },[overviewGroupMode,selectedItems,stock])
 
   const setQuantity=(id:string,quantity:number)=>{
-    const next=items.map(item=>item.id===id?{...item,quantity:clampQuantity(quantity)}:item)
+    const next=items.map(item=>item.id===id?{
+      ...item,
+      quantity:clampQuantity(quantity),
+      loaded:clampQuantity(quantity)>0?item.loaded:false,
+      returned:clampQuantity(quantity)>0?item.returned:false
+    }:item)
     void persist({items:next})
   }
 
@@ -638,33 +709,107 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
     if(!value||!program)return
     const existing=items.find(item=>item.category===customCategory&&item.name.trim().toLowerCase()===value.toLowerCase())
     const next=existing
-      ?items.map(item=>item.id===existing.id?{...item,quantity:item.quantity+1}:item)
-      :[...items,{id:crypto.randomUUID(),name:value,quantity:1,category:customCategory}]
+      ?items.map(item=>item.id===existing.id?{...item,quantity:item.quantity+1,returned:false}:item)
+      :[...items,{id:crypto.randomUUID(),name:value,quantity:1,category:customCategory,loaded:false,returned:false}]
     setCustomName('');void persist({items:next})
   }
 
   const addFromStock=(stockItem:InventoryStockItem)=>{
+    if(!program)return
+    const available=effectiveStockQuantity(stockItem,program,programs)
+    if(available<=0){toast('Ce matériel n’est pas disponible sur ce créneau.');return}
     const existing=items.find(item=>item.stockItemId===stockItem.id)
     const byName=items.find(item=>!item.stockItemId&&item.category===stockItem.category&&item.name.trim().toLowerCase()===stockItem.name.trim().toLowerCase())
     let next:InventoryMaterial[]
-    if(existing)next=items.map(item=>item.id===existing.id?{...item,quantity:item.quantity+1}:item)
-    else if(byName)next=items.map(item=>item.id===byName.id?{...item,stockItemId:stockItem.id,quantity:Math.max(1,item.quantity)}:item)
-    else next=[...items,{id:crypto.randomUUID(),name:stockItem.name,category:stockItem.category,quantity:1,stockItemId:stockItem.id}]
+    if(existing)next=items.map(item=>item.id===existing.id?{...item,quantity:item.quantity+1,returned:false}:item)
+    else if(byName)next=items.map(item=>item.id===byName.id?{...item,stockItemId:stockItem.id,quantity:Math.max(1,item.quantity),returned:false}:item)
+    else next=[...items,{id:crypto.randomUUID(),name:stockItem.name,category:stockItem.category,quantity:1,stockItemId:stockItem.id,loaded:false,returned:false}]
     void persist({items:next})
   }
+
+  const changeSource=(itemId:string,stockItemId:string)=>{
+    const source=stock.find(value=>value.id===stockItemId)
+    if(!source)return
+    void persist({items:items.map(item=>item.id===itemId?{...item,stockItemId:source.id,name:source.name,category:source.category}:item)})
+    toast('Source du matériel modifiée.')
+  }
+
+  const alternativesFor=(item:InventoryMaterial)=>stock.filter(candidate=>
+    candidate.id!==item.stockItemId&&
+    candidate.category===item.category&&
+    candidate.name.trim().toLowerCase()===item.name.trim().toLowerCase()&&
+    program&&effectiveStockQuantity(candidate,program,programs)>0
+  ).sort((a,b)=>(program?effectiveStockQuantity(b,program,programs)-effectiveStockQuantity(a,program,programs):0))
 
   const removeItem=(id:string)=>void persist({items:items.filter(item=>item.id!==id)})
 
   const restoreDefaults=()=>{
     const existing=new Set(items.map(item=>item.category+':'+item.name.trim().toLowerCase()))
-    const missing=CATALOG_FLAT().filter(item=>!existing.has(item.category+':'+item.name.toLowerCase())).map(item=>({...item,id:crypto.randomUUID(),quantity:0}))
+    const missing=CATALOG_FLAT().filter(item=>!existing.has(item.category+':'+item.name.toLowerCase())).map(item=>({...item,id:crypto.randomUUID(),quantity:0,loaded:false,returned:false}))
     if(!missing.length){toast('Tous les matériels par défaut sont déjà présents.');return}
     void persist({items:[...items,...missing]});toast('Matériels par défaut restaurés.')
+  }
+
+  const saveKit=async()=>{
+    if(!kitName.trim()||!selectedItems.length)return
+    const stamp=now()
+    const kit:InventoryKit={
+      id:crypto.randomUUID(),name:kitName.trim(),
+      items:selectedItems.map(item=>({name:item.name,quantity:item.quantity,category:item.category,stockItemId:item.stockItemId})),
+      createdAt:stamp,updatedAt:stamp
+    }
+    const next=[...kits,kit]
+    setKits(next);setKitName('')
+    await saveInventoryKits(next)
+    toast('Kit enregistré.')
+  }
+
+  const applyKit=(kit:InventoryKit)=>{
+    let next=[...items]
+    for(const kitItem of kit.items){
+      const existing=next.find(item=>(kitItem.stockItemId&&item.stockItemId===kitItem.stockItemId)||(!kitItem.stockItemId&&item.category===kitItem.category&&item.name.trim().toLowerCase()===kitItem.name.trim().toLowerCase()))
+      if(existing)next=next.map(item=>item.id===existing.id?{...item,quantity:item.quantity+kitItem.quantity,returned:false}:item)
+      else next.push({id:crypto.randomUUID(),name:kitItem.name,category:kitItem.category,quantity:kitItem.quantity,stockItemId:kitItem.stockItemId,loaded:false,returned:false})
+    }
+    void persist({items:next})
+    toast('Kit « '+kit.name+' » ajouté au programme.')
+  }
+
+  const deleteKit=async(id:string)=>{
+    const next=kits.filter(kit=>kit.id!==id)
+    setKits(next);await saveInventoryKits(next);toast('Kit supprimé.')
+  }
+
+  const setChecklistState=async(id:string,field:'loaded'|'returned',checked:boolean)=>{
+    if(!program)return
+    const target=items.find(item=>item.id===id)
+    if(!target)return
+    const next=items.map(item=>{
+      if(item.id!==id)return item
+      if(field==='loaded')return {...item,loaded:checked,returned:checked?item.returned:false}
+      return {...item,returned:checked,loaded:checked?true:item.loaded}
+    })
+    await persist({items:next})
+    await logActivity('complete',field==='loaded'?(checked?'Matériel chargé':'Chargement annulé'):(checked?'Matériel retourné':'Retour annulé'),target.name,{
+      source:'inventory',inventoryProgramId:program.id,inventoryStockItemId:target.stockItemId
+    })
+  }
+
+  const markAllChecklist=async(field:'loaded'|'returned',checked:boolean)=>{
+    if(!program)return
+    const next=items.map(item=>item.quantity>0?(
+      field==='loaded'?{...item,loaded:checked,returned:checked?item.returned:false}:{...item,returned:checked,loaded:checked?true:item.loaded}
+    ):item)
+    await persist({items:next})
+    await logActivity('complete',field==='loaded'?(checked?'Programme chargé':'Chargement réinitialisé'):(checked?'Programme retourné':'Retours réinitialisés'),program.name,{
+      source:'inventory',inventoryProgramId:program.id
+    })
   }
 
   const removeProgram=async()=>{
     if(!program)return
     await db.programs.update(program.id,{deletedAt:now(),updatedAt:now()})
+    await logActivity('delete','Programme supprimé',program.name,{source:'inventory',inventoryProgramId:program.id})
     onChanged();toast('Programme supprimé.');onBack()
   }
 
@@ -680,7 +825,12 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
       <div className="program-title-block">
         <span className="eyebrow">Programme · événement</span>
         <input className="program-title-input" value={program.name} onChange={e=>setProgram({...program,name:e.target.value})} onBlur={()=>void persist({name:program.name.trim()||'Événement'})}/>
-        <div className="program-summary"><span>{selectedItems.length} réf.</span><span>{totalQuantity} unité{totalQuantity>1?'s':''}</span><span>{recurrenceText(program)}</span></div>
+        <div className="program-summary">
+          <span>{selectedItems.length} réf.</span>
+          <span>{totalQuantity} unité{totalQuantity>1?'s':''}</span>
+          <span>{recurrenceText(program)}</span>
+          {missingItems.length>0&&<span className="summary-warning">{missingItems.length} manquant{missingItems.length>1?'s':''}</span>}
+        </div>
       </div>
       <div className="program-head-actions">
         <button className={'secondary '+(overviewOpen?'active':'')} onClick={()=>setOverviewOpen(value=>!value)}><Eye/>{overviewOpen?'Fermer la vue':'Vue globale'}</button>
@@ -695,29 +845,33 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
     {overviewOpen&&<section className="panel inventory-overview">
       <div className="inventory-overview-head">
         <div><span className="eyebrow">Vue globale</span><h2>{program.name}</h2><p>Vue d’ensemble du programme sans export.</p></div>
-        <div className="inventory-overview-metrics"><span><b>{selectedItems.length}</b> références</span><span><b>{totalQuantity}</b> unités</span></div>
+        <div className="inventory-overview-tools">
+          <div className="overview-mode-switch">
+            <button className={overviewGroupMode==='category'?'active':''} onClick={()=>setOverviewGroupMode('category')}>Par catégorie</button>
+            <button className={overviewGroupMode==='provider'?'active':''} onClick={()=>setOverviewGroupMode('provider')}>Par prestataire</button>
+          </div>
+          <div className="inventory-overview-metrics"><span><b>{selectedItems.length}</b> références</span><span><b>{totalQuantity}</b> unités</span><span className={missingItems.length?'warning':''}><b>{missingItems.length}</b> manquants</span></div>
+        </div>
       </div>
       <div className="inventory-overview-meta">
         <div><small>Date</small><b>{program.date?new Date(program.date+'T00:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}):'Non définie'}</b></div>
+        <div><small>Horaire</small><b>{program.startTime||'—'}{program.endTime?' → '+program.endTime:''}</b></div>
         <div><small>Fréquence</small><b>{recurrenceText(program)}</b></div>
         <div><small>Lieu</small><b>{program.location||'Non défini'}</b></div>
       </div>
       <div className="inventory-overview-groups">
-        {CATEGORY_ORDER.map(category=>{
-          const group=selectedItems.filter(item=>normalizeCategory(item.category,item.name)===category)
-          if(!group.length)return null
-          return <section className="inventory-overview-group" key={category}>
-            <div className="inventory-overview-category"><b>{CATEGORY_LABELS[category]}</b><span>{group.reduce((sum,item)=>sum+item.quantity,0)} u.</span></div>
-            {group.map(item=>{
-              const stockItem=item.stockItemId?stock.find(value=>value.id===item.stockItemId):undefined
-              const shortage=Boolean(stockItem&&item.quantity>stockItem.quantity)
-              return <div className={'inventory-overview-row '+(shortage?'shortage':'')} key={item.id}>
-                <span><b>{item.name}</b>{stockItem&&<small>{normalizeProvider(stockItem.provider)} · disponible {stockItem.quantity}</small>}</span>
-                <strong>× {item.quantity}</strong>
-              </div>
-            })}
-          </section>
-        })}
+        {overviewGroups.map(group=><section className="inventory-overview-group" key={group.key}>
+          <div className="inventory-overview-category"><b>{group.label}</b><span>{group.items.reduce((sum,item)=>sum+item.quantity,0)} u.</span></div>
+          {group.items.map(item=>{
+            const source=stockFor(item)
+            const available=availableFor(item)
+            const shortage=!source||item.quantity>available
+            return <div className={'inventory-overview-row '+(shortage?'shortage':'')} key={item.id}>
+              <span><b>{item.name}</b><small>{source?normalizeProvider(source.provider)+' · disponible '+available:'Source non attribuée'} · {item.loaded?'chargé':'non chargé'}{item.returned?' · retourné':''}</small></span>
+              <strong>× {item.quantity}</strong>
+            </div>
+          })}
+        </section>)}
         {!selectedItems.length&&<div className="inventory-overview-empty">Aucun matériel sélectionné dans ce programme.</div>}
       </div>
       {program.notes.trim()&&<div className="inventory-overview-notes"><small>Notes</small><p>{program.notes}</p></div>}
@@ -725,11 +879,13 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
 
     <section className="panel collapsible-program-details">
       <button className="collapsible-program-head" onClick={()=>setDetailsOpen(value=>!value)}>
-        <span><b>Détails de l’événement</b><small>{program.date?new Date(program.date+'T00:00:00').toLocaleDateString('fr-FR'):'Date non définie'} · {recurrenceText(program)}{program.location?' · '+program.location:''}</small></span>
+        <span><b>Détails de l’événement</b><small>{program.date?new Date(program.date+'T00:00:00').toLocaleDateString('fr-FR'):'Date non définie'} · {program.startTime||'horaire non défini'} · {recurrenceText(program)}{program.location?' · '+program.location:''}</small></span>
         {detailsOpen?<ChevronUp/>:<ChevronDown/>}
       </button>
-      {detailsOpen&&<div className="program-fields compact-program-fields">
+      {detailsOpen&&<div className="program-fields compact-program-fields expanded-program-fields">
         <label><span>Date / début</span><input type="date" value={program.date} onChange={e=>updateDate(e.target.value)}/></label>
+        <label><span>Heure début</span><input type="time" value={program.startTime??''} onChange={e=>void persist({startTime:e.target.value})}/></label>
+        <label><span>Heure fin</span><input type="time" value={program.endTime??''} onChange={e=>void persist({endTime:e.target.value})}/></label>
         <label><span>Fréquence</span><select value={program.frequency??'once'} onChange={e=>void persist({frequency:e.target.value as InventoryFrequency})}><option value="once">Une fois</option><option value="weekly">Chaque semaine</option><option value="monthly">Chaque mois</option></select></label>
         {(program.frequency??'once')==='weekly'&&<label><span>Jour fixe</span><select value={program.weekday??5} onChange={e=>void persist({weekday:Number(e.target.value)})}>{WEEKDAYS.map((day,index)=><option value={index} key={day}>{day[0].toUpperCase()+day.slice(1)}</option>)}</select></label>}
         <label><span>Lieu</span><input value={program.location} onChange={e=>setProgram({...program,location:e.target.value})} onBlur={()=>void persist({location:program.location})} placeholder="Lieu"/></label>
@@ -737,48 +893,105 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
       </div>}
     </section>
 
+    {conflictReservations.length>0&&<section className="panel inventory-conflict-panel">
+      <div className="inventory-alert-head"><AlertTriangle/><span><b>Réservations concurrentes</b><small>{overlappingPrograms.length} autre{overlappingPrograms.length>1?'s':''} programme{overlappingPrograms.length>1?'s':''} se chevauche{overlappingPrograms.length>1?'nt':''} avec ce créneau.</small></span></div>
+      {conflictReservations.map(conflict=><div className={'inventory-conflict-row '+(conflict.item.quantity>conflict.available?'danger':'')} key={conflict.item.id}>
+        <span><b>{conflict.item.name}</b><small>{conflict.programs.map(item=>item.name).join(', ')}</small></span>
+        <span>Réservé ailleurs <b>{conflict.reserved}</b></span>
+        <span>Disponible ici <b>{conflict.available}</b></span>
+      </div>)}
+    </section>}
+
     <section className="panel inventory-material-panel compact-material-panel">
       <div className="inventory-material-toolbar">
-        <div><h2>Matériels du programme</h2><small>Liste actuellement prévue pour cet événement</small></div>
+        <div><h2>Matériels du programme</h2><small>Disponibilité calculée selon stock, état et autres programmes</small></div>
         <div className="inventory-material-actions">
-          <button className={'secondary '+(stockPickerOpen?'active':'')} onClick={()=>setStockPickerOpen(value=>!value)}><PackageCheck/>Depuis le stock</button>
+          <button className={'secondary '+(stockPickerOpen?'active':'')} onClick={()=>setStockPickerOpen(value=>!value)}><PackageCheck/>Stock</button>
+          <button className={'secondary '+(kitPanelOpen?'active':'')} onClick={()=>setKitPanelOpen(value=>!value)}><Boxes/>Kits</button>
+          <button className={'secondary '+(missingOnly?'active':'')+(missingItems.length?' warning':'')} onClick={()=>setMissingOnly(value=>!value)}><PackageSearch/>Manquants {missingItems.length||''}</button>
+          <button className={'secondary '+(checklistOpen?'active':'')} onClick={()=>setChecklistOpen(value=>!value)}><ClipboardCheck/>Check-list</button>
           <button className="secondary" onClick={restoreDefaults}><Plus/>Défauts</button>
         </div>
       </div>
 
       {stockPickerOpen&&<div className="stock-picker">
-        <div className="stock-zone-label available"><span>MATÉRIELS DISPONIBLES</span><small>Cliquer pour ajouter au programme</small></div>
-        <div className="stock-picker-title"><Archive/><span><b>Prendre depuis un stockage</b><small>Choisissez le prestataire ; l’ajout ne diminue pas le stock réel.</small></span><select value={stockProvider} onChange={e=>setStockProvider(e.target.value)}>{stockProviders.map(provider=><option value={provider} key={provider}>{provider}</option>)}</select></div>
+        <div className="stock-zone-label available"><span>MATÉRIELS DISPONIBLES</span><small>Disponibilité réelle sur le créneau choisi</small></div>
+        <div className="stock-picker-title"><Archive/><span><b>Prendre depuis un stockage</b><small>Les réservations concurrentes sont déjà déduites.</small></span><select value={stockProvider} onChange={e=>setStockProvider(e.target.value)}>{stockProviders.map(provider=><option value={provider} key={provider}>{provider}</option>)}</select></div>
         {CATEGORY_ORDER.map(category=>{
-          const group=stock.filter(item=>normalizeProvider(item.provider)===stockProvider&&item.category===category&&item.quantity>0)
+          const group=stock.filter(item=>normalizeProvider(item.provider)===stockProvider&&item.category===category&&effectiveStockQuantity(item,program,programs)>0)
           return <CategorySection category={category} key={category} open={stockPickerCategories[category]} onToggle={()=>setStockPickerCategories(v=>({...v,[category]:!v[category]}))} count={group.length}>
             {group.length?group.map(item=>{
               const planned=items.find(p=>p.stockItemId===item.id)?.quantity??0
+              const available=effectiveStockQuantity(item,program,programs)
               return <button className="stock-pick-row" key={item.id} onClick={()=>addFromStock(item)}>
-                <b>{item.name}</b><span>Stock {item.quantity}</span>{planned>0&&<span>Prévu {planned}</span>}<Plus/>
+                <b>{item.name}</b><span>Dispo {available}/{item.quantity}</span>{planned>0&&<span>Prévu {planned}</span>}<Plus/>
               </button>
-            }):<div className="stock-picker-empty">Aucun élément disponible dans cette catégorie.</div>}
+            }):<div className="stock-picker-empty">Aucun élément disponible dans cette catégorie sur ce créneau.</div>}
           </CategorySection>
         })}
       </div>}
 
-      <div className="stock-zone-label selected"><span>DANS CET INVENTAIRE</span><small>Quantités prévues pour le programme</small></div>
+      {kitPanelOpen&&<div className="inventory-kit-panel">
+        <div className="inventory-kit-create">
+          <input value={kitName} onChange={e=>setKitName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void saveKit()}} placeholder="Nom du kit / configuration…"/>
+          <button className="primary" disabled={!kitName.trim()||!selectedItems.length} onClick={()=>void saveKit()}><Save/>Enregistrer la sélection</button>
+        </div>
+        <div className="inventory-kit-list">
+          {kits.length?kits.map(kit=><div className="inventory-kit-row" key={kit.id}>
+            <span><b>{kit.name}</b><small>{kit.items.length} réf. · {kit.items.reduce((sum,item)=>sum+item.quantity,0)} u.</small></span>
+            <button className="secondary" onClick={()=>applyKit(kit)}><Plus/>Ajouter</button>
+            <button className="bare-action danger-icon" aria-label={'Supprimer '+kit.name} onClick={()=>void deleteKit(kit.id)}><Trash2/></button>
+          </div>):<div className="stock-picker-empty">Aucun kit enregistré. Sélectionnez du matériel puis enregistrez la configuration.</div>}
+        </div>
+      </div>}
+
+      {missingOnly&&<div className="inventory-missing-panel">
+        <div className="inventory-alert-head"><PackageSearch/><span><b>Matériel à trouver</b><small>{missingItems.length?missingItems.length+' référence'+(missingItems.length>1?'s':'')+' à compléter':'Tout le matériel est couvert.'}</small></span></div>
+        {missingItems.map(item=>{
+          const source=stockFor(item)
+          const available=availableFor(item)
+          const missing=Math.max(0,item.quantity-available)
+          const alternatives=alternativesFor(item)
+          return <div className="missing-material-row" key={item.id}>
+            <span><b>{item.name}</b><small>{source?normalizeProvider(source.provider):'Aucune source'} · besoin {item.quantity} · disponible {available}</small></span>
+            <strong>Manque {missing||item.quantity}</strong>
+            <div className="missing-alternatives">{alternatives.length?alternatives.slice(0,3).map(candidate=><button key={candidate.id} onClick={()=>changeSource(item.id,candidate.id)}>{normalizeProvider(candidate.provider)} · {effectiveStockQuantity(candidate,program,programs)}</button>):<small>Aucune alternative disponible</small>}</div>
+          </div>
+        })}
+      </div>}
+
+      {checklistOpen&&<div className="inventory-checklist-panel">
+        <div className="checklist-head">
+          <span><b>Check-list événement</b><small>{loadedCount}/{selectedItems.length} chargés · {returnedCount}/{selectedItems.length} retournés</small></span>
+          <div><button className="secondary" onClick={()=>void markAllChecklist('loaded',true)}><Check/>Tout chargé</button><button className="secondary" onClick={()=>void markAllChecklist('returned',true)}><Check/>Tout retourné</button></div>
+        </div>
+        {selectedItems.map(item=><div className="checklist-row" key={item.id}>
+          <span><b>{item.name}</b><small>× {item.quantity}{stockFor(item)?' · '+normalizeProvider(stockFor(item)?.provider):''}</small></span>
+          <label className={item.loaded?'checked':''}><input type="checkbox" checked={Boolean(item.loaded)} onChange={e=>void setChecklistState(item.id,'loaded',e.target.checked)}/><span><Check/>Chargé</span></label>
+          <label className={item.returned?'checked':''}><input type="checkbox" checked={Boolean(item.returned)} onChange={e=>void setChecklistState(item.id,'returned',e.target.checked)}/><span><Check/>Retourné</span></label>
+        </div>)}
+      </div>}
+
+      <div className="stock-zone-label selected"><span>DANS CET INVENTAIRE</span><small>{missingOnly?'Affichage des éléments à compléter uniquement':'Quantités prévues pour le programme'}</small></div>
       <div className="material-add-row compact-material-add">
         <select value={customCategory} onChange={e=>setCustomCategory(e.target.value as InventoryCategory)}>{CATEGORY_ORDER.map(category=><option value={category} key={category}>{CATEGORY_LABELS[category]}</option>)}</select>
         <input value={customName} onChange={e=>setCustomName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addCustom()}} placeholder="Ajouter un matériel…"/>
         <button className="primary" disabled={!customName.trim()} onClick={addCustom}><Plus/>Ajouter</button>
       </div>
 
-      <div className="inventory-category-stack">
+      <div className="inventory-category-stack planned-material-list">
         {CATEGORY_ORDER.map(category=>{
-          const group=items.filter(item=>normalizeCategory(item.category,item.name)===category)
+          const baseGroup=items.filter(item=>normalizeCategory(item.category,item.name)===category)
+          const group=missingOnly?baseGroup.filter(item=>item.quantity>0&&missingItems.some(missing=>missing.id===item.id)):baseGroup
           return <CategorySection category={category} key={category} open={openCategories[category]} onToggle={()=>setOpenCategories(value=>({...value,[category]:!value[category]}))} count={group.length}>
             {group.map(item=>{
-              const stockItem=item.stockItemId?stock.find(s=>s.id===item.stockItemId):undefined
-              const shortage=Boolean(stockItem&&item.quantity>stockItem.quantity)
+              const source=stockFor(item)
+              const available=availableFor(item)
+              const reservation=source?conflictingReservation(source.id,program,programs).quantity:0
+              const shortage=item.quantity>0&&(!source||item.quantity>available)
               return <div className={'program-material-row '+(item.quantity>0?'active ':'')+(shortage?'shortage':'')} key={item.id}>
                 <b>{item.name}</b>
-                <span className="program-material-source">{stockItem?(normalizeProvider(stockItem.provider)+' · '+(shortage?'Stock insuffisant':'Stock '+stockItem.quantity)):''}</span>
+                <span className="program-material-source">{source?normalizeProvider(source.provider)+' · dispo '+available+(reservation?' · réservé '+reservation:''):'Sans source'}</span>
                 <div className="compact-qty">
                   <button disabled={item.quantity<=0} onClick={()=>setQuantity(item.id,item.quantity-1)}><Minus/></button>
                   <input type="number" min="0" max="999" inputMode="numeric" value={item.quantity} onChange={e=>setQuantity(item.id,Number(e.target.value))}/>
@@ -794,11 +1007,11 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
 
     <section className="panel technical-summary compact-technical-summary">
       <button className="collapsible-program-head" onClick={()=>setSummaryOpen(value=>!value)}>
-        <span><b>Aperçu fiche technique</b><small>{selectedItems.length} référence{selectedItems.length>1?'s':''} · {totalQuantity} unité{totalQuantity>1?'s':''}</small></span>
+        <span><b>Aperçu fiche technique</b><small>{selectedItems.length} référence{selectedItems.length>1?'s':''} · {totalQuantity} unité{totalQuantity>1?'s':''} · {missingItems.length} manquant{missingItems.length>1?'s':''}</small></span>
         {summaryOpen?<ChevronUp/>:<ChevronDown/>}
       </button>
       {summaryOpen&&<div className="technical-summary-list">
-        {selectedItems.length?selectedItems.map(item=><div key={item.id}><span><em>{CATEGORY_LABELS[item.category]}</em>{item.name}</span><b>× {item.quantity}</b></div>):<span className="muted-copy">Aucune quantité renseignée.</span>}
+        {selectedItems.length?selectedItems.map(item=><div key={item.id}><span><em>{CATEGORY_LABELS[item.category]}</em>{item.name}{stockFor(item)&&<small>{normalizeProvider(stockFor(item)?.provider)}</small>}</span><b>× {item.quantity}</b></div>):<span className="muted-copy">Aucune quantité renseignée.</span>}
       </div>}
     </section>
 
@@ -807,7 +1020,6 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
     </div>}
   </>
 }
-
 function CATALOG_FLAT():{name:string;category:InventoryCategory}[]{
   return CATEGORY_ORDER.flatMap(category=>DEFAULT_CATALOG[category].map(name=>({name,category})))
 }
