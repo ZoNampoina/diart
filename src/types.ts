@@ -133,6 +133,7 @@ export interface InventoryStockItem {
   name: string
   category: InventoryCategory
   quantity: number
+  provider?: string
   notes?: string
   createdAt: string
   updatedAt: string
