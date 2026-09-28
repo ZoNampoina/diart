@@ -1423,7 +1423,9 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
         quantity:Math.max(1,Number(value?.quantity)||1),
         reason:String(value?.reason??'Analyse IA'),
         category:value?.category?String(value.category):undefined,
-        matchedStockItemId:value?.matchedStockItemId?String(value.matchedStockItemId):undefined
+        matchedStockItemId:value?.matchedStockItemId?String(value.matchedStockItemId):undefined,
+        lengthMeters:Number(value?.lengthMeters)>0?Number(value.lengthMeters):undefined,
+        channelAssignment:value?.channelAssignment?String(value.channelAssignment):undefined
       }))
       const merged=[...baseline.suggestions]
       for(const suggestion of suggestions){
