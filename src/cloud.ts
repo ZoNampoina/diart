@@ -11,6 +11,12 @@ export const supabase=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{
   auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
 })
 
+export async function analyzeInventoryInstallationWithAI(payload:unknown){
+  const {data,error}=await supabase.functions.invoke('diart-inventory-ai',{body:payload})
+  if(error)throw error
+  return data as {summary?:string;suggestions?:unknown[]}
+}
+
 export async function currentUser():Promise<User|null>{
   const {data}=await supabase.auth.getUser()
   return data.user
