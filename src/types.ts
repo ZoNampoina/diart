@@ -118,6 +118,24 @@ export interface Setlist {
   deletedAt: string | null
 }
 
+export interface InventoryMaterial {
+  id: string
+  name: string
+  quantity: number
+}
+
+export interface InventoryProgram {
+  id: string
+  name: string
+  date: string
+  location: string
+  notes: string
+  items: InventoryMaterial[]
+  createdAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
 
 export type ActivityKind = 'create'|'update'|'import'|'complete'|'delete'|'restore'|'merge'|'export'|'backup_restore'|'play'
 
