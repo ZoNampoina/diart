@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
-  Archive, CalendarDays, ChevronDown, ChevronRight, ChevronUp, ImageDown, MapPin,
+  Archive, CalendarDays, ChevronDown, ChevronRight, ChevronUp, Eye, ImageDown, MapPin,
   Minus, PackageCheck, PackagePlus, Plus, Repeat2, Trash2, X
 } from 'lucide-react'
 import { db } from './db'
@@ -373,7 +373,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
         <input value={stockName} onChange={e=>setStockName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void addStock()}} placeholder={'Ajouter chez '+stockProvider+'…'}/>
         <button className="primary" disabled={!stockName.trim()} onClick={()=>void addStock()}><Plus/>Ajouter</button>
       </div>
-      <div className="inventory-category-stack">
+      <div className="inventory-category-stack planned-material-list">
         {CATEGORY_ORDER.map(category=>{
           const items=stock.filter(item=>normalizeProvider(item.provider)===stockProvider&&item.category===category)
           return <CategorySection category={category} key={category} open={openCategories[category]} onToggle={()=>toggleCategory(category)} count={items.length}>
@@ -398,6 +398,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
   const [program,setProgram]=useState<InventoryProgram|null>(null)
   const [stock,setStock]=useState<InventoryStockItem[]>([])
   const [stockProvider,setStockProvider]=useState(DEFAULT_PROVIDER)
+  const [overviewOpen,setOverviewOpen]=useState(false)
   const [detailsOpen,setDetailsOpen]=useState(false)
   const [summaryOpen,setSummaryOpen]=useState(false)
   const [stockPickerOpen,setStockPickerOpen]=useState(false)
@@ -490,6 +491,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
         <div className="program-summary"><span>{selectedItems.length} réf.</span><span>{totalQuantity} unité{totalQuantity>1?'s':''}</span><span>{recurrenceText(program)}</span></div>
       </div>
       <div className="program-head-actions">
+        <button className={'secondary '+(overviewOpen?'active':'')} onClick={()=>setOverviewOpen(value=>!value)}><Eye/>{overviewOpen?'Fermer la vue':'Vue globale'}</button>
         <button className="secondary" disabled={exporting} onClick={()=>{
           setExporting(true)
           void exportTechnicalSheetImage(program,stock).then(()=>toast('Fiche technique exportée en image.')).catch(error=>toast(error instanceof Error?error.message:'Export impossible.')).finally(()=>setExporting(false))
@@ -497,6 +499,37 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
         <button className="bare-action danger-icon" aria-label="Supprimer le programme" onClick={()=>setConfirmDelete(true)}><Trash2/></button>
       </div>
     </section>
+
+    {overviewOpen&&<section className="panel inventory-overview">
+      <div className="inventory-overview-head">
+        <div><span className="eyebrow">Vue globale</span><h2>{program.name}</h2><p>Vue d’ensemble du programme sans export.</p></div>
+        <div className="inventory-overview-metrics"><span><b>{selectedItems.length}</b> références</span><span><b>{totalQuantity}</b> unités</span></div>
+      </div>
+      <div className="inventory-overview-meta">
+        <div><small>Date</small><b>{program.date?new Date(program.date+'T00:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}):'Non définie'}</b></div>
+        <div><small>Fréquence</small><b>{recurrenceText(program)}</b></div>
+        <div><small>Lieu</small><b>{program.location||'Non défini'}</b></div>
+      </div>
+      <div className="inventory-overview-groups">
+        {CATEGORY_ORDER.map(category=>{
+          const group=selectedItems.filter(item=>normalizeCategory(item.category,item.name)===category)
+          if(!group.length)return null
+          return <section className="inventory-overview-group" key={category}>
+            <div className="inventory-overview-category"><b>{CATEGORY_LABELS[category]}</b><span>{group.reduce((sum,item)=>sum+item.quantity,0)} u.</span></div>
+            {group.map(item=>{
+              const stockItem=item.stockItemId?stock.find(value=>value.id===item.stockItemId):undefined
+              const shortage=Boolean(stockItem&&item.quantity>stockItem.quantity)
+              return <div className={'inventory-overview-row '+(shortage?'shortage':'')} key={item.id}>
+                <span><b>{item.name}</b>{stockItem&&<small>{normalizeProvider(stockItem.provider)} · disponible {stockItem.quantity}</small>}</span>
+                <strong>× {item.quantity}</strong>
+              </div>
+            })}
+          </section>
+        })}
+        {!selectedItems.length&&<div className="inventory-overview-empty">Aucun matériel sélectionné dans ce programme.</div>}
+      </div>
+      {program.notes.trim()&&<div className="inventory-overview-notes"><small>Notes</small><p>{program.notes}</p></div>}
+    </section>}
 
     <section className="panel collapsible-program-details">
       <button className="collapsible-program-head" onClick={()=>setDetailsOpen(value=>!value)}>
@@ -514,7 +547,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
 
     <section className="panel inventory-material-panel compact-material-panel">
       <div className="inventory-material-toolbar">
-        <div><h2>Matériels</h2><small>Une ligne par élément · catégories repliables</small></div>
+        <div><h2>Matériels du programme</h2><small>Liste actuellement prévue pour cet événement</small></div>
         <div className="inventory-material-actions">
           <button className={'secondary '+(stockPickerOpen?'active':'')} onClick={()=>setStockPickerOpen(value=>!value)}><PackageCheck/>Depuis le stock</button>
           <button className="secondary" onClick={restoreDefaults}><Plus/>Défauts</button>
@@ -522,6 +555,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
       </div>
 
       {stockPickerOpen&&<div className="stock-picker">
+        <div className="stock-zone-label available"><span>MATÉRIELS DISPONIBLES</span><small>Cliquer pour ajouter au programme</small></div>
         <div className="stock-picker-title"><Archive/><span><b>Prendre depuis un stockage</b><small>Choisissez le prestataire ; l’ajout ne diminue pas le stock réel.</small></span><select value={stockProvider} onChange={e=>setStockProvider(e.target.value)}>{stockProviders.map(provider=><option value={provider} key={provider}>{provider}</option>)}</select></div>
         {CATEGORY_ORDER.map(category=>{
           const group=stock.filter(item=>normalizeProvider(item.provider)===stockProvider&&item.category===category&&item.quantity>0)
@@ -536,6 +570,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
         })}
       </div>}
 
+      <div className="stock-zone-label selected"><span>DANS CET INVENTAIRE</span><small>Quantités prévues pour le programme</small></div>
       <div className="material-add-row compact-material-add">
         <select value={customCategory} onChange={e=>setCustomCategory(e.target.value as InventoryCategory)}>{CATEGORY_ORDER.map(category=><option value={category} key={category}>{CATEGORY_LABELS[category]}</option>)}</select>
         <input value={customName} onChange={e=>setCustomName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addCustom()}} placeholder="Ajouter un matériel…"/>
