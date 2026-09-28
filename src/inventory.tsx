@@ -723,7 +723,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
     setCustomName('');void persist({items:next})
   }
 
-  const addFromStock=(stockItem:InventoryStockItem)=>{
+  const addFromStock=async(stockItem:InventoryStockItem)=>{
     if(!program)return
     const available=effectiveStockQuantity(stockItem,program,programs)
     if(available<=0){toast('Ce matériel n’est pas disponible sur ce créneau.');return}
@@ -733,7 +733,10 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
     if(existing)next=items.map(item=>item.id===existing.id?{...item,quantity:item.quantity+1,returned:false}:item)
     else if(byName)next=items.map(item=>item.id===byName.id?{...item,stockItemId:stockItem.id,quantity:Math.max(1,item.quantity),returned:false}:item)
     else next=[...items,{id:crypto.randomUUID(),name:stockItem.name,category:stockItem.category,quantity:1,stockItemId:stockItem.id,loaded:false,returned:false}]
-    void persist({items:next})
+    await persist({items:next})
+    await logActivity('create','Réservation programme',stockItem.name+' · '+program.name,{
+      source:'inventory',inventoryProgramId:program.id,inventoryStockItemId:stockItem.id,inventoryProvider:normalizeProvider(stockItem.provider)
+    })
   }
 
   const changeSource=(itemId:string,stockItemId:string)=>{
@@ -750,7 +753,17 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
     program&&effectiveStockQuantity(candidate,program,programs)>0
   ).sort((a,b)=>(program?effectiveStockQuantity(b,program,programs)-effectiveStockQuantity(a,program,programs):0))
 
-  const removeItem=(id:string)=>void persist({items:items.filter(item=>item.id!==id)})
+  const removeItem=async(id:string)=>{
+    if(!program)return
+    const target=items.find(item=>item.id===id)
+    await persist({items:items.filter(item=>item.id!==id)})
+    if(target?.stockItemId){
+      const source=stock.find(value=>value.id===target.stockItemId)
+      await logActivity('delete','Réservation retirée',target.name+' · '+program.name,{
+        source:'inventory',inventoryProgramId:program.id,inventoryStockItemId:target.stockItemId,inventoryProvider:normalizeProvider(source?.provider)
+      })
+    }
+  }
 
   const restoreDefaults=()=>{
     const existing=new Set(items.map(item=>item.category+':'+item.name.trim().toLowerCase()))
@@ -932,7 +945,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
             {group.length?group.map(item=>{
               const planned=items.find(p=>p.stockItemId===item.id)?.quantity??0
               const available=effectiveStockQuantity(item,program,programs)
-              return <button className="stock-pick-row" key={item.id} onClick={()=>addFromStock(item)}>
+              return <button className="stock-pick-row" key={item.id} onClick={()=>void addFromStock(item)}>
                 <b>{item.name}</b><span>Dispo {available}/{item.quantity}</span>{planned>0&&<span>Prévu {planned}</span>}<Plus/>
               </button>
             }):<div className="stock-picker-empty">Aucun élément disponible dans cette catégorie sur ce créneau.</div>}
@@ -1006,7 +1019,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
                   <input type="number" min="0" max="999" inputMode="numeric" value={item.quantity} onChange={e=>setQuantity(item.id,Number(e.target.value))}/>
                   <button onClick={()=>setQuantity(item.id,item.quantity+1)}><Plus/></button>
                 </div>
-                <button className="bare-action danger-icon compact-delete" aria-label={'Supprimer '+item.name} onClick={()=>removeItem(item.id)}><Trash2/></button>
+                <button className="bare-action danger-icon compact-delete" aria-label={'Supprimer '+item.name} onClick={()=>void removeItem(item.id)}><Trash2/></button>
               </div>
             })}
           </CategorySection>
