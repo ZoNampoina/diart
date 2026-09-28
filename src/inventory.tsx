@@ -772,18 +772,29 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
   const [customName,setCustomName]=useState('')
   const [customCategory,setCustomCategory]=useState<InventoryCategory>('cable')
   const [kitName,setKitName]=useState('')
+  const [categories,setCategories]=useState<InventoryCategoryDef[]>(DEFAULT_CATEGORIES)
+  const [installationOpen,setInstallationOpen]=useState(false)
+  const [installationNodeName,setInstallationNodeName]=useState('')
+  const [installationStockId,setInstallationStockId]=useState('')
+  const [linkFromNode,setLinkFromNode]=useState('')
+  const [linkToNode,setLinkToNode]=useState('')
+  const [linkFromPort,setLinkFromPort]=useState('')
+  const [linkToPort,setLinkToPort]=useState('')
+  const [aiAnalyzing,setAiAnalyzing]=useState(false)
+  const [online,setOnline]=useState(typeof navigator==='undefined'?true:navigator.onLine)
   const [exporting,setExporting]=useState(false)
   const [confirmDelete,setConfirmDelete]=useState(false)
-  const [openCategories,setOpenCategories]=useState<Record<InventoryCategory,boolean>>({cable:true,prise:true,instrument:true,adaptateur:true})
-  const [stockPickerCategories,setStockPickerCategories]=useState<Record<InventoryCategory,boolean>>({cable:true,prise:false,instrument:false,adaptateur:false})
+  const [openCategories,setOpenCategories]=useState<Record<InventoryCategory,boolean>>(Object.fromEntries(DEFAULT_CATEGORY_ORDER.map(category=>[category,true])))
+  const [stockPickerCategories,setStockPickerCategories]=useState<Record<InventoryCategory,boolean>>(Object.fromEntries(DEFAULT_CATEGORY_ORDER.map((category,index)=>[category,index===0])))
 
   const refresh=async()=>{
     await ensureStockSeed()
-    const [p,s,allPrograms,savedKits]=await Promise.all([
+    const [p,s,allPrograms,savedKits,defs]=await Promise.all([
       db.programs.get(programId),
       db.inventoryStock.toArray(),
       db.programs.toArray(),
-      loadInventoryKits()
+      loadInventoryKits(),
+      loadInventoryCategories()
     ])
     const normalizedProgram=p?normalizeProgram(p):null
     const normalizedStock=s.filter(item=>!item.deletedAt).map(normalizeStockItem).sort((a,b)=>a.name.localeCompare(b.name,'fr'))
@@ -791,12 +802,20 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
     setPrograms(allPrograms.filter(item=>!item.deletedAt).map(normalizeProgram))
     setStock(normalizedStock)
     setKits(savedKits)
+    setCategories(defs)
+    setOpenCategories(current=>({...Object.fromEntries(defs.map(item=>[item.id,true])),...current}))
+    setStockPickerCategories(current=>({...Object.fromEntries(defs.map((item,index)=>[item.id,index===0])),...current}))
     setStockProvider(current=>{
       if(normalizedStock.some(item=>normalizeProvider(item.provider)===current&&item.quantity>0))return current
       return normalizeProvider(normalizedStock.find(item=>item.quantity>0)?.provider)
     })
   }
   useEffect(()=>{void refresh()},[programId])
+  useEffect(()=>{
+    const update=()=>setOnline(navigator.onLine)
+    window.addEventListener('online',update);window.addEventListener('offline',update)
+    return ()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update)}
+  },[])
 
   const persist=async(patch:Partial<Omit<InventoryProgram,'id'|'createdAt'>>)=>{
     if(!program)return
@@ -810,6 +829,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
 
   const items=program?.items??[]
   const stockProviders=useMemo(()=>Array.from(new Set(stock.map(item=>normalizeProvider(item.provider)))).sort((a,b)=>a===DEFAULT_PROVIDER?-1:b===DEFAULT_PROVIDER?1:a.localeCompare(b,'fr')),[stock])
+  const categoryOrder=useMemo(()=>Array.from(new Set([...categories.map(item=>item.id),...stock.map(item=>item.category),...items.map(item=>item.category)])),[categories,stock,items])
   const selectedItems=useMemo(()=>items.filter(item=>item.quantity>0),[items])
   const totalQuantity=useMemo(()=>selectedItems.reduce((sum,item)=>sum+item.quantity,0),[selectedItems])
   const loadedCount=useMemo(()=>selectedItems.filter(item=>item.loaded).length,[selectedItems])
@@ -843,9 +863,9 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
 
   const overviewGroups=useMemo(()=>{
     if(overviewGroupMode==='category'){
-      return CATEGORY_ORDER.map(category=>({
+      return categoryOrder.map(category=>({
         key:category,
-        label:CATEGORY_LABELS[category],
+        label:categoryLabel(category,categories),
         items:selectedItems.filter(item=>item.category===category)
       })).filter(group=>group.items.length)
     }
@@ -856,7 +876,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
       map.set(provider,[...(map.get(provider)??[]),item])
     }
     return Array.from(map.entries()).map(([provider,group])=>({key:provider,label:provider,items:group}))
-  },[overviewGroupMode,selectedItems,stock])
+  },[overviewGroupMode,selectedItems,stock,categoryOrder,categories])
 
   const setQuantity=(id:string,quantity:number)=>{
     const next=items.map(item=>item.id===id?{
