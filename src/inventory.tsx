@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Archive, CalendarDays, ChevronDown, ChevronRight, ChevronUp, ImageDown, MapPin,
   Minus, PackageCheck, PackagePlus, Plus, Repeat2, Trash2, X
@@ -91,7 +91,7 @@ async function ensureStockSeed():Promise<void>{
       rows.push({
         id:stableCatalogUuid(category,name),
         name,category,quantity:0,notes:'',
-        createdAt:stamp,updatedAt:stamp,deletedAt:null
+        createdAt:stamp,updatedAt:'1970-01-01T00:00:00.000Z',deletedAt:null
       })
     }
   }
@@ -239,7 +239,7 @@ export async function exportTechnicalSheetImage(program:InventoryProgram,stock:I
   setTimeout(()=>URL.revokeObjectURL(url),0)
 }
 
-function CategorySection({category,open,onToggle,children,count}:{category:InventoryCategory;open:boolean;onToggle:()=>void;children:React.ReactNode;count:number}){
+function CategorySection({category,open,onToggle,children,count}:{category:InventoryCategory;open:boolean;onToggle:()=>void;children:ReactNode;count:number}){
   return <section className="inventory-category">
     <button type="button" className="inventory-category-head" onClick={onToggle}>
       <span><b>{CATEGORY_LABELS[category]}</b><small>{count} élément{count>1?'s':''}</small></span>
@@ -362,6 +362,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
   const [program,setProgram]=useState<InventoryProgram|null>(null)
   const [stock,setStock]=useState<InventoryStockItem[]>([])
   const [detailsOpen,setDetailsOpen]=useState(false)
+  const [summaryOpen,setSummaryOpen]=useState(false)
   const [stockPickerOpen,setStockPickerOpen]=useState(false)
   const [customName,setCustomName]=useState('')
   const [customCategory,setCustomCategory]=useState<InventoryCategory>('cable')
@@ -522,13 +523,13 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
     </section>
 
     <section className="panel technical-summary compact-technical-summary">
-      <button className="collapsible-program-head" onClick={()=>setDetailsOpen(value=>!value)}>
+      <button className="collapsible-program-head" onClick={()=>setSummaryOpen(value=>!value)}>
         <span><b>Aperçu fiche technique</b><small>{selectedItems.length} référence{selectedItems.length>1?'s':''} · {totalQuantity} unité{totalQuantity>1?'s':''}</small></span>
-        <ImageDown/>
+        {summaryOpen?<ChevronUp/>:<ChevronDown/>}
       </button>
-      <div className="technical-summary-list">
+      {summaryOpen&&<div className="technical-summary-list">
         {selectedItems.length?selectedItems.map(item=><div key={item.id}><span><em>{CATEGORY_LABELS[item.category]}</em>{item.name}</span><b>× {item.quantity}</b></div>):<span className="muted-copy">Aucune quantité renseignée.</span>}
-      </div>
+      </div>}
     </section>
 
     {confirmDelete&&<div className="inventory-confirm-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setConfirmDelete(false)}}>
