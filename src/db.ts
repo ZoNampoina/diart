@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { ActivityEntry, ActivityKind, ActivityRestoreData, AppSetting, InventoryProgram, Song, SongDraft, Setlist } from './types'
+import type { ActivityEntry, ActivityKind, ActivityRestoreData, AppSetting, InventoryProgram, InventoryStockItem, Song, SongDraft, Setlist } from './types'
 import { demoSongs } from './demo'
 
 class DiartDB extends Dexie {
@@ -8,6 +8,7 @@ class DiartDB extends Dexie {
   setlists!: EntityTable<Setlist, 'id'>
   activity!: EntityTable<ActivityEntry, 'id'>
   programs!: EntityTable<InventoryProgram, 'id'>
+  inventoryStock!: EntityTable<InventoryStockItem, 'id'>
 
   constructor() {
     super('diart-db')
@@ -32,6 +33,14 @@ class DiartDB extends Dexie {
       setlists: 'id, name, createdAt, updatedAt, deletedAt',
       activity: 'id, kind, songId, source, createdAt',
       programs: 'id, name, date, createdAt, updatedAt, deletedAt'
+    })
+    this.version(5).stores({
+      songs: 'id, title, artist, authorComposer, favorite, createdAt, updatedAt, lastViewedAt, source, deletedAt',
+      settings: 'key',
+      setlists: 'id, name, createdAt, updatedAt, deletedAt',
+      activity: 'id, kind, songId, source, createdAt',
+      programs: 'id, name, date, createdAt, updatedAt, deletedAt',
+      inventoryStock: 'id, name, category, createdAt, updatedAt, deletedAt'
     })
   }
 }
