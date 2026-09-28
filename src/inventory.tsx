@@ -7,7 +7,7 @@ import {
 import { db, logActivity } from './db'
 import { analyzeInventoryInstallationWithAI } from './cloud'
 import type {
-  ActivityEntry, InstallationSuggestion, InventoryCategory, InventoryCharacteristic, InventoryFrequency,
+  ActivityEntry, InstallationLink, InstallationSuggestion, InventoryCategory, InventoryCharacteristic, InventoryFrequency,
   InventoryKit, InventoryMaterial, InventoryPhantomMode, InventoryPort, InventoryPortDirection,
   InventoryProgram, InventorySignalLevel, InventoryStockItem, InventoryStockStatus
 } from './types'
@@ -361,7 +361,7 @@ function autoAssignInstallationChannels(program:InventoryProgram,stock:Inventory
     return {...link,assignedChannel:labels.join(' → ')||link.assignedChannel||''}
   })
 }
-function linkCompatibility(link:InventoryProgram['installation'] extends infer _T ? any : never,program:InventoryProgram,stock:InventoryStockItem[]):{
+function linkCompatibility(link:InstallationLink,program:InventoryProgram,stock:InventoryStockItem[]):{
   compatibility:'ok'|'adapter'|'di'|'phantom'|'warning'
   notes:string[]
   suggestions:Array<Omit<InstallationSuggestion,'id'>>
