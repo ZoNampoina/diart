@@ -10561,3 +10561,99 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
   .checklist-row{grid-template-columns:minmax(0,1fr) 68px 68px;gap:3px}
   .checklist-row label span{font-size:0}.checklist-row label span svg{width:14px;height:14px}
 }
+
+
+/* DI'ART 2.15 — custom inventory classes, technical characteristics and installation assistant */
+.stock-class-toolbar{
+  display:grid;grid-template-columns:auto minmax(0,1fr) minmax(140px,.45fr) auto;gap:7px;align-items:center;
+  padding:8px!important;margin-bottom:8px
+}
+.stock-class-toolbar>span b{display:block;font-size:11px}.stock-class-toolbar>span small{display:block;font-size:8px;color:var(--muted)}
+.stock-class-chips{display:flex;gap:4px;flex-wrap:wrap}
+.stock-class-chips button{
+  min-height:28px;border:1px solid var(--line);border-radius:999px;background:var(--surface2);color:var(--muted);
+  padding:0 8px;font-size:8px;font-weight:750
+}
+.stock-class-chips button.active{border-color:color-mix(in srgb,var(--accent2) 45%,var(--line));color:var(--accent2);background:color-mix(in srgb,var(--accent2) 8%,var(--surface))}
+.stock-class-toolbar input,.stock-class-toolbar>.secondary{min-height:34px!important;font-size:9px!important}
+
+.stock-item-wrap{display:grid;border-top:1px solid var(--line)}
+.stock-item-wrap:first-child{border-top:0}
+.stock-item-wrap>.stock-row{border-top:0!important}
+.stock-row-with-tech{grid-template-columns:minmax(0,1fr) 145px 132px 32px 34px!important}
+.tech-action{width:30px!important;height:30px!important;min-height:30px!important}
+.tech-action svg{width:14px!important}.tech-action.active{color:var(--accent2);background:color-mix(in srgb,var(--accent2) 10%,var(--surface2))}
+.stock-tech-editor{padding:9px;border-top:1px dashed color-mix(in srgb,var(--accent2) 28%,var(--line));background:color-mix(in srgb,var(--accent2) 3%,var(--surface2));display:grid;gap:9px}
+.stock-tech-head,.stock-tech-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.stock-tech-head span b{display:block;font-size:11px}.stock-tech-head span small{display:block;font-size:8px;color:var(--muted)}
+.stock-tech-section{display:grid;gap:5px}.stock-tech-section-head b{font-size:10px}.stock-tech-section-head button{min-height:28px!important;font-size:8px!important;padding:0 7px!important}
+.stock-tech-pair{display:grid;grid-template-columns:minmax(110px,.45fr) minmax(0,1fr) 30px;gap:5px}
+.stock-port-row{display:grid;grid-template-columns:minmax(120px,1fr) 120px 120px 64px 30px;gap:5px}
+.stock-tech-pair input,.stock-port-row input,.stock-port-row select{min-height:32px!important;height:32px!important;padding:4px 7px!important;font-size:9px!important}
+.stock-tech-pair button,.stock-port-row button{width:30px!important;height:30px!important;min-height:30px!important}
+.stock-tech-actions{display:flex;justify-content:flex-end;gap:6px}.stock-tech-actions button{min-height:32px!important;font-size:9px!important}
+
+.installation-advanced-panel{padding:0!important;margin-bottom:8px!important;overflow:hidden;border-color:color-mix(in srgb,var(--accent2) 26%,var(--line))!important}
+.installation-mode-badges{display:flex!important;align-items:center;gap:5px!important}
+.installation-mode-badges em{display:flex;align-items:center;gap:3px;padding:3px 6px;border:1px solid var(--line);border-radius:999px;font-style:normal;font-size:8px;color:var(--muted)}
+.installation-mode-badges em svg{width:11px!important;height:11px!important}
+.installation-advanced-body{padding:9px;border-top:1px solid var(--line);display:grid;gap:9px}
+.installation-builder,.installation-analysis{border:1px solid var(--line);border-radius:10px;background:var(--surface2);padding:8px;display:grid;gap:7px}
+.installation-builder-head{display:flex;align-items:center;gap:7px}.installation-builder-head>svg{width:16px;color:var(--accent2)}
+.installation-builder-head span b,.installation-analysis-head span b{display:block;font-size:11px}.installation-builder-head span small,.installation-analysis-head span small{display:block;font-size:8px;color:var(--muted)}
+.installation-node-add{display:grid;grid-template-columns:minmax(140px,.7fr) minmax(140px,1fr) auto;gap:5px}
+.installation-node-add select,.installation-node-add input,.installation-node-add button{min-height:34px!important;font-size:9px!important}
+.installation-canvas{display:flex;gap:7px;overflow-x:auto;padding:3px 1px 5px}
+.installation-node{
+  min-width:220px;max-width:300px;display:grid;grid-template-columns:24px minmax(0,1fr) 28px;gap:6px;align-items:start;
+  border:1px solid color-mix(in srgb,var(--accent2) 26%,var(--line));border-radius:10px;background:var(--surface);padding:7px
+}
+.installation-node-index{width:23px;height:23px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--accent2) 12%,var(--surface2));color:var(--accent2);font-size:9px;font-weight:850}
+.installation-node>span:nth-child(2) b{display:block;font-size:10px}.installation-node>span:nth-child(2) small{display:block;font-size:8px;color:var(--muted)}
+.installation-node-tech{grid-column:2/-1;display:flex;gap:3px;flex-wrap:wrap}
+.installation-node-tech em{font-style:normal;font-size:7px;padding:2px 5px;border-radius:999px;background:var(--surface2);border:1px solid var(--line);color:var(--muted)}
+.installation-link-add{display:grid;grid-template-columns:minmax(120px,1fr) minmax(115px,.8fr) 22px minmax(120px,1fr) minmax(115px,.8fr) auto;gap:5px;align-items:center}
+.installation-link-add select,.installation-link-add button{min-height:34px!important;font-size:9px!important}
+.installation-arrow{text-align:center;color:var(--accent2);font-weight:900}
+.installation-link-list{display:grid;gap:4px}
+.installation-link-row{display:grid;grid-template-columns:22px minmax(80px,1fr) 75px 22px minmax(80px,1fr) 75px 28px;gap:5px;align-items:center;padding:5px 6px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.installation-link-row>span{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:var(--surface2);font-size:8px;color:var(--muted)}
+.installation-link-row b{font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.installation-link-row small{font-size:8px;color:var(--muted);white-space:nowrap}.installation-link-row em{text-align:center;color:var(--accent2);font-style:normal}
+.installation-analysis-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.installation-analysis-head>div{display:flex;gap:5px}.installation-analysis-head button{min-height:32px!important;font-size:9px!important;padding:0 8px!important}
+.installation-summary{display:flex;align-items:center;gap:7px;padding:7px 8px;border-radius:8px;background:var(--surface);border:1px solid var(--line);font-size:9px;color:var(--muted)}
+.installation-summary svg{width:14px;flex:none}.installation-summary.ai{border-color:color-mix(in srgb,var(--accent2) 38%,var(--line));color:var(--accent2)}
+.installation-suggestions{display:grid;gap:4px}
+.installation-suggestion{display:grid;grid-template-columns:minmax(0,1fr) 50px 70px auto;gap:6px;align-items:center;padding:6px 7px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.installation-suggestion>span b{display:block;font-size:10px}.installation-suggestion>span small{display:block;font-size:8px;color:var(--muted)}
+.installation-suggestion>em{font-style:normal;font-weight:850;color:var(--accent2);font-size:10px;text-align:right}
+.installation-suggestion .suggestion-stock{font-size:8px;color:var(--accent2);text-align:center}.installation-suggestion button{min-height:28px!important;font-size:8px!important;padding:0 6px!important}
+.installation-suggestion.kind-warning{border-color:color-mix(in srgb,var(--danger) 30%,var(--line));background:color-mix(in srgb,var(--danger) 4%,var(--surface))}
+.installation-empty{padding:10px;text-align:center;color:var(--muted);font-size:9px}
+
+@media(max-width:900px){
+  .stock-class-toolbar{grid-template-columns:1fr auto}.stock-class-chips{grid-column:1/-1;order:3}.stock-class-toolbar input{min-width:0}
+  .stock-port-row{grid-template-columns:minmax(100px,1fr) 95px 95px 58px 30px}
+  .installation-link-add{grid-template-columns:1fr 1fr 20px 1fr 1fr}.installation-link-add button{grid-column:1/-1}
+}
+@media(max-width:640px){
+  .stock-class-toolbar{grid-template-columns:minmax(0,1fr) 38px}.stock-class-toolbar>span{grid-column:1/-1}.stock-class-toolbar>.secondary{font-size:0!important;width:38px!important;padding:0!important}
+  .stock-class-chips{grid-column:1/-1}
+  .stock-row-with-tech{grid-template-columns:minmax(0,1fr) 76px 108px 28px 28px!important}
+  .stock-port-row{grid-template-columns:1fr 90px}.stock-port-row select:nth-of-type(2),.stock-port-row input[type=number]{grid-column:auto}
+  .stock-port-row button{grid-column:2;justify-self:end}
+  .stock-tech-pair{grid-template-columns:1fr 1fr 30px}
+  .installation-node-add{grid-template-columns:1fr}.installation-node-add button{width:100%}
+  .installation-link-add{grid-template-columns:1fr 1fr}.installation-arrow{display:none}.installation-link-add button{grid-column:1/-1}
+  .installation-link-row{grid-template-columns:20px minmax(0,1fr) 26px minmax(0,1fr) 28px}.installation-link-row small{display:none}
+  .installation-analysis-head{align-items:flex-start;flex-direction:column}.installation-analysis-head>div{width:100%}.installation-analysis-head button{flex:1}
+  .installation-suggestion{grid-template-columns:minmax(0,1fr) 42px auto}.installation-suggestion .suggestion-stock{display:none}
+}
+@media(max-width:430px){
+  .stock-row-with-tech{grid-template-columns:minmax(0,1fr) 70px 102px 27px 27px!important}
+  .stock-tech-pair{grid-template-columns:1fr 30px}.stock-tech-pair input:nth-child(2){grid-column:1}
+  .stock-port-row{grid-template-columns:1fr 80px}
+  .installation-mode-badges em{font-size:0}.installation-mode-badges em svg{margin:0}
+  .installation-node{min-width:190px}
+  .installation-suggestion{grid-template-columns:minmax(0,1fr) 35px 30px}.installation-suggestion button{font-size:0!important;width:30px!important;padding:0!important}
+}
