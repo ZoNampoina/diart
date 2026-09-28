@@ -150,16 +150,17 @@ function programsOverlap(a:InventoryProgram,b:InventoryProgram):boolean{
   return false
 }
 
-function programsHaveStockShortage(a:InventoryProgram,b:InventoryProgram,stock:InventoryStockItem[]):boolean{
-  if(!programsOverlap(a,b))return false
-  for(const item of a.items.filter(value=>value.quantity>0&&value.stockItemId)){
+function programHasStockShortage(current:InventoryProgram,programs:InventoryProgram[],stock:InventoryStockItem[]):boolean{
+  for(const item of current.items.filter(value=>value.quantity>0&&value.stockItemId)){
     const source=stock.find(value=>value.id===item.stockItemId)
-    if(!source)continue
-    const otherQuantity=b.items.filter(value=>value.stockItemId===item.stockItemId).reduce((sum,value)=>sum+value.quantity,0)
-    if(otherQuantity<=0)continue
-    if(statusBlocksAvailability(source.status)||item.quantity+otherQuantity>source.quantity)return true
+    if(!source)return true
+    if(statusBlocksAvailability(source.status))return true
+    const reserved=programs
+      .filter(other=>programsOverlap(current,other))
+      .reduce((sum,other)=>sum+other.items.filter(value=>value.stockItemId===item.stockItemId).reduce((n,value)=>n+value.quantity,0),0)
+    if(item.quantity+reserved>source.quantity)return true
   }
-  return false
+  return current.items.some(item=>item.quantity>0&&!item.stockItemId)
 }
 
 function conflictingReservation(stockItemId:string,current:InventoryProgram,programs:InventoryProgram[]):{quantity:number;programs:InventoryProgram[]}{
@@ -518,7 +519,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
         {programs.length?programs.map(program=>{
           const active=program.items.filter(item=>item.quantity>0)
           const total=active.reduce((sum,item)=>sum+item.quantity,0)
-          const conflicts=programs.filter(other=>programsHaveStockShortage(program,other,stock))
+          const conflicts=programHasStockShortage(program,programs,stock)?['stock']:[]
           return <button className={'compact-program-row '+(conflicts.length?'has-conflict':'')} key={program.id} onClick={()=>onOpen(program.id)}>
             <CalendarDays/>
             <b>{program.name}</b>
