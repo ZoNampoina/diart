@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
-  Archive, CalendarDays, ChevronDown, ChevronRight, ChevronUp, Eye, ImageDown, MapPin,
-  Minus, PackageCheck, PackagePlus, Plus, Repeat2, Trash2, X
+  AlertTriangle, Archive, Boxes, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp,
+  ClipboardCheck, Eye, History, ImageDown, LayoutGrid, Minus, PackageCheck, PackagePlus,
+  PackageSearch, Plus, Repeat2, Save, Trash2, Wrench, X
 } from 'lucide-react'
-import { db } from './db'
+import { db, logActivity } from './db'
 import type {
-  InventoryCategory, InventoryFrequency, InventoryMaterial, InventoryProgram, InventoryStockItem
+  ActivityEntry, InventoryCategory, InventoryFrequency, InventoryKit, InventoryMaterial,
+  InventoryProgram, InventoryStockItem, InventoryStockStatus
 } from './types'
 
 const CATEGORY_ORDER: InventoryCategory[] = ['cable','prise','instrument','adaptateur']
@@ -17,6 +19,16 @@ const CATEGORY_LABELS: Record<InventoryCategory,string> = {
 }
 const WEEKDAYS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi']
 const DEFAULT_PROVIDER = 'Mon stock'
+const INVENTORY_KITS_KEY = 'inventoryKitsV1'
+const STOCK_STATUS_LABELS:Record<InventoryStockStatus,string>={
+  available:'Disponible',
+  reserved:'Réservé',
+  in_use:'En utilisation',
+  repair:'En panne',
+  maintenance:'Maintenance',
+  unavailable:'Indisponible'
+}
+const BLOCKING_STOCK_STATUSES:InventoryStockStatus[]=['reserved','in_use','repair','maintenance','unavailable']
 
 const DEFAULT_CATALOG: Record<InventoryCategory,string[]> = {
   cable:[
@@ -45,7 +57,12 @@ function normalizeProvider(value:unknown):string{
 }
 
 function normalizeStockItem(item:InventoryStockItem):InventoryStockItem{
-  return {...item,category:normalizeCategory(item.category,item.name),provider:normalizeProvider(item.provider)}
+  return {
+    ...item,
+    category:normalizeCategory(item.category,item.name),
+    provider:normalizeProvider(item.provider),
+    status:item.status??'available'
+  }
 }
 
 function normalizeCategory(value:unknown,name=''):InventoryCategory{
@@ -60,10 +77,104 @@ function normalizeCategory(value:unknown,name=''):InventoryCategory{
 function normalizeProgram(program:InventoryProgram):InventoryProgram{
   return {
     ...program,
+    startTime:program.startTime??'',
+    endTime:program.endTime??'',
     frequency:program.frequency??'once',
     weekday:program.weekday??(program.date?new Date(program.date+'T00:00:00').getDay():null),
-    items:(program.items??[]).map(item=>({...item,category:normalizeCategory(item.category,item.name)}))
+    items:(program.items??[]).map(item=>({
+      ...item,
+      category:normalizeCategory(item.category,item.name),
+      loaded:item.loaded??false,
+      returned:item.returned??false
+    }))
   }
+}
+
+function statusBlocksAvailability(status:InventoryStockStatus|undefined):boolean{
+  return BLOCKING_STOCK_STATUSES.includes(status??'available')
+}
+
+function timeMinutes(value:string|undefined,fallback:number):number{
+  if(!value||!/^(\d{2}):(\d{2})$/.test(value))return fallback
+  const [h,m]=value.split(':').map(Number)
+  return h*60+m
+}
+
+function timeRangesOverlap(a:InventoryProgram,b:InventoryProgram):boolean{
+  const aStart=timeMinutes(a.startTime,0)
+  const aEnd=timeMinutes(a.endTime,24*60)
+  const bStart=timeMinutes(b.startTime,0)
+  const bEnd=timeMinutes(b.endTime,24*60)
+  return aStart<(bEnd||24*60)&&bStart<(aEnd||24*60)
+}
+
+function programOccursOnDate(program:InventoryProgram,dateKey:string):boolean{
+  const frequency=program.frequency??'once'
+  if(frequency==='once')return Boolean(program.date)&&program.date===dateKey
+  const date=new Date(dateKey+'T00:00:00')
+  if(Number.isNaN(date.getTime()))return false
+  if(program.date&&dateKey<program.date)return false
+  if(frequency==='weekly'){
+    const weekday=program.weekday??(program.date?new Date(program.date+'T00:00:00').getDay():null)
+    return weekday!==null&&weekday!==undefined&&date.getDay()===weekday
+  }
+  if(frequency==='monthly'){
+    const day=program.date?new Date(program.date+'T00:00:00').getDate():1
+    return date.getDate()===day
+  }
+  return false
+}
+
+function dateKey(date:Date):string{
+  const y=date.getFullYear()
+  const m=String(date.getMonth()+1).padStart(2,'0')
+  const d=String(date.getDate()).padStart(2,'0')
+  return y+'-'+m+'-'+d
+}
+
+function programsOverlap(a:InventoryProgram,b:InventoryProgram):boolean{
+  if(a.id===b.id||a.deletedAt||b.deletedAt||!timeRangesOverlap(a,b))return false
+  const fa=a.frequency??'once',fb=b.frequency??'once'
+  if(fa==='once'&&fb==='once')return Boolean(a.date&&b.date&&a.date===b.date)
+  if(fa==='once')return Boolean(a.date&&programOccursOnDate(b,a.date))
+  if(fb==='once')return Boolean(b.date&&programOccursOnDate(a,b.date))
+  const today=new Date();today.setHours(0,0,0,0)
+  const starts=[a.date,b.date].filter(Boolean).sort()
+  const start=starts.length?new Date((starts[starts.length-1] as string)+'T00:00:00'):today
+  if(start<today)start.setTime(today.getTime())
+  for(let i=0;i<370;i++){
+    const d=new Date(start);d.setDate(start.getDate()+i)
+    const key=dateKey(d)
+    if(programOccursOnDate(a,key)&&programOccursOnDate(b,key))return true
+  }
+  return false
+}
+
+function conflictingReservation(stockItemId:string,current:InventoryProgram,programs:InventoryProgram[]):{quantity:number;programs:InventoryProgram[]}{
+  const conflicts=programs.filter(other=>programsOverlap(current,other)&&other.items.some(item=>item.stockItemId===stockItemId&&item.quantity>0))
+  return {
+    quantity:conflicts.reduce((sum,other)=>sum+other.items.filter(item=>item.stockItemId===stockItemId).reduce((n,item)=>n+item.quantity,0),0),
+    programs:conflicts
+  }
+}
+
+function effectiveStockQuantity(stockItem:InventoryStockItem,current:InventoryProgram,programs:InventoryProgram[]):number{
+  if(statusBlocksAvailability(stockItem.status))return 0
+  const reserved=conflictingReservation(stockItem.id,current,programs).quantity
+  return Math.max(0,stockItem.quantity-reserved)
+}
+
+async function loadInventoryKits():Promise<InventoryKit[]>{
+  const row=await db.settings.get(INVENTORY_KITS_KEY)
+  if(!row?.value)return []
+  try{
+    const parsed=JSON.parse(row.value) as InventoryKit[]
+    return Array.isArray(parsed)?parsed:[]
+  }catch{return []}
+}
+
+async function saveInventoryKits(kits:InventoryKit[]):Promise<void>{
+  await db.settings.put({key:INVENTORY_KITS_KEY,value:JSON.stringify(kits)})
 }
 
 function stableCatalogUuid(category:InventoryCategory,name:string):string{
@@ -100,7 +211,7 @@ async function ensureStockSeed():Promise<void>{
       if(existingNames.has(key))continue
       rows.push({
         id:stableCatalogUuid(category,name),
-        name,category,quantity:0,provider:DEFAULT_PROVIDER,notes:'',
+        name,category,quantity:0,provider:DEFAULT_PROVIDER,status:'available',notes:'',
         createdAt:stamp,updatedAt:'1970-01-01T00:00:00.000Z',deletedAt:null
       })
     }
@@ -115,6 +226,8 @@ async function createProgram(name:string):Promise<InventoryProgram>{
     id:crypto.randomUUID(),
     name:name.trim()||'Nouvel événement',
     date:'',
+    startTime:'',
+    endTime:'',
     frequency:'once',
     weekday:null,
     location:'',
