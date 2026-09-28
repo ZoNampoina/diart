@@ -119,6 +119,7 @@ export interface Setlist {
 }
 
 export type InventoryCategory = 'cable'|'prise'|'instrument'|'adaptateur'
+export type InventoryStockStatus = 'available'|'reserved'|'in_use'|'repair'|'maintenance'|'unavailable'
 
 export interface InventoryMaterial {
   id: string
@@ -126,6 +127,8 @@ export interface InventoryMaterial {
   quantity: number
   category: InventoryCategory
   stockItemId?: string
+  loaded?: boolean
+  returned?: boolean
 }
 
 export interface InventoryStockItem {
@@ -134,10 +137,26 @@ export interface InventoryStockItem {
   category: InventoryCategory
   quantity: number
   provider?: string
+  status?: InventoryStockStatus
   notes?: string
   createdAt: string
   updatedAt: string
   deletedAt: string | null
+}
+
+export interface InventoryKitItem {
+  name: string
+  quantity: number
+  category: InventoryCategory
+  stockItemId?: string
+}
+
+export interface InventoryKit {
+  id: string
+  name: string
+  items: InventoryKitItem[]
+  createdAt: string
+  updatedAt: string
 }
 
 export type InventoryFrequency = 'once'|'weekly'|'monthly'
@@ -146,6 +165,8 @@ export interface InventoryProgram {
   id: string
   name: string
   date: string
+  startTime?: string
+  endTime?: string
   frequency?: InventoryFrequency
   weekday?: number | null
   location: string
@@ -177,6 +198,10 @@ export interface ActivityEntry {
   sessionId?:string
   setlistId?:string
   setlistName?:string
+  inventoryStockItemId?:string
+  inventoryProgramId?:string
+  inventoryProvider?:string
+  inventoryDelta?:number
   restoreData?:ActivityRestoreData
   restoredAt?:string|null
   createdAt:string
