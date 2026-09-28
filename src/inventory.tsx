@@ -655,28 +655,59 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
           <input value={providerName} onChange={e=>setProviderName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createProvider()}} placeholder="Nouveau prestataire / stockage…"/>
           <button className="secondary" disabled={!providerName.trim()} onClick={()=>void createProvider()}><Plus/>Prestataire</button>
         </div>
+        <div className="stock-class-toolbar panel">
+          <span><b>Classes de matériel</b><small>{categories.length} classes · Accessoires inclus</small></span>
+          <div className="stock-class-chips">{categories.map(category=><button className={stockCategory===category.id?'active':''} key={category.id} onClick={()=>setStockCategory(category.id)}>{category.label}</button>)}</div>
+          <input value={newCategoryName} onChange={e=>setNewCategoryName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createCategory()}} placeholder="Nouvelle classe…"/>
+          <button className="secondary" disabled={!newCategoryName.trim()} onClick={()=>void createCategory()}><Plus/>Classe</button>
+        </div>
         <div className="stock-toolbar panel">
           <select value={stockCategory} onChange={e=>setStockCategory(e.target.value as InventoryCategory)}>
-            {CATEGORY_ORDER.map(category=><option value={category} key={category}>{CATEGORY_LABELS[category]}</option>)}
+            {categoryOrder.map(category=><option value={category} key={category}>{categoryLabel(category,categories)}</option>)}
           </select>
           <input value={stockName} onChange={e=>setStockName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void addStock()}} placeholder={'Ajouter chez '+stockProvider+'…'}/>
           <button className="primary" disabled={!stockName.trim()} onClick={()=>void addStock()}><Plus/>Ajouter</button>
         </div>
         <div className="inventory-category-stack planned-material-list">
-          {CATEGORY_ORDER.map(category=>{
+          {categoryOrder.map(category=>{
             const items=stock.filter(item=>normalizeProvider(item.provider)===stockProvider&&item.category===category)
-            return <CategorySection category={category} key={category} open={openCategories[category]} onToggle={()=>toggleCategory(category)} count={items.length}>
-              {items.map(item=><div className={'stock-row stock-row-with-status '+(item.quantity>0?'active':'empty-stock')} key={item.id}>
-                <b>{item.name}</b>
-                <select className={'stock-status-select status-'+(item.status??'available')} value={item.status??'available'} onChange={e=>void setStockStatus(item,e.target.value as InventoryStockStatus)}>
-                  {Object.entries(STOCK_STATUS_LABELS).map(([value,label])=><option value={value} key={value}>{label}</option>)}
-                </select>
-                <div className="compact-qty">
-                  <button disabled={item.quantity<=0} onClick={()=>void setStockQuantity(item,item.quantity-1)}><Minus/></button>
-                  <input type="number" min="0" max="999" inputMode="numeric" value={item.quantity} onChange={e=>void setStockQuantity(item,Number(e.target.value))}/>
-                  <button onClick={()=>void setStockQuantity(item,item.quantity+1)}><Plus/></button>
+            return <CategorySection category={category} label={categoryLabel(category,categories)} key={category} open={openCategories[category]??true} onToggle={()=>toggleCategory(category)} count={items.length}>
+              {items.map(item=><div className="stock-item-wrap" key={item.id}>
+                <div className={'stock-row stock-row-with-status stock-row-with-tech '+(item.quantity>0?'active':'empty-stock')}>
+                  <b>{item.name}</b>
+                  <select className={'stock-status-select status-'+(item.status??'available')} value={item.status??'available'} onChange={e=>void setStockStatus(item,e.target.value as InventoryStockStatus)}>
+                    {Object.entries(STOCK_STATUS_LABELS).map(([value,label])=><option value={value} key={value}>{label}</option>)}
+                  </select>
+                  <div className="compact-qty">
+                    <button disabled={item.quantity<=0} onClick={()=>void setStockQuantity(item,item.quantity-1)}><Minus/></button>
+                    <input type="number" min="0" max="999" inputMode="numeric" value={item.quantity} onChange={e=>void setStockQuantity(item,Number(e.target.value))}/>
+                    <button onClick={()=>void setStockQuantity(item,item.quantity+1)}><Plus/></button>
+                  </div>
+                  <button className={'bare-action tech-action '+(techDraft?.id===item.id?'active':'')} title="Caractéristiques et connectiques" onClick={()=>setTechDraft(current=>current?.id===item.id?null:{...item,characteristics:[...(item.characteristics??[])],ports:[...(item.ports??[])]})}><Settings2/></button>
+                  <button className="bare-action danger-icon compact-delete" aria-label={'Supprimer '+item.name} onClick={()=>void deleteStock(item)}><Trash2/></button>
                 </div>
-                <button className="bare-action danger-icon compact-delete" aria-label={'Supprimer '+item.name} onClick={()=>void deleteStock(item)}><Trash2/></button>
+                {techDraft?.id===item.id&&<div className="stock-tech-editor">
+                  <div className="stock-tech-head"><span><b>Caractéristiques · {item.name}</b><small>Décrivez les propriétés et les entrées/sorties utilisables dans les schémas.</small></span><button className="bare-action" onClick={()=>setTechDraft(null)}><X/></button></div>
+                  <div className="stock-tech-section">
+                    <div className="stock-tech-section-head"><b>Caractéristiques</b><button className="secondary" onClick={()=>setTechDraft({...techDraft,characteristics:[...(techDraft.characteristics??[]),{id:crypto.randomUUID(),label:'',value:''}]})}><Plus/>Champ</button></div>
+                    {(techDraft.characteristics??[]).map((characteristic,index)=><div className="stock-tech-pair" key={characteristic.id}>
+                      <input value={characteristic.label} onChange={e=>setTechDraft({...techDraft,characteristics:(techDraft.characteristics??[]).map((value,i)=>i===index?{...value,label:e.target.value}:value)})} placeholder="Ex. Entrées XLR"/>
+                      <input value={characteristic.value} onChange={e=>setTechDraft({...techDraft,characteristics:(techDraft.characteristics??[]).map((value,i)=>i===index?{...value,value:e.target.value}:value)})} placeholder="Ex. 18 × XLR(F)"/>
+                      <button className="bare-action danger-icon" onClick={()=>setTechDraft({...techDraft,characteristics:(techDraft.characteristics??[]).filter((_,i)=>i!==index)})}><Trash2/></button>
+                    </div>)}
+                  </div>
+                  <div className="stock-tech-section">
+                    <div className="stock-tech-section-head"><b>Connectiques / ports</b><button className="secondary" onClick={()=>setTechDraft({...techDraft,ports:[...(techDraft.ports??[]),{id:crypto.randomUUID(),label:'',connector:'XLR(F)',direction:'input',count:1}]})}><Plus/>Port</button></div>
+                    {(techDraft.ports??[]).map((port,index)=><div className="stock-port-row" key={port.id}>
+                      <input value={port.label} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,label:e.target.value}:value)})} placeholder="Ex. Entrées micro"/>
+                      <select value={port.connector} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,connector:e.target.value}:value)})}>{CONNECTOR_OPTIONS.map(value=><option value={value} key={value}>{value}</option>)}</select>
+                      <select value={port.direction} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,direction:e.target.value as InventoryPortDirection}:value)})}><option value="input">Entrée</option><option value="output">Sortie</option><option value="bidirectional">Bidirectionnel</option><option value="power">Alimentation</option></select>
+                      <input type="number" min="1" max="999" value={port.count} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,count:Math.max(1,Number(e.target.value)||1)}:value)})}/>
+                      <button className="bare-action danger-icon" onClick={()=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).filter((_,i)=>i!==index)})}><Trash2/></button>
+                    </div>)}
+                  </div>
+                  <div className="stock-tech-actions"><button className="secondary" onClick={()=>setTechDraft(null)}>Annuler</button><button className="primary" onClick={()=>void saveTechnicalDraft()}><Save/>Enregistrer</button></div>
+                </div>}
               </div>)}
             </CategorySection>
           })}
@@ -684,11 +715,11 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
       </>}
 
       {stockView==='global'&&<div className="global-stock-dashboard">
-        {CATEGORY_ORDER.map(category=>{
+        {categoryOrder.map(category=>{
           const rows=globalStock.filter(row=>row.category===category)
           if(!rows.length)return null
           return <section className="panel global-stock-category" key={category}>
-            <div className="global-stock-category-head"><b>{CATEGORY_LABELS[category]}</b><span>{rows.reduce((sum,row)=>sum+row.total,0)} unités</span></div>
+            <div className="global-stock-category-head"><b>{categoryLabel(category,categories)}</b><span>{rows.reduce((sum,row)=>sum+row.total,0)} unités</span></div>
             {rows.map(row=><div className="global-stock-row" key={category+'-'+row.name}>
               <div><b>{row.name}</b><small>{row.providers.length} stockage{row.providers.length>1?'s':''}</small></div>
               <div className="global-stock-providers">{row.providers.map(part=><span className={'provider-stock-chip status-'+part.status} key={part.id}><em>{part.provider}</em><b>{part.quantity}</b><small>{STOCK_STATUS_LABELS[part.status]}</small></span>)}</div>
