@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon-v10.svg'],
+      includeAssets: ['icon-approved.webp'],
       manifest: {
         name: "DI'ART by ARIZONA",
         short_name: "DI'ART",
@@ -19,12 +19,12 @@ export default defineConfig({
         start_url: './',
         scope: './',
         icons: [
-          { src: 'icon-v10.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }
+          { src: 'icon-approved.webp', sizes: '160x160', type: 'image/webp', purpose: 'any' }
         ]
       },
       workbox: {
         navigateFallback: 'index.html',
-        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,webp,ico}'],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true
