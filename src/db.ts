@@ -114,7 +114,7 @@ export async function getSetting(key: string, fallback = ''): Promise<string> {
 
 export async function createSetlist(name: string): Promise<Setlist> {
   const t = now()
-  const item: Setlist = { id:crypto.randomUUID(), name:name.trim() || 'Nouvelle setlist', songIds:[], notes:'', rehearsalNotes:{}, rehearsalIssues:{}, transitions:{}, createdAt:t, updatedAt:t, deletedAt:null }
+  const item: Setlist = { id:crypto.randomUUID(), name:name.trim() || 'Nouvelle setlist', songIds:[], notes:'', rehearsalNotes:{}, rehearsalIssues:{}, transitions:{}, isPublic:false, createdAt:t, updatedAt:t, deletedAt:null }
   await db.setlists.add(item)
   return item
 }
