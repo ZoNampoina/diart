@@ -229,3 +229,19 @@ export async function revokeUserDevices(user_id:string){return communityAdminAct
 export async function revokeDevice(device_id:string){return communityAdminAction('revoke_device',{device_id})}
 export async function restoreDevice(device_id:string){return communityAdminAction('restore_device',{device_id})}
 export async function trustDevice(device_id:string){return communityAdminAction('trust_device',{device_id})}
+
+export type DirectShareEntityType='song'|'artist'|'setlist'|'inventory'
+export interface DirectShareCreated {ok:boolean;code:string;entity_type:DirectShareEntityType;label:string;created_at:string}
+export interface DirectShareRedeemed {ok:boolean;entity_type:DirectShareEntityType;label:string;target_id:string;artist_name:string;imported_songs:number}
+async function directShareAction<T>(action:string,payload:Record<string,unknown>={}):Promise<T>{
+  const {data,error}=await supabase.functions.invoke('diart-direct-share',{body:{action,...payload}})
+  if(error)throw error
+  if(data?.error)throw new Error(String(data.error))
+  return data as T
+}
+export async function createDirectShare(entity_type:DirectShareEntityType,options:{entity_id?:string;artist_name?:string}={}){
+  return directShareAction<DirectShareCreated>('create_share',{entity_type,...options})
+}
+export async function redeemDirectShare(code:string){
+  return directShareAction<DirectShareRedeemed>('redeem_share',{code})
+}
