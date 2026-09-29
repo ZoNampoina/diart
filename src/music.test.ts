@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { duplicateKey, normalizeKey, parseBpm, parseDuration, parseTags, transposeKey, transposeChordText } from './music'
+import { duplicateKey, normalizeKey, parseBpm, parseChordLyricsText, parseDuration, parseTags, transposeKey, transposeChordText } from './music'
 
 describe('music utils', () => {
   it('normalizes keys', () => {
@@ -22,6 +22,37 @@ describe('music utils', () => {
     expect(transposeKey('C',3)).toBe('Eb')
     expect(transposeKey('F',3)).toBe('Ab')
     expect(transposeChordText('A# D# G#',0)).toBe('Bb Eb Ab')
+  })
+  it('removes chord placeholders from lyrics and spaces only musical sections', () => {
+    const parsed=parseChordLyricsText(`[Verse 1]
+Am                Dm
+Fly me to the moon
+
+Dm                G
+And let me play
+
+[Am]
+Among the stars
+
+[Chorus]
+F                 C
+Let me see what spring is like
+
+G                 Am
+On Jupiter and Mars`)
+    expect(parsed.lyrics).toBe(`[Verse 1]
+Fly me to the moon
+And let me play
+Among the stars
+
+[Chorus]
+Let me see what spring is like
+On Jupiter and Mars`)
+    expect(parsed.chords).toBe(`Am Dm
+Dm G
+Am
+F C
+G Am`)
   })
   it('parses tags and duplicate identity', () => {
     expect(parseTags('Worship; 6/8, Worship')).toEqual(['Worship','6/8'])
