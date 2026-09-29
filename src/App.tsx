@@ -17,7 +17,7 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 import { InventoryPage, InventoryProgramPage } from './inventory'
-import { AdminPage, CommunityPage, DiartAuthGate } from './community.tsx'
+import { AdminPage, CommunityPage, DiartAuthGate } from './community-ui'
 import { getOwnProfile, heartbeatCurrentDevice, registerCurrentDevice, type DiartProfile } from './community'
 
 const APP_VERSION='3.0.0'
