@@ -17,12 +17,15 @@ import { supabase, syncAll, signIn, signOut, signUp, getCloudStats, pullCloudToL
 import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 import { InventoryPage, InventoryProgramPage } from './inventory'
+import { AdminPage, CommunityPage, DiartAuthGate } from './community.tsx'
+import { getOwnProfile, heartbeatCurrentDevice, registerCurrentDevice, type DiartProfile } from './community'
 
-const APP_VERSION='2.16.0'
+const APP_VERSION='3.0.0'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
   ['authors','Auteurs',UserRound], ['favorites','Favoris',Heart], ['recent','Récents',BookOpen],
+  ['community','Mode public',Globe2], ['admin','Administration',ShieldCheck],
   ['setlists','Setlists',ListMusic], ['inventory','Inventaire',Boxes], ['recueils','Recueils',BookMarked], ['tools','Outils',Wrench], ['import','Importer',Import], ['backup','Sauvegarde',Download], ['history','Historique',History], ['shortcuts','Raccourcis',Keyboard], ['gestures','Gestes',Hand], ['about','À propos',Info], ['settings','Paramètres',Settings]
 ] as const
 
@@ -31,6 +34,7 @@ type Page = typeof navItems[number][0] | 'song' | 'edit' | 'new' | 'artist' | 'a
 const navGroupDefs = [
   {label:'Bibliothèque',ids:['dashboard','library','artists','authors','favorites','recent']},
   {label:'Organisation',ids:['setlists','inventory','recueils']},
+  {label:'Partage',ids:['community','admin']},
   {label:'Outils',ids:['tools','import','backup','history','shortcuts','gestures','about','settings']}
 ] as const
 type Toast = { id:number; text:string; action?:{label:string;run:()=>void} }
@@ -286,6 +290,9 @@ function App() {
   const [setlists,setSetlists]=useState<Setlist[]>([])
   const [userId,setUserId]=useState('')
   const [userEmail,setUserEmail]=useState('')
+  const [profile,setProfile]=useState<DiartProfile|null>(null)
+  const [authReady,setAuthReady]=useState(false)
+  const [accessNotice,setAccessNotice]=useState('')
   const [syncing,setSyncing]=useState(false)
   const [cloudStats,setCloudStats]=useState<{songs:number;setlists:number;programs:number;stock:number}|null>(null)
   const [lastSyncAt,setLastSyncAt]=useState('')
@@ -383,11 +390,52 @@ function App() {
     })
     void refreshSetlists()
   },[])
+  const loadIdentity=async()=>{
+    const {data}=await supabase.auth.getSession()
+    const u=data.session?.user
+    setUserId(u?.id??'');setUserEmail(u?.email??'')
+    if(!u){setProfile(null);setAuthReady(true);return}
+    try{
+      const registered=await registerCurrentDevice()
+      setProfile(registered.profile)
+      if(registered.profile?.status==='banned'||registered.device?.revoked_at){
+        setAccessNotice(registered.profile?.status==='banned'?'Ce compte a été suspendu par l’administrateur.':'Cet appareil a été déconnecté par l’administrateur.')
+        await supabase.auth.signOut({scope:'local'})
+        setUserId('');setUserEmail('');setProfile(null)
+      }
+    }catch{}
+    setAuthReady(true)
+  }
+  const reloadProfile=async()=>{try{setProfile(await getOwnProfile())}catch{}}
   useEffect(()=>{
-    void supabase.auth.getSession().then(({data})=>{const u=data.session?.user;setUserId(u?.id??'');setUserEmail(u?.email??'')})
-    const {data}=supabase.auth.onAuthStateChange((_event,session)=>{const u=session?.user;setUserId(u?.id??'');setUserEmail(u?.email??'')})
+    void loadIdentity()
+    const {data}=supabase.auth.onAuthStateChange((_event,session)=>{
+      const u=session?.user
+      setUserId(u?.id??'');setUserEmail(u?.email??'')
+      if(u)void registerCurrentDevice().then(r=>setProfile(r.profile)).catch(()=>{})
+      else setProfile(null)
+      setAuthReady(true)
+    })
     return()=>data.subscription.unsubscribe()
   },[])
+  useEffect(()=>{
+    if(!userId)return
+    let stopped=false
+    const check=async()=>{
+      try{
+        const state=await heartbeatCurrentDevice()
+        if(stopped)return
+        setProfile(state.profile)
+        if(!state.allowed){
+          setAccessNotice(state.reason==='banned'?'Ce compte a été suspendu par l’administrateur.':'Cet appareil a été déconnecté par l’administrateur.')
+          await supabase.auth.signOut({scope:'local'})
+        }
+      }catch{}
+    }
+    void check()
+    const timer=window.setInterval(()=>void check(),30000)
+    return()=>{stopped=true;window.clearInterval(timer)}
+  },[userId])
   useEffect(()=>{
     if(userId&&online){
       if(syncPrefsReady&&syncMode==='auto')scheduleSync(80)
@@ -577,6 +625,8 @@ function App() {
       if(p==='authors'||p==='author')return 'AUTEUR'
       if(p==='favorites')return 'FAVORIS'
       if(p==='recent')return 'RÉCENTS'
+      if(p==='community')return 'MODE PUBLIC'
+      if(p==='admin')return 'ADMINISTRATION'
       if(p==='setlists'||p==='setlist')return 'SETLISTS'
       if(p==='inventory'||p==='program')return 'INVENTAIRE'
       if(p==='recueils')return 'RECUEILS'
@@ -660,17 +710,21 @@ function App() {
     if(dx>=72&&dx>dy*1.35)setSidebar(true)
   }
 
+  if(!authReady)return <div className="diart-auth-loading"><RefreshCw/><span>DI’ART</span></div>
+  if(!userId)return <><DiartAuthGate onSignedIn={async()=>{setAccessNotice('');await loadIdentity()}}/>{accessNotice&&<div className="diart-access-notice">{accessNotice}</div>}</>
+
   return <div className="app-shell" onTouchStart={beginSidebarSwipe} onTouchMove={moveSidebarSwipe} onTouchEnd={endSidebarSwipe} onTouchCancel={()=>{sidebarSwipeRef.current=null}}>
     <aside className={`sidebar ${sidebar?'open':''}`}>
       <div className="sidebar-head"><button className="brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><span className="brand-mark"><img className="brand-logo logo-night" src="./logo-night-v2.png" alt=""/><img className="brand-logo logo-day" src="./logo-day-v2.png" alt=""/></span><div><b>DI'ART</b><small>by ARIZONA <span className="brand-version">v{APP_VERSION}</span></small></div></button><button className="icon-btn sidebar-theme-toggle" title={theme==='system'?'Thème système actif':'Revenir au thème système'} aria-label={theme==='system'?'Thème système actif':'Revenir au thème système'} onClick={()=>setTheme(theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark'):'system')}>{theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?<Sun/>:<Moon/>):theme==='dark'?<Sun/>:<Moon/>}</button></div>
-      <nav className="grouped-nav">{navGroupDefs.map(group=><div className="nav-group" key={group.label}><span className="nav-group-label">{group.label}</span>{group.ids.map(id=>{const item=navItems.find(x=>x[0]===id)!;const [,label,Icon]=item;return <button key={id} className={page===id?'active':''} onClick={()=>go(id)}><Icon size={19}/>{label}</button>})}</div>)}</nav>
-      <div className="sidebar-bottom">{online?<Wifi size={16}/>:<WifiOff size={16}/>} {online?'En ligne':'Hors connexion'}<small>Données locales IndexedDB</small></div>
+      <nav className="grouped-nav">{navGroupDefs.map(group=><div className="nav-group" key={group.label}><span className="nav-group-label">{group.label}</span>{group.ids.map(id=>{if(id==='admin'&&profile?.role!=='admin')return null;const item=navItems.find(x=>x[0]===id)!;const [,label,Icon]=item;return <button key={id} className={page===id?'active':''} onClick={()=>go(id)}><Icon size={19}/>{label}</button>})}</div>)}</nav>
+      <div className="sidebar-account"><UserRound/><span><b>{profile?.display_name||userEmail.split('@')[0]}</b><small>{profile?.role==='admin'?'Administrateur':'Compte personnel'}</small></span></div>
+      <div className="sidebar-bottom">{online?<Wifi size={16}/>:<WifiOff size={16}/>} {online?'En ligne':'Hors connexion'}<small>{userEmail}</small></div>
     </aside>
     {sidebar&&<div className="scrim" onClick={()=>setSidebar(false)}/>}
     <main className="main">
       <header className="topbar">
         <div className="topbar-leading"><button className="icon-btn menu-btn logo-menu-btn" onClick={()=>setSidebar(v=>!v)} aria-label="Ouvrir le menu DI'ART" title="Menu"><img className="menu-logo logo-night" src="./logo-night-v2.png" alt=""/><img className="menu-logo logo-day" src="./logo-day-v2.png" alt=""/></button><button type="button" className={'app-section-title '+(sectionMeta.back?'can-back':'')} onClick={()=>sectionMeta.back?.()} aria-label={sectionMeta.back?'Revenir à '+sectionMeta.label:sectionMeta.label}>{sectionMeta.back&&<ChevronLeft/>}<span>{sectionMeta.label}</span></button></div>
-        <div className="top-actions"><button className="primary global-create-btn" aria-label="Créer" title="Créer" onClick={()=>{setCreateMode('menu');setCreateName('')}}><Plus size={22}/></button></div>
+        <div className="top-actions"><div className="workspace-switch"><button className={page!=='community'?'active':''} onClick={()=>go('dashboard')}><UserRound/>Personnel</button><button className={page==='community'?'active':''} onClick={()=>go('community')}><Globe2/>Public</button></div><button className="primary global-create-btn" aria-label="Créer" title="Créer" onClick={()=>{setCreateMode('menu');setCreateName('')}}><Plus size={22}/></button></div>
       </header>
       <div className={`content page-transition-surface page-${page}`} key={page+':'+selectedArtist+':'+selectedAuthor+':'+selectedSetlistId+':'+(selected?.id??'')}>
         {page==='dashboard'&&<Dashboard songs={songs} artists={artists} authors={authors} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={s=>openSong(s,{page:'dashboard',label:'Accueil'})} onGo={go} onFav={fav} onRecueilSearch={query=>openRecueilSearch({title:query})}/>} 
@@ -681,10 +735,12 @@ function App() {
         {page==='author'&&selectedAuthor&&<AuthorDetailPage author={selectedAuthor} songs={songs.filter(s=>s.authorComposer.trim()===selectedAuthor)} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go('authors')} onOpen={s=>openSong(s,{page:'author',label:selectedAuthor})} onFav={fav} onAdd={()=>startNewSong('',selectedAuthor)}/>} 
         {page==='favorites'&&<SimpleSongs title="Favoris" songs={favoriteSongs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={s=>openSong(s,{page:'favorites',label:'Favoris'})} onFav={fav}/>} 
         {page==='recent'&&<SimpleSongs title="Récents" songs={recentSongs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={s=>openSong(s,{page:'recent',label:'Récents'})} onFav={fav}/>} 
+        {page==='community'&&<CommunityPage profile={profile} toast={toast} onImported={async()=>{await doSync(false);await refresh()}} onProfileChanged={reloadProfile}/>} 
+        {page==='admin'&&profile?.role==='admin'&&<AdminPage toast={toast}/>} 
         {page==='inventory'&&<InventoryPage onOpen={openProgram} onChanged={()=>scheduleSync(220)} toast={toast}/>} 
         {page==='program'&&selectedProgramId&&<InventoryProgramPage programId={selectedProgramId} onBack={()=>go('inventory')} onChanged={()=>scheduleSync(220)} toast={toast}/>} 
         {page==='setlists'&&<SetlistsPage songs={songs} setlists={setlists} refresh={refreshSetlists} refreshSongs={refresh} toast={toast} onOpenDetail={openSetlist} onOpenSong={(s,context)=>context?openSong(s,{page:'setlist',label:context.list.name,stageMode:context.mode,setlist:context.list}):openSong(s,{page:'setlists',label:'Setlists'})}/>} 
-        {page==='setlist'&&currentSetlist&&<SetlistDetailPage list={currentSetlist} songs={songs} refresh={refreshSetlists} refreshSongs={refresh} toast={toast} restoreY={setlistScrollY[currentSetlist.id]??0} onRememberPosition={y=>setSetlistScrollY(prev=>({...prev,[currentSetlist.id]:y}))} onBack={()=>go('setlists')} onOpenSong={(s,stageMode)=>openSong(s,{page:'setlist',label:currentSetlist.name,stageMode,setlist:currentSetlist})}/>} 
+        {page==='setlist'&&currentSetlist&&<SetlistDetailPage list={currentSetlist} songs={songs} refresh={refreshSetlists} refreshSongs={refresh} toast={toast} onChanged={()=>scheduleSync(160)} restoreY={setlistScrollY[currentSetlist.id]??0} onRememberPosition={y=>setSetlistScrollY(prev=>({...prev,[currentSetlist.id]:y}))} onBack={()=>go('setlists')} onOpenSong={(s,stageMode)=>openSong(s,{page:'setlist',label:currentSetlist.name,stageMode,setlist:currentSetlist})}/>} 
         {page==='song'&&selected&&<SongDetail song={songs.find(s=>s.id===selected.id)||selected} backLabel={songBack.label} setlists={setlists} refreshSetlists={refreshSetlists} refreshSongs={refresh} toast={toast} suppressOpenSetlistId={songBack.page==='setlist'?currentSetlist?.id:undefined} onBack={()=>go(songBack.page)} onEdit={()=>go('edit')} onQuickDelete={field=>void quickDeleteSongField(songs.find(s=>s.id===selected.id)||selected,field)} onArtist={name=>{setSelectedArtist(name);setPage('artist')}} onFav={()=>void fav(songs.find(s=>s.id===selected.id)||selected)} setlistKey={songBack.page==='setlist'&&setlistSongKeyDraft?.songId===selected.id?setlistSongKeyDraft.key:undefined} onSetlistKey={key=>{if(currentSetlist&&selected)setSetlistSongKeyDraft({listId:currentSetlist.id,songId:selected.id,key})}} setlistContext={songBack.page==='setlist'&&currentSetlist?{list:currentSetlist,songs:currentSetlist.songIds.map(id=>songs.find(s=>s.id===id)).filter(Boolean) as Song[],mode:songBack.stageMode}:undefined} onStageOpenSong={(s,mode)=>{if(currentSetlist)openSong(s,{page:'setlist',label:currentSetlist.name,stageMode:mode,setlist:currentSetlist})}} onRecueilSearch={prefill=>openRecueilSearch(prefill)} onLyricsSave={async lyrics=>{const id=selected.id;const updatedAt=new Date().toISOString();patchLocal(id,{lyrics,updatedAt});setSelected(prev=>prev&&prev.id===id?{...prev,lyrics,updatedAt}:prev);await updateSong(id,{lyrics});await recordActivity('update','Paroles modifiées','Paroles mises à jour depuis la fiche morceau',{songId:id,songTitle:selected.title});toast('Paroles enregistrées.')}} onDelete={async()=>{const id=selected.id;const title=selected.title;await softDeleteSong(id);removeLocal(id);await recordActivity('delete','Morceau supprimé',title,{songId:id,songTitle:title});toast('Morceau placé dans la corbeille',{label:'Annuler',run:async()=>{await db.songs.update(id,{deletedAt:null});await recordActivity('restore','Suppression annulée',title,{songId:id,songTitle:title});await refresh()}});go('library')}}/>}
         {(page==='new'||(page==='edit'&&selected))&&<SongForm initial={page==='edit'?selected:null} songs={songs} presetArtist={page==='new'?presetArtist:''} presetAuthor={page==='new'?presetAuthor:''} onCancel={()=>go(selected?'song':selectedArtist?'artist':selectedAuthor?'author':'library')} onSave={async draft=>{if(page==='edit'&&selected){await updateSong(selected.id,draft);const updatedAt=new Date().toISOString();const next={...selected,...draft,updatedAt};patchLocal(selected.id,{...draft,updatedAt});setSelected(next);await recordActivity('update','Morceau modifié',draft.title,{songId:selected.id,songTitle:draft.title});toast('Morceau mis à jour');go('song')}else{const s=await createSong(draft);addLocal(s);setSelected(s);await recordActivity('create','Morceau créé',s.title,{songId:s.id,songTitle:s.title});toast('Morceau ajouté');go('song')}}} onMergeDuplicate={async(draft,duplicate)=>{if(page==='edit'&&selected){const current:Song={...selected,...draft,updatedAt:new Date().toISOString()};await mergeSongs(current,duplicate);go('song')}else{const virtual:Song={...draft,id:'draft',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),lastViewedAt:null,deletedAt:null};const mergedDraft=mergeSongDraft(duplicate,virtual);await updateSong(duplicate.id,mergedDraft);const updatedAt=new Date().toISOString();patchLocal(duplicate.id,{...mergedDraft,updatedAt});setSelected({...duplicate,...mergedDraft,updatedAt});await recordActivity('merge','Doublon fusionné',`Les informations saisies ont été fusionnées dans « ${duplicate.title} »`,{songId:duplicate.id,songTitle:duplicate.title});toast('Fusion effectuée avec le morceau existant.');go('song')}}}/>}
         {page==='recueils'&&<RecueilsPage songs={songs} setlists={setlists} refreshSetlists={refreshSetlists} entryMode={recueilEntry} prefill={recueilPrefill} toast={toast} onImport={async draft=>{const s=await createSong(draft);addLocal(s);await recordActivity('import','Import depuis recueil',draft.title,{songId:s.id,songTitle:s.title,source:draft.referenceUrl||'Recueil'});return s}} onComplete={async(id,patch)=>{const old=songs.find(s=>s.id===id);await updateSong(id,patch);patchLocal(id,{...patch,updatedAt:new Date().toISOString()});await recordActivity('complete','Complétion depuis recueil',Object.keys(patch).join(', '),{songId:id,songTitle:old?.title,source:'Recueil'})}} onViewImported={s=>openSong(s,{page:'recueils',label:'Recueils'})} onEditImported={s=>{setSongBack({page:'recueils',label:'Recueils'});setSelected(s);setPage('edit')}}/>} 
@@ -1857,7 +1913,7 @@ function SetlistsPage({songs,setlists,refresh,refreshSongs,toast,onOpenDetail,on
   </>
 }
 
-function SetlistDetailPage({list,songs,refresh,refreshSongs,toast,restoreY,onRememberPosition,onBack,onOpenSong}:{list:Setlist;songs:Song[];refresh:()=>Promise<void>;refreshSongs:()=>Promise<void>;toast:(s:string)=>void;restoreY:number;onRememberPosition:(y:number)=>void;onBack:()=>void;onOpenSong:(s:Song,stageMode?:'rehearsal'|'live')=>void}) {
+function SetlistDetailPage({list,songs,refresh,refreshSongs,toast,onChanged,restoreY,onRememberPosition,onBack,onOpenSong}:{list:Setlist;songs:Song[];refresh:()=>Promise<void>;refreshSongs:()=>Promise<void>;toast:(s:string)=>void;onChanged:()=>void;restoreY:number;onRememberPosition:(y:number)=>void;onBack:()=>void;onOpenSong:(s:Song,stageMode?:'rehearsal'|'live')=>void}) {
   const [stage,setStage]=useState<'rehearsal'|'live'|null>(null)
   const [addOpen,setAddOpen]=useState(false)
   const [addMode,setAddMode]=useState<'song'|'artist'>('song')
@@ -1900,7 +1956,9 @@ function SetlistDetailPage({list,songs,refresh,refreshSongs,toast,restoreY,onRem
   const openTransition=(from:Song,to:Song)=>{const existing=list.transitions?.[transitionKey(from.id,to.id)];setTransitionPair({from,to});setTransitionNotes(existing?.notes??'');setTransitionBars(existing?.bars==null?'':String(existing.bars));setTransitionChords(existing?.chords??'')}
   const saveTransition=async()=>{if(!transitionPair)return;const y=rememberPosition();const key=transitionKey(transitionPair.from.id,transitionPair.to.id);const transitions={...(list.transitions??{})};if(!transitionNotes.trim()&&!transitionChords.trim()&&!transitionBars.trim())delete transitions[key];else transitions[key]={fromSongId:transitionPair.from.id,toSongId:transitionPair.to.id,notes:transitionNotes.trim(),bars:transitionBars.trim()?Math.max(1,Number(transitionBars)):null,chords:transitionChords.trim(),updatedAt:new Date().toISOString()};await updateSetlist(list.id,{transitions});await refresh();setTransitionPair(null);restorePosition(y);toast('Transition enregistrée.')}
 
-  return <><div className="stage-entry-dock" aria-label="Modes de scène"><div className="stage-entry-dock-actions"><button type="button" className="secondary" disabled={!listSongs.length} onClick={()=>{rememberPosition();setStage('rehearsal')}}><Play/>Répétition</button><button type="button" className="primary" disabled={!listSongs.length} onClick={()=>{rememberPosition();setStage('live')}}><Maximize2/>Live Mode</button></div></div>
+  const togglePublic=async()=>{await updateSetlist(list.id,{isPublic:!list.isPublic});await refresh();onChanged();toast(list.isPublic?'Setlist repassée en mode personnel.':'Setlist rendue publique.')}
+
+  return <><div className="stage-entry-dock" aria-label="Modes de scène"><div className="stage-entry-dock-actions"><button type="button" className={'secondary '+(list.isPublic?'active':'')} onClick={()=>void togglePublic()}><Globe2/>{list.isPublic?'Public':'Rendre public'}</button><button type="button" className="secondary" disabled={!listSongs.length} onClick={()=>{rememberPosition();setStage('rehearsal')}}><Play/>Répétition</button><button type="button" className="primary" disabled={!listSongs.length} onClick={()=>{rememberPosition();setStage('live')}}><Maximize2/>Live Mode</button></div></div>
   <section className="setlist-detail-hero" style={{minHeight:0}}><div className="setlist-detail-title"><span className="setlist-hero-icon"><ListMusic/></span><p className="eyebrow">Setlist</p><h1>{list.name}</h1><p>{listSongs.length} morceau{listSongs.length>1?'x':''} · {lyricsCount} avec paroles</p></div>{(totalSeconds>0||avgBpm!==null||lyricsCount>0)&&<div className="setlist-detail-metrics" role="list">{totalSeconds>0&&<div role="listitem"><span>Durée</span><b>{formatDuration(totalSeconds)}</b></div>}{avgBpm!==null&&<div role="listitem"><span>BPM moyen</span><b>{avgBpm}</b></div>}{lyricsCount>0&&<div role="listitem"><span>Paroles</span><b>{lyricsCount}/{listSongs.length}</b></div>}</div>}</section>
   <section className="panel setlist-manager"><div className="panel-title-row setlist-order-head"><h2>Ordre des morceaux</h2><button className="bare-action setlist-add-button" aria-label="Ajouter des morceaux" title="Ajouter des morceaux" onClick={()=>setAddOpen(true)}><ListPlus/></button></div><div className="setlist-detail-songs">{listSongs.length?listSongs.map((s,i)=><div className="setlist-detail-song" key={s.id}>{positionEdit?.songId===s.id?<input className="setlist-number setlist-position-input" type="number" inputMode="numeric" min={1} max={listSongs.length} value={positionEdit.value} autoFocus aria-label={`Nouvelle position de ${s.title}`} onFocus={e=>e.currentTarget.select()} onChange={e=>setPositionEdit({songId:s.id,value:e.target.value})} onBlur={e=>void moveToPosition(s.id,e.currentTarget.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.currentTarget.blur()}else if(e.key==='Escape'){e.preventDefault();setPositionEdit(null)}}}/>:<button type="button" className="setlist-number setlist-position-button" aria-label={`Changer la position de ${s.title}, actuellement ${i+1}`} title="Changer la position" onClick={e=>{e.preventDefault();e.stopPropagation();setPositionEdit({songId:s.id,value:String(i+1)})}}>{i+1}</button>}<button className="setlist-song-main" onClick={()=>{rememberPosition();onOpenSong(s)}}><b className="song-title-with-mark">{s.title}<SongLyricsMark song={s} compact/></b><small>{s.artist||'Artiste inconnu'}{s.bpm!==null?' · '+s.bpm+' BPM':''}</small></button><strong className={'setlist-song-key '+(!setlistSongDisplayKey(list,s)?'empty':'')} aria-hidden={!setlistSongDisplayKey(list,s)} title={setlistSongDisplayKey(list,s)?(setlistSongSavedTranspose(list,s)?`Transposition setlist ${formatSemitoneOffset(setlistSongSavedTranspose(list,s))}`:'Tonalité du morceau'):''}>{setlistSongDisplayKey(list,s)}{!s.originalKey&&s.personalKey&&setlistSongDisplayKey(list,s)&&<sup className="habitual-key-mark" title="Tonalité habituelle · tonalité originale non renseignée">★</sup>}{Boolean(setlistSongSavedTranspose(list,s))&&<small>{formatSemitoneOffset(setlistSongSavedTranspose(list,s))}</small>}</strong><div className="setlist-song-flags">{list.rehearsalNotes?.[s.id]&&<span>Notes</span>}{(list.rehearsalIssues?.[s.id]??[]).filter(issue=>!issue.resolvedAt).length>0&&<span className="issue-flag">{(list.rehearsalIssues?.[s.id]??[]).filter(issue=>!issue.resolvedAt).length} à revoir</span>}</div><div className="setlist-move-stack" role="group" aria-label={`Déplacer ${s.title}`}><button type="button" className="bare-action setlist-move-btn" disabled={i===0} aria-label={`Monter ${s.title} d’un cran`} title="Monter" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.preventDefault();e.stopPropagation();void move(s.id,-1)}}><ChevronUp/></button><button type="button" className="bare-action setlist-move-btn" disabled={i===listSongs.length-1} aria-label={`Descendre ${s.title} d’un cran`} title="Descendre" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.preventDefault();e.stopPropagation();void move(s.id,1)}}><ChevronDown/></button></div><button className="bare-action danger-icon setlist-remove-btn" aria-label="Retirer" onClick={()=>void remove(s.id)}><X/></button></div>):<Empty text="Cette setlist est vide."/>}</div></section>
   {configuredTransitions.length>0&&<section className="panel setlist-transitions"><div className="panel-title-row"><div><h2>Transitions</h2><small>Repères configurés entre les morceaux.</small></div></div><div className="transition-list">{configuredTransitions.map(({from,to,transition})=><button key={from.id+'-'+to.id} className="configured" onClick={()=>openTransition(from,to)}><span className="transition-route"><b>{from.title}</b><ChevronRight/><b>{to.title}</b></span><small>{transition.bars?transition.bars+' mesure'+(transition.bars>1?'s':'')+' · ':''}{transition.chords||transition.notes||'Transition configurée'}</small><Pencil/></button>)}</div></section>}
