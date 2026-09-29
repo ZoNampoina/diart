@@ -1,0 +1,78 @@
+export interface DiartRelease {
+  version:string
+  date:string
+  title:string
+  summary:string
+  highlights:string[]
+}
+
+export const DIART_RELEASES:DiartRelease[]=[
+  {
+    version:'3.0.1',
+    date:'29 septembre 2026',
+    title:'Partage et administration affinés',
+    summary:'Les fonctions communautaires deviennent plus souples et mieux intégrées au flux musical.',
+    highlights:[
+      'Durée des codes d’import définie par l’administrateur en jours, mois ou années.',
+      'Affichage ou masquage du mot de passe à la connexion.',
+      'Recherche Recueils accessible directement depuis l’ajout de morceaux d’une setlist.',
+      'Page À propos enrichie avec l’historique des grandes évolutions de DI’ART.'
+    ]
+  },
+  {
+    version:'3.0.0',
+    date:'29 septembre 2026',
+    title:'Comptes, mode public et administration',
+    summary:'DI’ART devient multi-utilisateur avec un espace personnel séparé d’un catalogue musical partagé.',
+    highlights:[
+      'Comptes DI’ART et association des appareils.',
+      'Séparation entre mode personnel et mode public avec synchronisation multi-appareils.',
+      'Catalogue public de morceaux avec attribution du contributeur.',
+      'Publication volontaire de setlists et inventaires, codes d’import, gestion des utilisateurs, appareils et historique administrateur.'
+    ]
+  },
+  {
+    version:'2.16',
+    date:'septembre 2026',
+    title:'Inventaire technique et installation',
+    summary:'L’inventaire évolue vers la préparation technique complète des prestations.',
+    highlights:[
+      'Caractéristiques techniques du matériel, ports, canaux et longueurs de câbles.',
+      'Programmes événementiels et préparation des besoins matériels.',
+      'Schémas d’installation, compatibilités et aide à la sélection du matériel.'
+    ]
+  },
+  {
+    version:'2.9',
+    date:'septembre 2026',
+    title:'Setlists, répétition et Live',
+    summary:'La setlist devient un véritable espace de préparation, de répétition et de scène.',
+    highlights:[
+      'Ordre des morceaux, tonalités et transpositions propres aux setlists.',
+      'Transitions, notes de répétition et points à revoir.',
+      'Modes Répétition et Live avec défilement, gestes tactiles et affichage plein écran.'
+    ]
+  },
+  {
+    version:'2.4',
+    date:'septembre 2026',
+    title:'Cloud, PWA et recherche unifiée',
+    summary:'DI’ART se structure comme une application installable et synchronisée.',
+    highlights:[
+      'Synchronisation cloud et gestion des conflits.',
+      'PWA adaptée à l’ordinateur, la tablette et le téléphone.',
+      'Recherche, imports, exports et sauvegardes renforcés.'
+    ]
+  },
+  {
+    version:'1.x',
+    date:'2026',
+    title:'Fondations de DI’ART',
+    summary:'Création de la bibliothèque musicale personnelle qui constitue le cœur de l’application.',
+    highlights:[
+      'Fiches morceaux, artistes, auteurs, tonalités, BPM, paroles et accords.',
+      'Favoris, récents, setlists et outils de transposition.',
+      'Recueils et premiers outils d’import de données musicales.'
+    ]
+  }
+]
