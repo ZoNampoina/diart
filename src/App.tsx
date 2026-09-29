@@ -21,7 +21,7 @@ import { AdminPage, CommunityPage, DiartAuthGate } from './community-ui'
 import { getOwnProfile, heartbeatCurrentDevice, prepareLocalAccount, registerCurrentDevice, type DiartProfile } from './community'
 import { DIART_RELEASES } from './releases'
 
-const APP_VERSION='3.0.1'
+const APP_VERSION='3.0.2'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
