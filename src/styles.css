@@ -10924,3 +10924,18 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
     width:100%;
   }
 }
+
+
+/* DI'ART 3.1.2 — branding visibility, compact setlist actions, resilient auth */
+.diart-auth-loading{background:radial-gradient(circle at 50% 35%,color-mix(in srgb,var(--accent) 12%,transparent),transparent 34%),var(--bg)}
+.diart-auth-loading-logo{width:96px;height:96px;border-radius:24px;overflow:hidden;display:grid;place-items:center;box-shadow:var(--shadow);border:1px solid var(--line);background:var(--surface)}
+.diart-auth-loading-logo img{grid-area:1/1;width:100%;height:100%;object-fit:cover}
+.diart-loading-spinner{width:26px;height:26px;border-radius:50%;border:3px solid color-mix(in srgb,var(--accent2) 22%,transparent);border-top-color:var(--accent2);animation:spin .85s linear infinite}
+.diart-auth-brand .brand-mark{width:58px;height:58px;border-radius:16px}
+.diart-auth-brand .brand-logo{width:100%;height:100%;object-fit:cover}
+.setlist-preview-actions{display:flex!important;justify-content:flex-end!important;grid-template-columns:none!important}
+.setlist-preview-actions .setlist-mode-icon{width:42px!important;min-width:42px!important;padding:0!important}
+.stage-entry-dock-actions .stage-action-icon{width:42px!important;min-width:42px!important;padding:0!important}
+@media(max-width:820px){
+  .stage-entry-dock-actions .stage-action-icon{width:38px!important;min-width:38px!important;height:38px!important;min-height:38px!important;padding:0!important}
+}

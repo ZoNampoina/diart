@@ -137,7 +137,9 @@ function devicePayload(userId:string){
 }
 
 export async function getOwnProfile():Promise<DiartProfile|null>{
-  const {data:{user}}=await supabase.auth.getUser()
+  const {data:{session},error:sessionError}=await supabase.auth.getSession()
+  if(sessionError)throw sessionError
+  const user=session?.user
   if(!user)return null
   const {data,error}=await supabase.from('diart_profiles').select('*').eq('user_id',user.id).maybeSingle()
   if(error)throw error
@@ -145,7 +147,9 @@ export async function getOwnProfile():Promise<DiartProfile|null>{
 }
 
 export async function registerCurrentDevice():Promise<{profile:DiartProfile|null;device:DiartDevice|null}>{
-  const {data:{user}}=await supabase.auth.getUser()
+  const {data:{session},error:sessionError}=await supabase.auth.getSession()
+  if(sessionError)throw sessionError
+  const user=session?.user
   if(!user)return {profile:null,device:null}
   const payload=devicePayload(user.id)
   const {data:device,error:deviceError}=await supabase.from('diart_devices').upsert(payload,{onConflict:'user_id,device_key'}).select('*').single()
@@ -158,8 +162,10 @@ export async function registerCurrentDevice():Promise<{profile:DiartProfile|null
 }
 
 export async function heartbeatCurrentDevice():Promise<{allowed:boolean;reason?:'banned'|'revoked';profile:DiartProfile|null;device:DiartDevice|null}>{
-  const {data:{user}}=await supabase.auth.getUser()
-  if(!user)return {allowed:false,profile:null,device:null}
+  const {data:{session},error:sessionError}=await supabase.auth.getSession()
+  if(sessionError)throw sessionError
+  const user=session?.user
+  if(!user)return {allowed:true,profile:null,device:null}
   const profile=await getOwnProfile()
   const key=deviceKey()
   const {data:device}=await supabase.from('diart_devices').select('*').eq('user_id',user.id).eq('device_key',key).maybeSingle()

@@ -44,7 +44,7 @@ export function DiartAuthGate({onSignedIn}:{onSignedIn:()=>Promise<void>}){
   return <div className="diart-auth-shell">
     <section className="diart-auth-card">
       <div className="diart-auth-brand">
-        <span className="brand-mark"><img className="brand-logo logo-night" src="./logo-night-v2.png" alt=""/><img className="brand-logo logo-day" src="./logo-day-v2.png" alt=""/></span>
+        <span className="brand-mark"><img className="brand-logo logo-night" src="./logo-night-v4.png" alt=""/><img className="brand-logo logo-day" src="./logo-day-v4.png" alt=""/></span>
         <div><b>DI’ART</b><small>by ARIZONA</small></div>
       </div>
       <div className="diart-auth-copy"><h1>Votre espace musical, sur tous vos appareils.</h1><p>Connectez cet appareil à votre compte DI’ART. Vos données personnelles restent privées ; le catalogue partagé est séparé.</p></div>

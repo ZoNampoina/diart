@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon-192-v3.png', 'icon-512-v3.png', 'logo-day-v3.png', 'logo-night-v3.png'],
+      includeAssets: ['icon-192-v4.png', 'icon-512-v4.png', 'logo-day-v4.png', 'logo-night-v4.png'],
       manifest: {
         name: "DI'ART by ARIZONA",
         short_name: "DI'ART",
@@ -19,8 +19,8 @@ export default defineConfig({
         start_url: './',
         scope: './',
         icons: [
-          { src: 'icon-192-v3.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: 'icon-512-v3.png', sizes: '512x512', type: 'image/png', purpose: 'any' }
+          { src: 'icon-192-v4.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512-v4.png', sizes: '512x512', type: 'image/png', purpose: 'any' }
         ]
       },
       workbox: {
