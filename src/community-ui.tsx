@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Ban, Check, CloudDownload, Copy, Globe2, KeyRound, ListMusic,
   LockKeyhole, MonitorSmartphone, RefreshCw, Search, ShieldCheck, ShieldOff, UserRound,
-  UsersRound, WifiOff, Boxes, Music2
+  UsersRound, WifiOff, Boxes, Music2, Eye, EyeOff, CalendarClock
 } from 'lucide-react'
 import { signIn, supabase } from './cloud'
+import { DIART_RELEASES } from './releases'
 import {
   banUser, fetchAdminOverview, fetchPublicInventory, fetchPublicSetlists, fetchPublicSongs,
   generateImportCode, importPublicSongToPersonal, redeemPublicImportCode, restoreDevice,
@@ -17,6 +18,7 @@ export function DiartAuthGate({onSignedIn}:{onSignedIn:()=>Promise<void>}){
   const [email,setEmail]=useState('')
   const [password,setPassword]=useState('')
   const [displayName,setDisplayName]=useState('')
+  const [showPassword,setShowPassword]=useState(false)
   const [busy,setBusy]=useState(false)
   const [message,setMessage]=useState('')
   const submit=async()=>{
@@ -50,7 +52,7 @@ export function DiartAuthGate({onSignedIn}:{onSignedIn:()=>Promise<void>}){
       <div className="diart-auth-form">
         {mode==='signup'&&<label><span>Nom affiché</span><input value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="Votre nom"/></label>}
         <label><span>Adresse e-mail</span><input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} placeholder="nom@exemple.com"/></label>
-        <label><span>Mot de passe</span><input type="password" autoComplete={mode==='login'?'current-password':'new-password'} value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void submit()}} placeholder="6 caractères minimum"/></label>
+        <label><span>Mot de passe</span><div className="diart-password-field"><input type={showPassword?'text':'password'} autoComplete={mode==='login'?'current-password':'new-password'} value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void submit()}} placeholder="6 caractères minimum"/><button type="button" className="diart-password-toggle" aria-label={showPassword?'Masquer le mot de passe':'Afficher le mot de passe'} title={showPassword?'Masquer':'Afficher'} onClick={()=>setShowPassword(v=>!v)}>{showPassword?<EyeOff/>:<Eye/>}</button></div></label>
         {message&&<p className="diart-auth-message">{message}</p>}
         <button className="primary diart-auth-submit" disabled={busy||!email.trim()||password.length<6} onClick={()=>void submit()}>{mode==='login'?<><LockKeyhole/>Associer cet appareil</>:<><UserRound/>Créer mon compte</>}</button>
       </div>
@@ -136,9 +138,11 @@ export function CommunityPage({profile,toast,onImported,onProfileChanged}:{profi
 
 export function AdminPage({toast}:{toast:(s:string)=>void}){
   const [data,setData]=useState<AdminOverview|null>(null)
-  const [tab,setTab]=useState<'overview'|'users'|'audit'|'codes'>('overview')
+  const [tab,setTab]=useState<'overview'|'users'|'audit'|'codes'|'versions'>('overview')
   const [busy,setBusy]=useState(false)
   const [email,setEmail]=useState('')
+  const [durationValue,setDurationValue]=useState('1')
+  const [durationUnit,setDurationUnit]=useState<'day'|'month'|'year'>('month')
   const [generated,setGenerated]=useState<{code:string;email:string;expires_at:string}|null>(null)
   const load=async()=>{
     setBusy(true)
@@ -149,9 +153,10 @@ export function AdminPage({toast}:{toast:(s:string)=>void}){
   useEffect(()=>{void load();const t=window.setInterval(()=>void load(),30000);return()=>window.clearInterval(t)},[])
   const act=async(fn:()=>Promise<unknown>,message:string)=>{setBusy(true);try{await fn();toast(message);await load()}catch(e){toast(e instanceof Error?e.message:'Action impossible.')}finally{setBusy(false)}}
   const makeCode=async()=>{
-    if(!email.trim())return
+    const value=Math.trunc(Number(durationValue))
+    if(!email.trim()||!Number.isFinite(value)||value<1)return
     setBusy(true)
-    try{const r=await generateImportCode(email);setGenerated(r);toast('Code généré.');await load()}
+    try{const r=await generateImportCode(email,value,durationUnit);setGenerated(r);toast('Code généré.');await load()}
     catch(e){toast(e instanceof Error?e.message:'Génération impossible.')}
     finally{setBusy(false)}
   }
@@ -163,6 +168,7 @@ export function AdminPage({toast}:{toast:(s:string)=>void}){
       <button className={tab==='users'?'active':''} onClick={()=>setTab('users')}>Utilisateurs</button>
       <button className={tab==='audit'?'active':''} onClick={()=>setTab('audit')}>Historique</button>
       <button className={tab==='codes'?'active':''} onClick={()=>setTab('codes')}>Codes</button>
+      <button className={tab==='versions'?'active':''} onClick={()=>setTab('versions')}>Évolutions</button>
       <button className="secondary" onClick={()=>void load()} disabled={busy}><RefreshCw/>Actualiser</button>
     </div>
     {tab==='overview'&&<div className="admin-stat-grid">
@@ -192,8 +198,9 @@ export function AdminPage({toast}:{toast:(s:string)=>void}){
       {!data?.audit?.length&&<p className="muted-copy">Aucune activité enregistrée.</p>}
     </section>}
     {tab==='codes'&&<>
-      <section className="panel admin-code-maker"><div><KeyRound/><span><b>Nouveau code d’import public</b><small>Un code actif par adresse. Expiration automatique après 14 jours.</small></span></div><div><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="utilisateur@exemple.com"/><button className="primary" disabled={busy||!email.trim()} onClick={()=>void makeCode()}><KeyRound/>Générer</button></div>{generated&&<div className="generated-code"><span>{generated.email}</span><b>{generated.code}</b><small>Expire le {new Date(generated.expires_at).toLocaleString('fr-FR')}</small><button className="secondary" onClick={()=>void copy(generated.code)}><Copy/>Copier</button></div>}</section>
-      <section className="panel admin-code-list">{(data?.codes??[]).map(row=><div className="admin-code-row" key={row.id}><span><b>{row.target_email}</b><small>Créé {new Date(row.created_at).toLocaleDateString('fr-FR')} · expire {new Date(row.expires_at).toLocaleDateString('fr-FR')}</small></span><strong>{row.used_at?'Utilisé':row.active?'Actif':'Désactivé'}</strong></div>)}</section>
+      <section className="panel admin-code-maker"><div><KeyRound/><span><b>Nouveau code d’import public</b><small>Un code actif par adresse. Vous choisissez sa durée de validité.</small></span></div><div className="admin-code-form"><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="utilisateur@exemple.com"/><div className="admin-code-duration"><input type="number" min="1" max="9999" inputMode="numeric" aria-label="Durée du code" value={durationValue} onChange={e=>setDurationValue(e.target.value)}/><select aria-label="Unité de durée" value={durationUnit} onChange={e=>setDurationUnit(e.target.value as 'day'|'month'|'year')}><option value="day">jour(s)</option><option value="month">mois</option><option value="year">année(s)</option></select></div><button className="primary" disabled={busy||!email.trim()||!Number.isFinite(Number(durationValue))||Number(durationValue)<1} onClick={()=>void makeCode()}><KeyRound/>Générer</button></div>{generated&&<div className="generated-code"><span>{generated.email}</span><b>{generated.code}</b><small>Valide jusqu’au {new Date(generated.expires_at).toLocaleString('fr-FR')}</small><button className="secondary" onClick={()=>void copy(generated.code)}><Copy/>Copier</button></div>}</section>
+      <section className="panel admin-code-list">{(data?.codes??[]).map(row=><div className="admin-code-row" key={row.id}><span><b>{row.target_email}</b><small>Créé {new Date(row.created_at).toLocaleDateString('fr-FR')} · valide jusqu’au {new Date(row.expires_at).toLocaleDateString('fr-FR')}</small></span><strong>{row.used_at?'Utilisé':row.active?'Actif':'Désactivé'}</strong></div>)}</section>
     </>}
+    {tab==='versions'&&<section className="panel admin-release-history"><div className="panel-title-row"><div><h2>Grandes évolutions de DI’ART</h2><small>Historique des étapes structurantes de l’application.</small></div><CalendarClock/></div><div className="release-history">{DIART_RELEASES.map(release=><article className="release-entry" key={release.version}><div className="release-version"><b>v{release.version}</b><small>{release.date}</small></div><div><h3>{release.title}</h3><p>{release.summary}</p><ul>{release.highlights.map(item=><li key={item}>{item}</li>)}</ul></div></article>)}</div></section>}
   </>
 }
