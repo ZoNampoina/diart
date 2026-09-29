@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   AlertTriangle, Archive, Boxes, BrainCircuit, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp,
   ClipboardCheck, Eye, History, ImageDown, LayoutGrid, Link2, Minus, Network, PackageCheck, PackagePlus,
-  PackageSearch, Plus, Repeat2, Save, Settings2, Trash2, Wifi, WifiOff, X
+  PackageSearch, Plus, Repeat2, Save, Settings2, Trash2, Wifi, WifiOff, X, Globe2
 } from 'lucide-react'
 import { db, logActivity } from './db'
 import { analyzeInventoryInstallationWithAI } from './cloud'
@@ -1478,6 +1478,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
       </div>
       <div className="program-head-actions">
         <button className={'secondary '+(overviewOpen?'active':'')} onClick={()=>setOverviewOpen(value=>!value)}><Eye/>{overviewOpen?'Fermer la vue':'Vue globale'}</button>
+        <button className={'secondary '+(program.isPublic?'active':'')} onClick={()=>void persist({isPublic:!program.isPublic}).then(()=>toast(program.isPublic?'Inventaire repassé en mode personnel.':'Inventaire rendu public.'))}><Globe2/>{program.isPublic?'Public':'Rendre public'}</button>
         <button className="secondary" disabled={exporting} onClick={()=>{
           setExporting(true)
           void exportTechnicalSheetImage(program,stock).then(()=>toast('Fiche technique exportée en image.')).catch(error=>toast(error instanceof Error?error.message:'Export impossible.')).finally(()=>setExporting(false))
