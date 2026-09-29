@@ -80,7 +80,7 @@ export async function prepareLocalAccount(userId:string):Promise<{needsPull:bool
   ])
   const hasPersonalData=songsCount+setlistsCount+programsCount+stockCount>0
   if(previous&&previous!==userId){
-    await db.transaction('rw',db.songs,db.setlists,db.activity,db.programs,db.inventoryStock,db.settings,async()=>{
+    await db.transaction('rw',[db.songs,db.setlists,db.activity,db.programs,db.inventoryStock,db.settings],async()=>{
       await Promise.all([db.songs.clear(),db.setlists.clear(),db.activity.clear(),db.programs.clear(),db.inventoryStock.clear(),db.settings.clear()])
     })
     try{localStorage.setItem(LOCAL_OWNER_STORAGE,userId)}catch{}
