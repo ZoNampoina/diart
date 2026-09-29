@@ -8,15 +8,15 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
-    version:'3.1.0',
+    version:'3.1.1',
     date:'29 septembre 2026',
-    title:'Partage direct par code',
-    summary:'DI’ART permet désormais d’envoyer directement un contenu précis à un autre utilisateur sans le rendre public.',
+    title:'Partage direct par code fixe',
+    summary:'Un même code peut maintenant être partagé avec plusieurs membres d’un groupe sans régénération.',
     highlights:[
-      'Partage par code à usage unique pour un morceau, un artiste, une setlist ou un inventaire.',
-      'Les setlists et inventaires incluent automatiquement les dépendances nécessaires lors du transfert.',
-      'Ajout de « Importer par code » dans le menu +.',
-      'Après import, DI’ART propose d’ouvrir immédiatement le morceau, l’artiste, la setlist ou l’inventaire reçu.'
+      'Code fixe et réutilisable pour un morceau, un artiste, une setlist ou un inventaire.',
+      'Le même code peut être transmis à plusieurs comptes DI’ART.',
+      'Une nouvelle utilisation par le même destinataire actualise sa copie au lieu de créer un doublon.',
+      'Les setlists et inventaires incluent automatiquement les dépendances nécessaires lors du transfert.'
     ]
   },
   {
