@@ -81,11 +81,34 @@ export function isChordLine(line:string):boolean{
   return musical.length>=1
 }
 
+function isSongSectionLine(line:string):boolean{
+  const raw=line.trim()
+  if(!raw)return false
+  const unwrapped=/^\[[^\]]+\]$/.test(raw)?raw.slice(1,-1).trim():raw
+  if(CHORD_TOKEN_RE.test(cleanChordToken(unwrapped)))return false
+  const label=unwrapped
+    .replace(/[:：]\s*$/,'')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase()
+    .replace(/[._]+/g,' ')
+    .replace(/\s+/g,' ')
+    .trim()
+  return /^(?:(?:couplet|strophe|verse|vers)\s*\d*[a-z]?|(?:refrain|ref|chorus)\s*\d*[a-z]?|(?:pre[- ]?(?:refrain|chorus))\s*\d*[a-z]?|(?:bridge|pont)\s*\d*[a-z]?|(?:intro|introduction|interlude|instrumental|solo|outro|postlude|coda|tag)\s*\d*[a-z]?)$/.test(label)
+}
+
 export function parseChordLyricsText(value:string):ParsedChordLyrics{
   const chordLyrics=String(value??'').replace(/\r/g,'').replace(/\u00a0/g,' ')
   const lyricLines:string[]=[]
   const chordLines:string[]=[]
   let chordLineCount=0
+
+  const pushLyricLine=(value:string)=>{
+    const text=value.trim()
+    if(!text)return
+    if(isSongSectionLine(text)&&lyricLines.length&&lyricLines[lyricLines.length-1]!=='')lyricLines.push('')
+    lyricLines.push(text)
+  }
 
   for(const sourceLine of chordLyrics.split('\n')){
     const line=sourceLine.replace(/[ \t]+$/,'')
@@ -96,8 +119,7 @@ export function parseChordLyricsText(value:string):ParsedChordLyrics{
       if(inlineChords.length&&inlineChords.every(chord=>CHORD_TOKEN_RE.test(cleanChordToken(chord)))){
         chordLines.push(inlineChords.join(' '))
         chordLineCount++
-        if(lyric)lyricLines.push(lyric)
-        else if(lyricLines.length&&lyricLines[lyricLines.length-1]!=='')lyricLines.push('')
+        if(lyric)pushLyricLine(lyric)
         continue
       }
     }
@@ -106,8 +128,7 @@ export function parseChordLyricsText(value:string):ParsedChordLyrics{
       chordLineCount++
       continue
     }
-    if(line.trim())lyricLines.push(line.trim())
-    else if(lyricLines.length&&lyricLines[lyricLines.length-1]!=='')lyricLines.push('')
+    pushLyricLine(line)
   }
 
   return {
