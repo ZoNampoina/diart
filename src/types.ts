@@ -112,6 +112,7 @@ export interface Setlist {
   rehearsalNotes?: Record<string,string>
   rehearsalIssues?: Record<string,RehearsalIssue[]>
   transitions?: Record<string,SetlistTransition>
+  isPublic?: boolean
   songOverrides?: Record<string,{key?:string;bpm?:number|null;notes?:string;transpose?:number;structure?:string;chords?:string;chordLyrics?:string;instrumentNotes?:string;musicianNotes?:Record<string,string>;lyrics?:string}>
   createdAt: string
   updatedAt: string
@@ -238,6 +239,7 @@ export interface InventoryProgram {
   notes: string
   items: InventoryMaterial[]
   installation?: InventoryInstallation
+  isPublic?: boolean
   createdAt: string
   updatedAt: string
   deletedAt: string | null
