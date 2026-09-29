@@ -231,8 +231,8 @@ export async function restoreDevice(device_id:string){return communityAdminActio
 export async function trustDevice(device_id:string){return communityAdminAction('trust_device',{device_id})}
 
 export type DirectShareEntityType='song'|'artist'|'setlist'|'inventory'
-export interface DirectShareCreated {ok:boolean;code:string;entity_type:DirectShareEntityType;label:string;created_at:string}
-export interface DirectShareRedeemed {ok:boolean;entity_type:DirectShareEntityType;label:string;target_id:string;artist_name:string;imported_songs:number}
+export interface DirectShareCreated {ok:boolean;code:string;entity_type:DirectShareEntityType;label:string;created_at:string;reused?:boolean}
+export interface DirectShareRedeemed {ok:boolean;entity_type:DirectShareEntityType;label:string;target_id:string;artist_name:string;imported_songs:number;updated_existing?:boolean}
 async function directShareAction<T>(action:string,payload:Record<string,unknown>={}):Promise<T>{
   const {data,error}=await supabase.functions.invoke('diart-direct-share',{body:{action,...payload}})
   if(error)throw error
