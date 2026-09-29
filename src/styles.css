@@ -10799,3 +10799,128 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
   .admin-device-row{grid-template-columns:24px 1fr}.admin-device-row>div{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr}.admin-device-row .compact{width:100%}
   .admin-audit-row{align-items:flex-start;flex-direction:column;gap:4px}.admin-code-maker .admin-code-form{grid-template-columns:1fr}.admin-code-duration{grid-template-columns:90px minmax(0,1fr)}.generated-code{grid-template-columns:1fr}.generated-code>button,.generated-code>small{grid-column:1;grid-row:auto}
 }
+
+
+/* DI'ART V3.1.0 — direct sharing by one-time code */
+.shareable-entity-heading{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:16px;
+}
+.entity-share-btn{
+  flex:none;
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.entity-share-btn svg{width:16px;height:16px}
+.direct-share-modal{
+  width:min(560px,calc(100vw - 28px));
+}
+.direct-share-import,
+.direct-share-import-success{
+  display:grid;
+  grid-template-columns:42px minmax(0,1fr);
+  gap:12px;
+  align-items:start;
+  padding:14px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:var(--surface2);
+}
+.direct-share-import>svg,
+.direct-share-import-success>svg{
+  width:24px;
+  height:24px;
+  color:var(--accent2);
+  margin-top:2px;
+}
+.direct-share-import b,
+.direct-share-import-success b{
+  display:block;
+}
+.direct-share-import p,
+.direct-share-import-success p{
+  margin:4px 0 0;
+  color:var(--muted);
+  line-height:1.5;
+}
+.direct-share-code-entry{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:8px;
+  margin-top:12px;
+}
+.direct-share-code-entry input{
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  font-weight:800;
+}
+.direct-share-loading{
+  min-height:130px;
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:10px;
+  color:var(--muted);
+}
+.direct-share-loading svg{
+  color:var(--accent2);
+  animation:spin 1s linear infinite;
+}
+.direct-share-ready{
+  display:grid;
+  grid-template-columns:44px minmax(0,1fr);
+  gap:12px;
+  align-items:center;
+  padding:16px;
+  border:1px solid color-mix(in srgb,var(--accent2) 40%,var(--line));
+  border-radius:15px;
+  background:color-mix(in srgb,var(--accent) 9%,var(--surface2));
+}
+.direct-share-ready>svg{
+  width:26px;
+  height:26px;
+  color:var(--accent2);
+}
+.direct-share-ready span,
+.direct-share-ready b,
+.direct-share-ready small{
+  display:block;
+}
+.direct-share-ready span{
+  color:var(--muted);
+  font-size:11px;
+}
+.direct-share-ready b{
+  margin-top:3px;
+  font-size:clamp(20px,5vw,27px);
+  letter-spacing:.08em;
+  overflow-wrap:anywhere;
+}
+.direct-share-ready small{
+  margin-top:4px;
+  color:var(--muted);
+}
+.direct-share-copy{
+  width:100%;
+  margin-top:10px;
+  justify-content:center;
+}
+@media(max-width:620px){
+  .shareable-entity-heading{
+    align-items:stretch;
+    flex-direction:column;
+  }
+  .entity-share-btn{
+    width:100%;
+    justify-content:center;
+  }
+  .direct-share-code-entry{
+    grid-template-columns:1fr;
+  }
+  .direct-share-code-entry button{
+    width:100%;
+  }
+}
