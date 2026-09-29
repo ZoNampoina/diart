@@ -1,4 +1,5 @@
 import { supabase } from './cloud'
+import { db } from './db'
 import type { InventoryProgram, Song, Setlist } from './types'
 
 export type DiartRole='user'|'admin'
@@ -69,6 +70,29 @@ export interface AdminOverview{
 }
 
 const DEVICE_KEY_STORAGE='diart-device-key-v1'
+const LOCAL_OWNER_STORAGE='diart-local-owner-v1'
+
+export async function prepareLocalAccount(userId:string):Promise<{needsPull:boolean;switched:boolean}>{
+  let previous=''
+  try{previous=localStorage.getItem(LOCAL_OWNER_STORAGE)||''}catch{}
+  const [songsCount,setlistsCount,programsCount,stockCount]=await Promise.all([
+    db.songs.filter(song=>song.source!=='demo').count(),db.setlists.count(),db.programs.count(),db.inventoryStock.count()
+  ])
+  const hasPersonalData=songsCount+setlistsCount+programsCount+stockCount>0
+  if(previous&&previous!==userId){
+    await db.transaction('rw',db.songs,db.setlists,db.activity,db.programs,db.inventoryStock,db.settings,async()=>{
+      await Promise.all([db.songs.clear(),db.setlists.clear(),db.activity.clear(),db.programs.clear(),db.inventoryStock.clear(),db.settings.clear()])
+    })
+    try{localStorage.setItem(LOCAL_OWNER_STORAGE,userId)}catch{}
+    return {needsPull:true,switched:true}
+  }
+  if(!previous){
+    try{localStorage.setItem(LOCAL_OWNER_STORAGE,userId)}catch{}
+    return {needsPull:!hasPersonalData,switched:false}
+  }
+  return {needsPull:false,switched:false}
+}
+
 function deviceKey(){
   try{
     let value=localStorage.getItem(DEVICE_KEY_STORAGE)
