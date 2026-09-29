@@ -1454,9 +1454,11 @@ function reviewDraftFromExternal(full:{title?:string;artist?:string;sourceUrl?:s
   draft.structure=full.structure||''
   draft.originalKey=normalizeKey(full.originalKey||'')
   draft.bpm=full.bpm??null
-  draft.chords=full.chords||''
-  draft.lyrics=normalizeImportedLyrics(full.lyrics||'')
-  draft.chordLyrics=String(full.chordLyrics||'').trim()||(draft.chords.trim()&&draft.lyrics.trim()?combineLyricsAndChords(draft.lyrics,draft.chords):'')
+  const rawChordLyrics=String(full.chordLyrics||'').trim()
+  const separated=rawChordLyrics?parseChordLyricsText(rawChordLyrics):null
+  draft.chords=separated?.chords.trim()||full.chords||''
+  draft.lyrics=separated?.lyrics.trim()||normalizeImportedLyrics(full.lyrics||'')
+  draft.chordLyrics=rawChordLyrics||(draft.chords.trim()&&draft.lyrics.trim()?combineLyricsAndChords(draft.lyrics,draft.chords):'')
   draft.referenceUrl=full.sourceUrl||fallback.url
   draft.notes='Source recueil : '+(full.source||'Externe')
   draft.source='import'
