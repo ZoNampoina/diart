@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { signIn, supabase } from './cloud'
 import { DIART_RELEASES } from './releases'
+import { DIART_LOGO_DAY, DIART_LOGO_NIGHT } from './brand'
 import {
   banUser, fetchAdminOverview, fetchPublicInventory, fetchPublicSetlists, fetchPublicSongs,
   generateImportCode, importPublicSongToPersonal, redeemPublicImportCode, restoreDevice,
@@ -44,7 +45,7 @@ export function DiartAuthGate({onSignedIn}:{onSignedIn:()=>Promise<void>}){
   return <div className="diart-auth-shell">
     <section className="diart-auth-card">
       <div className="diart-auth-brand">
-        <span className="brand-mark"><img className="brand-logo logo-night" src="./logo-selected-v6.jpg" alt=""/><img className="brand-logo logo-day" src="./logo-selected-v6.jpg" alt=""/></span>
+        <span className="brand-mark"><img className="brand-logo logo-night" src={DIART_LOGO_NIGHT} alt=""/><img className="brand-logo logo-day" src={DIART_LOGO_DAY} alt=""/></span>
         <div><b>DI’ART</b><small>by ARIZONA</small></div>
       </div>
       <div className="diart-auth-copy"><h1>Votre espace musical, sur tous vos appareils.</h1><p>Connectez cet appareil à votre compte DI’ART. Vos données personnelles restent privées ; le catalogue partagé est séparé.</p></div>
