@@ -18,7 +18,7 @@ import { parseChordPro } from './recueils'
 import { fetchTononkiraReference, searchTononkira, searchExternalRecueil, importExternalRecueil, type TononkiraSearchResult, type ExternalRecueilSource, type ExternalRecueilResult } from './catalog'
 import { InventoryPage, InventoryProgramPage } from './inventory'
 import { AdminPage, CommunityPage, DiartAuthGate } from './community-ui'
-import { getOwnProfile, heartbeatCurrentDevice, registerCurrentDevice, type DiartProfile } from './community'
+import { getOwnProfile, heartbeatCurrentDevice, prepareLocalAccount, registerCurrentDevice, type DiartProfile } from './community'
 
 const APP_VERSION='3.0.0'
 
@@ -393,17 +393,28 @@ function App() {
   const loadIdentity=async()=>{
     const {data}=await supabase.auth.getSession()
     const u=data.session?.user
-    setUserId(u?.id??'');setUserEmail(u?.email??'')
-    if(!u){setProfile(null);setAuthReady(true);return}
+    if(!u){setUserId('');setUserEmail('');setProfile(null);setAuthReady(true);return}
     try{
+      const local=await prepareLocalAccount(u.id)
+      if(local.needsPull&&navigator.onLine){
+        setSyncing(true)
+        try{
+          await pullCloudToLocal(u.id)
+          setLastSyncAt('')
+          await Promise.all([refresh(),refreshSetlists()])
+        }finally{setSyncing(false)}
+      }
       const registered=await registerCurrentDevice()
       setProfile(registered.profile)
       if(registered.profile?.status==='banned'||registered.device?.revoked_at){
         setAccessNotice(registered.profile?.status==='banned'?'Ce compte a été suspendu par l’administrateur.':'Cet appareil a été déconnecté par l’administrateur.')
         await supabase.auth.signOut({scope:'local'})
-        setUserId('');setUserEmail('');setProfile(null)
+        setUserId('');setUserEmail('');setProfile(null);setAuthReady(true);return
       }
-    }catch{}
+      setUserId(u.id);setUserEmail(u.email??'')
+    }catch{
+      setUserId(u.id);setUserEmail(u.email??'')
+    }
     setAuthReady(true)
   }
   const reloadProfile=async()=>{try{setProfile(await getOwnProfile())}catch{}}
@@ -411,10 +422,25 @@ function App() {
     void loadIdentity()
     const {data}=supabase.auth.onAuthStateChange((_event,session)=>{
       const u=session?.user
-      setUserId(u?.id??'');setUserEmail(u?.email??'')
-      if(u)void registerCurrentDevice().then(r=>setProfile(r.profile)).catch(()=>{})
-      else setProfile(null)
-      setAuthReady(true)
+      if(!u){setUserId('');setUserEmail('');setProfile(null);setAuthReady(true);return}
+      void (async()=>{
+        try{
+          const local=await prepareLocalAccount(u.id)
+          if(local.needsPull&&navigator.onLine){
+            await pullCloudToLocal(u.id)
+            setLastSyncAt('')
+            await Promise.all([refresh(),refreshSetlists()])
+          }
+          const registered=await registerCurrentDevice()
+          setProfile(registered.profile)
+          if(registered.profile?.status==='banned'||registered.device?.revoked_at){
+            setAccessNotice(registered.profile?.status==='banned'?'Ce compte a été suspendu par l’administrateur.':'Cet appareil a été déconnecté par l’administrateur.')
+            await supabase.auth.signOut({scope:'local'})
+            return
+          }
+        }catch{}
+        setUserId(u.id);setUserEmail(u.email??'');setAuthReady(true)
+      })()
     })
     return()=>data.subscription.unsubscribe()
   },[])
