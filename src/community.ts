@@ -221,7 +221,8 @@ export async function communityAdminAction<T=Record<string,unknown>>(action:stri
 }
 export async function redeemPublicImportCode(code:string){return communityAdminAction<{ok:boolean;imported:number}>('redeem_import',{code})}
 export async function fetchAdminOverview(){return communityAdminAction<AdminOverview>('overview')}
-export async function generateImportCode(email:string){return communityAdminAction<{ok:boolean;code:string;expires_at:string;email:string}>('generate_code',{email})}
+export type ImportCodeDurationUnit='day'|'month'|'year'
+export async function generateImportCode(email:string,duration_value:number,duration_unit:ImportCodeDurationUnit){return communityAdminAction<{ok:boolean;code:string;expires_at:string;email:string}>('generate_code',{email,duration_value,duration_unit})}
 export async function banUser(user_id:string){return communityAdminAction('ban_user',{user_id})}
 export async function unbanUser(user_id:string){return communityAdminAction('unban_user',{user_id})}
 export async function revokeUserDevices(user_id:string){return communityAdminAction('revoke_user_devices',{user_id})}
