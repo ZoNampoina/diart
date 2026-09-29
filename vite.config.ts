@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon-v7.svg'],
+      includeAssets: ['icon-v8.svg'],
       manifest: {
         name: "DI'ART by ARIZONA",
         short_name: "DI'ART",
@@ -19,7 +19,7 @@ export default defineConfig({
         start_url: './',
         scope: './',
         icons: [
-          { src: 'icon-v7.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }
+          { src: 'icon-v8.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }
         ]
       },
       workbox: {
