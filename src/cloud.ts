@@ -30,7 +30,7 @@ export async function signUp(email:string,password:string){
   return supabase.auth.signUp({email,password})
 }
 
-export async function signOut(){ return supabase.auth.signOut() }
+export async function signOut(){ return supabase.auth.signOut({scope:'local'}) }
 
 function newer(a:string|undefined|null,b:string|undefined|null){
   return (a??'')>(b??'')
