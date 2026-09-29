@@ -1080,7 +1080,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     </>}
   </>
 }
-export function InventoryProgramPage({programId,onBack,onChanged,toast}:{programId:string;onBack:()=>void;onChanged:()=>void;toast:(text:string)=>void}){
+export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:{programId:string;onBack:()=>void;onChanged:()=>void;toast:(text:string)=>void;onShare:()=>void}){
   const [program,setProgram]=useState<InventoryProgram|null>(null)
   const [programs,setPrograms]=useState<InventoryProgram[]>([])
   const [stock,setStock]=useState<InventoryStockItem[]>([])
@@ -1479,6 +1479,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast}:{program
       <div className="program-head-actions">
         <button className={'secondary '+(overviewOpen?'active':'')} onClick={()=>setOverviewOpen(value=>!value)}><Eye/>{overviewOpen?'Fermer la vue':'Vue globale'}</button>
         <button className={'secondary '+(program.isPublic?'active':'')} onClick={()=>void persist({isPublic:!program.isPublic}).then(()=>toast(program.isPublic?'Inventaire repassé en mode personnel.':'Inventaire rendu public.'))}><Globe2/>{program.isPublic?'Public':'Rendre public'}</button>
+        <button className="secondary" onClick={onShare}><Share2/>Partager</button>
         <button className="secondary" disabled={exporting} onClick={()=>{
           setExporting(true)
           void exportTechnicalSheetImage(program,stock).then(()=>toast('Fiche technique exportée en image.')).catch(error=>toast(error instanceof Error?error.message:'Export impossible.')).finally(()=>setExporting(false))
