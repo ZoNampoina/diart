@@ -369,6 +369,7 @@ function App() {
   }
   const recordActivity=async(kind:ActivityKind,label:string,details:string,meta:{songId?:string|null;songTitle?:string;source?:string;sessionId?:string;setlistId?:string;setlistName?:string;restoreData?:ActivityEntry['restoreData']}={})=>{
     await logActivity(kind,label,details,meta)
+    scheduleSync(220)
   }
   const forcePull=async()=>{
     if(!userId||!navigator.onLine||syncLockRef.current)return
@@ -541,7 +542,7 @@ function App() {
   const changeSyncMode=(mode:SyncMode)=>{setSyncMode(mode);void setSetting('syncMode',mode)}
   const changeSyncInterval=(minutes:SyncInterval)=>{setSyncIntervalMinutes(minutes);void setSetting('syncIntervalMinutes',String(minutes))}
   const createNamedArtist=()=>{const name=createName.trim();if(!name)return;startNewSong(name)}
-  const createNamedSetlist=async()=>{const name=createName.trim();if(!name)return;await createSetlist(name);await refreshSetlists();setCreateMode(null);setCreateName('');setPage('setlists');toast(`Setlist « ${name} » créée.`)}
+  const createNamedSetlist=async()=>{const name=createName.trim();if(!name)return;await createSetlist(name);await refreshSetlists();scheduleSync(220);setCreateMode(null);setCreateName('');setPage('setlists');toast(`Setlist « ${name} » créée.`)}
   const deleteSongs=async(items:Song[])=>{
     for(const song of items){await softDeleteSong(song.id);removeLocal(song.id);await recordActivity('delete','Morceau supprimé',song.title,{songId:song.id,songTitle:song.title})}
     toast(items.length>1?`${items.length} morceaux placés dans la corbeille.`:'Morceau placé dans la corbeille.')
