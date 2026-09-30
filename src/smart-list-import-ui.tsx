@@ -107,11 +107,11 @@ async function findExternal(row:SmartImportLine,songs:Song[]):Promise<ExternalDr
     return bestTononkiraDraft(row)
   }
   if(origin==='international')return bestExternalDraft('ultimate-guitar',row)
+  const international=await bestExternalDraft('ultimate-guitar',row)
+  if(international&&international.score>=82)return international
   const acoustic=await bestExternalDraft('acoustic-gasy',row)
   if(acoustic&&acoustic.score>=82)return acoustic
-  const international=await bestExternalDraft('ultimate-guitar',row)
-  if(international)return international
-  return acoustic
+  return international??acoustic
 }
 
 function statusMeta(row:SmartImportLine){
@@ -148,7 +148,8 @@ export function SmartListImportModal({mode,songs,targetSetlist,onClose,onDone,to
   const rematch=(row:SmartImportLine,title=row.title,artist=row.artist):SmartImportLine=>{
     const candidates=matchLocalSongs(title,artist,songs).slice(0,5),top=candidates[0]
     const origin=classifySongOrigin(title,artist,songs)
-    if(top&&top.score>=SMART_IMPORT_THRESHOLDS.auto&&trustStrong)return {...row,title,artist,candidates,status:'found',chosenSongId:top.songId,origin,manual:true}
+    const ambiguousTitleOnly=!artist.trim()&&candidates.filter(candidate=>candidate.score>=SMART_IMPORT_THRESHOLDS.auto).length>1
+    if(top&&top.score>=SMART_IMPORT_THRESHOLDS.auto&&trustStrong&&!ambiguousTitleOnly)return {...row,title,artist,candidates,status:'found',chosenSongId:top.songId,origin,manual:true}
     if(top&&top.score>=SMART_IMPORT_THRESHOLDS.confirm)return {...row,title,artist,candidates,status:'confirm',chosenSongId:undefined,origin,manual:true}
     return {...row,title,artist,candidates,status:'new',chosenSongId:undefined,origin,manual:true}
   }
@@ -240,10 +241,9 @@ export function SmartListImportModal({mode,songs,targetSetlist,onClose,onDone,to
       let setlistId:string|undefined,setlistLabel:string|undefined
       if(mode==='new-setlist'){
         const list=await createSetlist(setlistName.trim()||'Setlist importée')
-        const unique=orderedIds.filter((id,i)=>orderedIds.indexOf(id)===i)
-        await updateSetlist(list.id,{songIds:unique});setlistId=list.id;setlistLabel=list.name
+        await updateSetlist(list.id,{songIds:orderedIds});setlistId=list.id;setlistLabel=list.name
       }else if(mode==='append-setlist'&&targetSetlist){
-        const merged=[...targetSetlist.songIds,...orderedIds].filter((id,i,a)=>a.indexOf(id)===i)
+        const merged=[...targetSetlist.songIds,...orderedIds]
         await updateSetlist(targetSetlist.id,{songIds:merged});setlistId=targetSetlist.id;setlistLabel=targetSetlist.name
       }
       const sessionId=crypto.randomUUID()
