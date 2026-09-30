@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Song } from './types'
-import { parseSmartList, scoreSongMatch, stripListNumber } from './smart-list-import'
+import { classifySongOrigin, parseSmartList, scoreSongMatch, stripListNumber } from './smart-list-import'
 
 const song=(id:string,title:string,artist:string):Song=>({
   id,title,artist,authorComposer:'',originalKey:'',personalKey:'',bpm:null,timeSignature:'',style:'',
@@ -26,6 +26,11 @@ describe('Smart list import',()=>{
   it('fuzzy-matches punctuation, accents and partial artist names',()=>{
     const local=song('a','Fly me to moon','Sinatra')
     expect(scoreSongMatch('Fly Me To The Moon','Frank Sinatra',local)).toBeGreaterThanOrEqual(65)
+  })
+
+  it('does not classify a short international title from one weak Malagasy token',()=>{
+    expect(classifySongOrigin('Ho Hey','The Lumineers',[])).toBe('unknown')
+    expect(classifySongOrigin('Fitiavako','',[])).toBe('malagasy')
   })
 
   it('does not auto-select title-only collisions',()=>{
