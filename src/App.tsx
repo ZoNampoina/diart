@@ -23,7 +23,7 @@ import { createDirectShare, getOwnProfile, heartbeatCurrentDevice, prepareLocalA
 import { DIART_RELEASES } from './releases'
 import { DIART_LOGO_DAY, DIART_LOGO_NIGHT } from './brand'
 
-const APP_VERSION='3.4.2'
+const APP_VERSION='3.4.3'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],

@@ -2202,17 +2202,35 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
               const fromPort=(stockByNode(link.fromNodeId)?.ports??[]).find(port=>port.id===link.fromPort)
               const toPort=(stockByNode(link.toNodeId)?.ports??[]).find(port=>port.id===link.toPort)
               const kind=link.kind??installationLinkKind(link,program,stock)
-              return <div className={'installation-link-row detailed compatibility-'+(link.compatibility??'ok')+' link-kind-'+kind+(selectedSchemaLink===link.id?' selected':'')} key={link.id} onClick={e=>{if((e.target as HTMLElement).closest('input,select,button'))return;setSelectedSchemaLink(link.id);setSelectedSchemaNode('')}}>
-                <span>{index+1}</span>
-                <div className="link-endpoint"><b>{from?.name??'?'}</b><small>{fromPort?.connector??'auto'}{fromPort?.signalLevel?' · '+fromPort.signalLevel:''}</small></div>
-                <em>→</em>
-                <div className="link-endpoint"><b>{to?.name??'?'}</b><small>{toPort?.connector??'auto'}{toPort?.signalLevel?' · '+toPort.signalLevel:''}</small></div>
-                <label className="link-length-edit"><input type="number" min="0" step="0.5" value={link.lengthMeters??''} onChange={e=>updateInstallationLink(link.id,{lengthMeters:Number(e.target.value)>0?Number(e.target.value):undefined})}/><span>m</span></label>
-                <label className="link-kind-edit"><select value={kind??'unknown'} onChange={e=>updateInstallationLink(link.id,{kind:e.target.value as InstallationLink['kind']})}><option value="audio">Audio</option><option value="power">Alimentation</option><option value="network">Réseau</option><option value="midi">MIDI</option><option value="data">Données</option><option value="accessory">Accessoire</option><option value="unknown">Autre</option></select></label><span className="link-channel">{link.assignedChannel||'canal auto'}</span>
-                <span className="link-route-badge">{link.routeMode==='curve'?'Courbe':link.routeMode==='zigzag'?'Zigzag':'Droit'}</span><span className={'link-compat-badge '+(link.compatibility??'ok')}>{link.compatibility==='di'?'DI':link.compatibility==='phantom'?'48V':link.compatibility==='adapter'?'Adapt.':link.compatibility==='warning'?'À vérifier':'OK'}</span>
-                <button className="bare-action danger-icon" onClick={()=>removeInstallationLink(link.id)}><Trash2/></button>
-                {(link.compatibilityNotes?.length??0)>0&&<div className="link-compat-notes">{link.compatibilityNotes?.map((note,n)=><small key={n}>{note}</small>)}</div>}
-              </div>
+              const routeLabel=link.routeMode==='curve'?'Courbe':link.routeMode==='zigzag'?'Zigzag':'Droit'
+              const kindLabel=kind==='power'?'Alimentation':kind==='network'?'Réseau':kind==='midi'?'MIDI':kind==='data'?'Données':kind==='accessory'?'Accessoire':kind==='audio'?'Audio':'Autre'
+              const compatLabel=link.compatibility==='di'?'DI':link.compatibility==='phantom'?'48V':link.compatibility==='adapter'?'Adaptateur':link.compatibility==='warning'?'À vérifier':'Compatible'
+              return <article className={'installation-link-card compatibility-'+(link.compatibility??'ok')+' link-kind-'+kind+(selectedSchemaLink===link.id?' selected':'')} key={link.id} onClick={e=>{if((e.target as HTMLElement).closest('input,select,button'))return;setSelectedSchemaLink(link.id);setSelectedSchemaNode('')}}>
+                <header className="installation-link-card-head">
+                  <span className="installation-link-number">{index+1}</span>
+                  <div className="installation-link-title"><b>{kindLabel}</b><small>{link.assignedChannel||'Canal automatique'}</small></div>
+                  <div className="installation-link-badges"><span className={'link-kind-pill kind-'+kind}>{kindLabel}</span><span className="link-route-badge">{routeLabel}</span><span className={'link-compat-badge '+(link.compatibility??'ok')}>{compatLabel}</span></div>
+                  <button className="bare-action danger-icon installation-link-delete" aria-label="Supprimer la liaison" title="Supprimer" onClick={()=>removeInstallationLink(link.id)}><Trash2/></button>
+                </header>
+                <div className="installation-link-flow">
+                  <div className="link-endpoint source">
+                    <span className="link-endpoint-icon"><TechnicalIcon icon={fromPort?.icon} text={(fromPort?.connector??'')+' '+(from?.name??'')}/></span>
+                    <span><small>Source</small><b>{from?.name??'?'}</b><em>{fromPort?.label||fromPort?.connector||'Sortie auto'}{fromPort?.signalLevel?' · '+fromPort.signalLevel:''}</em></span>
+                  </div>
+                  <div className={'installation-link-path-preview mode-'+(link.routeMode??'straight')}><i/><ChevronRight/></div>
+                  <div className="link-endpoint target">
+                    <span className="link-endpoint-icon"><TechnicalIcon icon={toPort?.icon} text={(toPort?.connector??'')+' '+(to?.name??'')}/></span>
+                    <span><small>Destination</small><b>{to?.name??'?'}</b><em>{toPort?.label||toPort?.connector||'Entrée auto'}{toPort?.signalLevel?' · '+toPort.signalLevel:''}</em></span>
+                  </div>
+                </div>
+                <div className="installation-link-card-controls">
+                  <label><span>Type</span><select value={kind??'unknown'} onChange={e=>updateInstallationLink(link.id,{kind:e.target.value as InstallationLink['kind']})}><option value="audio">Audio</option><option value="power">Alimentation</option><option value="network">Réseau</option><option value="midi">MIDI</option><option value="data">Données</option><option value="accessory">Accessoire</option><option value="unknown">Autre</option></select></label>
+                  <label><span>Distance</span><div className="link-length-control"><input type="number" min="0" step="0.5" value={link.lengthMeters??''} onChange={e=>updateInstallationLink(link.id,{lengthMeters:Number(e.target.value)>0?Number(e.target.value):undefined})}/><em>m</em></div></label>
+                  <label><span>Trajet</span><select value={link.routeMode??'straight'} onChange={e=>setLinkRouteMode(link,e.target.value as 'straight'|'zigzag'|'curve')}><option value="straight">Droit</option><option value="zigzag">Zigzag</option><option value="curve">Courbe</option></select></label>
+                  <button className="secondary installation-link-edit-schema" onClick={()=>{setSelectedSchemaLink(link.id);setSelectedSchemaNode('');setInstallationView('schema')}}><Network/>Voir sur le schéma</button>
+                </div>
+                {(link.compatibilityNotes?.length??0)>0&&<div className="link-compat-notes">{link.compatibilityNotes?.map((note,n)=><small key={n}><AlertTriangle/>{note}</small>)}</div>}
+              </article>
             }):<div className="installation-empty">Aucune liaison définie.</div>}
           </div>
         </div>
