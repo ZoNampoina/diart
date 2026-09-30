@@ -609,7 +609,27 @@ function App() {
     toast(label+' supprimé.',{label:'Annuler',run:async()=>{await writeSongField(song,field,snapshot);await markActivityRestored(activity.id);await recordActivity('restore',label+' restauré','Restauration immédiate après suppression',{songId:song.id,songTitle:song.title});scheduleSync(200);toast(label+' restauré.')}})
   }
   const restoreDeletion=async(item:ActivityEntry):Promise<boolean>=>{
-    if(!item.songId||item.kind!=='delete'||item.restoredAt)return false
+    if(item.restoredAt)return false
+    if(item.restoreData?.kind==='list_import'){
+      const restore=item.restoreData
+      const activeLists=(await db.setlists.toArray()).filter(list=>!list.deletedAt)
+      if(restore.createdSetlist&&restore.setlistId)await updateSetlist(restore.setlistId,{deletedAt:new Date().toISOString()})
+      else if(restore.setlistId&&restore.previousSetlistSongIds)await updateSetlist(restore.setlistId,{songIds:[...restore.previousSetlistSongIds]})
+      let removed=0,retained=0
+      for(const id of restore.createdSongIds){
+        const usedElsewhere=activeLists.some(list=>list.id!==restore.setlistId&&list.songIds.includes(id))
+        if(usedElsewhere){retained++;continue}
+        const song=await db.songs.get(id)
+        if(song&&!song.deletedAt){await softDeleteSong(id);removed++}
+      }
+      await markActivityRestored(item.id)
+      await recordActivity('restore','Import de liste annulé',`${removed} morceau(x) importé(s) retiré(s)${retained?` · ${retained} conservé(s) car réutilisé(s) ailleurs`:''}`,{setlistId:restore.setlistId,setlistName:item.setlistName,source:'Historique'})
+      await Promise.all([refresh(),refreshSetlists()])
+      scheduleSync(200)
+      toast(retained?`Import annulé. ${retained} morceau(x) conservé(s) car utilisé(s) ailleurs.`:'Import annulé et état précédent restauré.')
+      return true
+    }
+    if(!item.songId||item.kind!=='delete')return false
     const song=await db.songs.get(item.songId)
     if(!song){toast('Restauration impossible : morceau introuvable.');return false}
     if(item.restoreData?.kind==='song_field'){
@@ -1904,7 +1924,7 @@ function HistoryPage({songs,onRestore}:{songs:Song[];onRestore:(item:ActivityEnt
   const topArtist=useMemo(()=>{const m=new Map<string,number>();songs.forEach(s=>{if(s.artist)m.set(s.artist,(m.get(s.artist)||0)+1)});return [...m.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'—'},[songs])
   const mostPlayed=useMemo(()=>{const m=new Map<string,number>();plays.forEach(p=>{if(p.songTitle)m.set(p.songTitle,(m.get(p.songTitle)||0)+1)});return [...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8)},[plays])
   return <><div className="history-tabs"><button className={tab==='activity'?'active':''} onClick={()=>setTab('activity')}><History/>Activité</button><button className={tab==='play'?'active':''} onClick={()=>setTab('play')}><Play/>Historique de jeu</button><button className={tab==='stats'?'active':''} onClick={()=>setTab('stats')}><BarChart3/>Statistiques</button></div>
-  {tab==='activity'&&<><div className="toolbar history-toolbar"><div className="searchbox"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Rechercher dans l’historique…"/>{q&&<button type="button" className="search-clear" onClick={()=>setQ('')}><X/></button>}</div><label className="select-wrap"><History/><select value={kind} onChange={e=>setKind(e.target.value)}><option value="">Toutes les actions</option>{Object.entries(labels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label></div><section className="panel history-panel">{filtered.length?<div className="history-list">{filtered.map(item=><article className="history-row" key={item.id}><span className={'history-kind '+item.kind}>{labels[item.kind]}</span><div><b>{item.label}</b>{item.songTitle&&<small>{item.songTitle}</small>}<p>{item.details}</p></div><div className="history-row-tail"><time>{new Date(item.createdAt).toLocaleString()}</time>{item.kind==='delete'&&item.songId&&(item.restoredAt?<span className="history-restored"><Check/>Restauré</span>:<button className="secondary history-restore-btn" disabled={restoringId===item.id} onClick={()=>void restoreItem(item)}><RotateCcw/>{restoringId===item.id?'Restauration…':'Restaurer'}</button>)}</div></article>)}</div>:<Empty text="Aucun événement dans l’historique."/>}</section></>}
+  {tab==='activity'&&<><div className="toolbar history-toolbar"><div className="searchbox"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Rechercher dans l’historique…"/>{q&&<button type="button" className="search-clear" onClick={()=>setQ('')}><X/></button>}</div><label className="select-wrap"><History/><select value={kind} onChange={e=>setKind(e.target.value)}><option value="">Toutes les actions</option>{Object.entries(labels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label></div><section className="panel history-panel">{filtered.length?<div className="history-list">{filtered.map(item=><article className="history-row" key={item.id}><span className={'history-kind '+item.kind}>{labels[item.kind]}</span><div><b>{item.label}</b>{item.songTitle&&<small>{item.songTitle}</small>}<p>{item.details}</p></div><div className="history-row-tail"><time>{new Date(item.createdAt).toLocaleString()}</time>{((item.kind==='delete'&&item.songId)||item.restoreData?.kind==='list_import')&&(item.restoredAt?<span className="history-restored"><Check/>Restauré</span>:<button className="secondary history-restore-btn" disabled={restoringId===item.id} onClick={()=>void restoreItem(item)}><RotateCcw/>{restoringId===item.id?'Restauration…':item.restoreData?.kind==='list_import'?'Annuler l’import':'Restaurer'}</button>)}</div></article>)}</div>:<Empty text="Aucun événement dans l’historique."/>}</section></>}
   {tab==='play'&&<section className="play-history">{playDays.length?playDays.map(([day,dayItems])=><article className="panel play-day" key={day}><div className="play-day-head"><h3>{day}</h3><span>{dayItems.length} morceau{dayItems.length>1?'x':''}</span></div>{dayItems.map(x=><div className="play-row" key={x.id}><Play/><span><b>{x.songTitle||x.label}</b><small>{x.setlistName||x.details}</small></span><time>{new Date(x.createdAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</time></div>)}</article>):<Empty text="Aucune session de jeu enregistrée."/>}</section>}
   {tab==='stats'&&<div className="personal-stats"><div className="stats-grid"><Metric label="Morceaux" value={songs.length}/><Metric label="BPM moyen" value={avgBpm||'—'}/><Metric label="Tonalité dominante" value={topKey}/><Metric label="Artiste principal" value={topArtist}/><Metric label="Sessions jouées" value={plays.length}/><Metric label="Favoris" value={songs.filter(s=>s.favorite).length}/></div><section className="panel"><h2>Morceaux les plus joués</h2>{mostPlayed.length?<div className="ranking-list">{mostPlayed.map(([title,count],i)=><div key={title}><span>{i+1}</span><b>{title}</b><strong>{count}×</strong></div>)}</div>:<p className="muted-copy">Les statistiques de jeu apparaîtront après vos premières sessions Live/Répétition.</p>}</section></div>}
   </>
