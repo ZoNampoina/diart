@@ -12906,3 +12906,115 @@ button.song-info-value.key.active{
   .installation-link-card-head{grid-template-columns:28px minmax(0,1fr) 30px}
   .installation-link-badges{grid-column:1/-1;justify-content:flex-start}
 }
+
+
+/* DI'ART 3.4.4 — Android stock fit + compact library import */
+@media(max-width:620px) and (pointer:coarse){
+  .stock-item-wrap{
+    width:100%!important;
+    min-width:0!important;
+    overflow:visible!important;
+  }
+  .stock-row-with-tech{
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+    display:grid!important;
+    grid-template-columns:30px minmax(0,1fr) 82px 86px 30px 30px!important;
+    gap:5px!important;
+    padding:7px!important;
+    overflow:visible!important;
+    box-sizing:border-box!important;
+    white-space:normal!important;
+  }
+  .stock-row-with-tech .stock-representation-icon{
+    width:30px!important;
+    height:30px!important;
+    border-radius:8px!important;
+  }
+  .stock-row-with-tech .stock-representation-icon .technical-icon{
+    width:17px!important;
+    height:17px!important;
+  }
+  .stock-row-with-tech>b{
+    min-width:0!important;
+    font-size:11px!important;
+    line-height:1.1!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+  }
+  .stock-row-with-tech .stock-status-select{
+    width:82px!important;
+    min-width:0!important;
+    max-width:82px!important;
+    height:31px!important;
+    min-height:31px!important;
+    padding:0 18px 0 6px!important;
+    font-size:8px!important;
+  }
+  .stock-row-with-tech .compact-qty{
+    width:86px!important;
+    min-width:86px!important;
+    grid-template-columns:26px 30px 26px!important;
+    gap:2px!important;
+  }
+  .stock-row-with-tech .compact-qty button{
+    width:26px!important;
+    min-width:26px!important;
+    height:30px!important;
+    min-height:30px!important;
+  }
+  .stock-row-with-tech .compact-qty input{
+    width:30px!important;
+    min-width:30px!important;
+    height:30px!important;
+    min-height:30px!important;
+    padding:0!important;
+    font-size:10px!important;
+  }
+  .stock-row-with-tech .tech-action,
+  .stock-row-with-tech .compact-delete{
+    width:30px!important;
+    min-width:30px!important;
+    height:30px!important;
+    min-height:30px!important;
+    padding:0!important;
+  }
+  .stock-row-with-tech .tech-action svg,
+  .stock-row-with-tech .compact-delete svg{
+    width:15px!important;
+    height:15px!important;
+  }
+
+  .import-library-submit{
+    width:42px!important;
+    min-width:42px!important;
+    height:42px!important;
+    min-height:42px!important;
+    padding:0!important;
+    display:grid!important;
+    place-items:center!important;
+  }
+  .import-library-submit>span{display:none!important}
+  .import-library-submit>svg{
+    width:19px!important;
+    height:19px!important;
+    margin:0!important;
+  }
+}
+@media(max-width:380px) and (pointer:coarse){
+  .stock-row-with-tech{
+    grid-template-columns:28px minmax(0,1fr) 74px 80px 28px 28px!important;
+    gap:4px!important;
+    padding:6px!important;
+  }
+  .stock-row-with-tech .stock-status-select{width:74px!important;max-width:74px!important;font-size:7px!important}
+  .stock-row-with-tech .compact-qty{
+    width:80px!important;
+    min-width:80px!important;
+    grid-template-columns:24px 28px 24px!important;
+  }
+  .stock-row-with-tech .compact-qty button{width:24px!important;min-width:24px!important}
+  .stock-row-with-tech .compact-qty input{width:28px!important;min-width:28px!important}
+}
