@@ -23,7 +23,7 @@ import { createDirectShare, getOwnProfile, heartbeatCurrentDevice, prepareLocalA
 import { DIART_RELEASES } from './releases'
 import { DIART_LOGO_DAY, DIART_LOGO_NIGHT } from './brand'
 
-const APP_VERSION='3.3.0'
+const APP_VERSION='3.3.1'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1096,7 +1096,7 @@ function SongDetail({song,backLabel,setlists,refreshSetlists,refreshSongs,toast,
     {song.instrumentNotes&&<SongCollapsibleSection title="Notes instrumentales" open={blockOpen('instrumentNotes')} onToggle={()=>toggleBlock('instrumentNotes')} actions={quickDelete('instrumentNotes')}><p className="performance-text">{song.instrumentNotes}</p></SongCollapsibleSection>}
     {Object.values(song.musicianNotes??{}).some(Boolean)&&<SongCollapsibleSection title="Notes par musicien" subtitle={Object.values(song.musicianNotes??{}).filter(v=>v?.trim()).length+' rôle(s)'} open={blockOpen('musicianNotes')} onToggle={()=>toggleBlock('musicianNotes')} actions={quickDelete('musicianNotes')}><div className="role-note-list">{Object.entries(song.musicianNotes??{}).filter(([,v])=>v?.trim()).map(([role,note])=><div key={role}><b>{role}</b><p>{note}</p></div>)}</div></SongCollapsibleSection>}
     <SongCollapsibleSection title="Paroles" subtitle={song.lyrics?song.lyrics.split('\n').filter(Boolean).length+' ligne(s)':'Aucune parole'} open={blockOpen('lyrics')} onToggle={()=>toggleBlock('lyrics')} className={song.lyrics?'lyrics-panel':'lyrics-panel lyrics-empty'} actions={<>{(song.lyricVersions?.length??0)>0&&<button className="secondary lyrics-history-button" onClick={()=>{const latest=song.lyricVersions?.[song.lyricVersions.length-1];setHistoryVersionId(latest?.id??'');setLyricsHistoryOpen(true)}}><History/>Historique · {song.lyricVersions?.length}</button>}<button className="bare-action lyrics-inline-action" aria-label={song.lyrics?'Modifier les paroles':'Ajouter des paroles'} title={song.lyrics?'Modifier les paroles':'Ajouter des paroles'} onClick={()=>{setLyricsDraft(song.lyrics??'');setEditingLyrics(true)}}><Pencil/></button>{song.lyrics&&quickDelete('lyrics')}</>}>{song.lyrics?<pre className="lyrics-text">{song.lyrics}</pre>:<div className="lyrics-missing-actions"><button className="lyrics-add-empty" onClick={()=>{setLyricsDraft('');setEditingLyrics(true)}}><Plus/>Ajouter manuellement</button><button className="secondary lyrics-recueil-search" onClick={()=>onRecueilSearch({title:song.title,artist:song.artist})}><BookMarked/>Rechercher dans les Recueils</button></div>}</SongCollapsibleSection>
-    <SongCollapsibleSection title="Outils musiciens" subtitle="Métronome et accordeur" open={blockOpen('tools')} onToggle={()=>toggleBlock('tools')} className="song-tools-section"><MusicianToolsPanel initialBpm={song.bpm??96} signature={song.timeSignature}/></SongCollapsibleSection>
+    <SongCollapsibleSection title="Outils musiciens" subtitle="Métronome et accordeur" open={blockOpen('tools')} onToggle={()=>toggleBlock('tools')} className="song-tools-section"><MusicianToolsPanel initialBpm={song.bpm??96} signature={song.timeSignature} compact/></SongCollapsibleSection>
     {(song.notes||song.referenceUrl)&&<SongCollapsibleSection title="Notes générales" open={blockOpen('notes')} onToggle={()=>toggleBlock('notes')}>{song.notes&&<div className="notes-row-with-delete"><p className="notes">{song.notes}</p>{quickDelete('notes')}</div>}{song.referenceUrl&&<div className="notes-row-with-delete"><a href={song.referenceUrl} target="_blank" rel="noreferrer">Ouvrir le lien de référence</a>{quickDelete('referenceUrl')}</div>}</SongCollapsibleSection>}
   </div>
   {lyricsHistoryOpen&&<Modal className="lyrics-history-modal" title="Historique des paroles" onClose={()=>setLyricsHistoryOpen(false)}>{(()=>{const versions=song.lyricVersions??[];const selectedVersion=versions.find(v=>v.id===historyVersionId)??versions[versions.length-1];const diff=selectedVersion?lyricLineDiff(selectedVersion.lyrics,song.lyrics??''):[];const changed=diff.filter(x=>x.kind!=='same').length;return <><div className="lyrics-history-layout"><div className="lyrics-version-list">{[...versions].reverse().map((v,i)=><button key={v.id} className={selectedVersion?.id===v.id?'active':''} onClick={()=>setHistoryVersionId(v.id)}><b>{v.label||'Version précédente'}</b><small>{new Date(v.createdAt).toLocaleString()} · {v.lyrics.split('\\n').filter(Boolean).length} lignes</small></button>)}</div>{selectedVersion&&<div className="lyrics-version-preview"><div className="lyrics-version-summary"><span>{changed} ligne{changed>1?'s':''} modifiée{changed>1?'s':''}</span><button className="secondary" onClick={()=>{setLyricsDraft(selectedVersion.lyrics);setLyricsHistoryOpen(false);setEditingLyrics(true)}}><RotateCcw/>Restaurer cette version</button></div><div className="lyric-diff">{diff.map((line,i)=><div className={'lyric-diff-line '+line.kind} key={i}><span>{line.kind==='add'?'+':line.kind==='remove'?'−':' '}</span><pre>{line.text||' '}</pre></div>)}</div></div>}</div></>})()}</Modal>}
@@ -1935,16 +1935,16 @@ function SettingsPage({theme,setTheme,songs,refresh,toast,userEmail,profile,onPr
 
 
 
-function MusicianToolsPanel({initialBpm=96,signature='4/4'}:{initialBpm?:number;signature?:string}){
+function MusicianToolsPanel({initialBpm=96,signature='4/4',compact=false}:{initialBpm?:number;signature?:string;compact?:boolean}){
   const [activeTool,setActiveTool]=useState<'metronome'|'tuner'>('metronome')
-  return <section className="musician-tools-suite panel">
-    <div className="musician-tools-suite-head">
+  return <section className={'musician-tools-suite panel '+(compact?'compact':'full')}>
+    {!compact&&<div className="musician-tools-suite-head">
       <div><span className="eyebrow">Outils musicaux</span><b>Métronome & Accordeur</b><small>Tempo, pulsation, détection et notes de référence.</small></div>
       <div className="musician-tools-switch" role="tablist" aria-label="Choisir un outil">
         <button type="button" role="tab" aria-selected={activeTool==='metronome'} className={activeTool==='metronome'?'active':''} onClick={()=>setActiveTool('metronome')}><Gauge/><span>Métronome</span></button>
         <button type="button" role="tab" aria-selected={activeTool==='tuner'} className={activeTool==='tuner'?'active':''} onClick={()=>setActiveTool('tuner')}><Mic/><span>Accordeur</span></button>
       </div>
-    </div>
+    </div>}
     <div className={'musician-tools-grid active-'+activeTool}>
       <div className="musician-tool-slot metronome-slot"><MetronomeCard initialBpm={initialBpm} signature={signature}/></div>
       <div className="musician-tool-slot tuner-slot"><TunerCard/></div>

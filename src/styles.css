@@ -11926,3 +11926,104 @@ button.song-info-value.key.active{
   .installation-version-manager{order:80}
   .installation-analysis{order:70}
 }
+
+
+/* DI'ART 3.3.1 — fix legacy metronome grid leakage and context sizing */
+.musician-tools-suite .musician-tool-card{
+  grid-template-columns:minmax(0,1fr)!important;
+  grid-auto-flow:row!important;
+  align-items:stretch!important;
+}
+.musician-tools-suite .metronome-card{
+  grid-template-columns:minmax(0,1fr)!important;
+}
+.musician-tools-suite .metronome-card>.musician-tool-heading,
+.musician-tools-suite .metronome-card>.metro-display,
+.musician-tools-suite .metronome-card>.metro-tempo-row,
+.musician-tools-suite .metronome-card>.metro-action-row{
+  grid-column:1/-1!important;
+  width:100%!important;
+  min-width:0!important;
+}
+.musician-tools-suite .metro-display{
+  justify-content:center!important;
+}
+.musician-tools-suite .metro-tempo-row{
+  display:grid!important;
+  grid-template-columns:38px minmax(0,1fr) 38px!important;
+}
+.musician-tools-suite .metro-action-row{
+  display:grid!important;
+  grid-template-columns:minmax(80px,.72fr) minmax(135px,1.28fr)!important;
+}
+.musician-tools-suite.full .musician-tool-card{
+  min-height:292px!important;
+}
+.musician-tools-suite.full .metronome-card.musician-tool-card .metro-display,
+.musician-tools-suite.full .tuner-card.musician-tool-card .tuner-display{
+  min-height:122px!important;
+}
+.musician-tools-suite.compact{
+  border:0!important;
+  background:transparent!important;
+  padding:0!important;
+  box-shadow:none!important;
+}
+.musician-tools-suite.compact .musician-tools-grid{
+  gap:8px!important;
+}
+.musician-tools-suite.compact .musician-tool-card{
+  min-height:250px!important;
+  padding:11px!important;
+  border-radius:13px!important;
+}
+.musician-tools-suite.compact .musician-tool-heading{
+  grid-template-columns:32px minmax(0,1fr) auto!important;
+  gap:7px!important;
+}
+.musician-tools-suite.compact .musician-tool-icon{
+  width:32px!important;
+  height:32px!important;
+  border-radius:10px!important;
+}
+.musician-tools-suite.compact .musician-tool-icon svg{
+  width:16px!important;height:16px!important;
+}
+.musician-tools-suite.compact .musician-tool-heading h3{font-size:13px!important}
+.musician-tools-suite.compact .musician-tool-heading small{font-size:8px!important}
+.musician-tools-suite.compact .tool-status-dot{font-size:8px!important;padding:3px 6px!important}
+.musician-tools-suite.compact .metronome-card.musician-tool-card .metro-display,
+.musician-tools-suite.compact .tuner-card.musician-tool-card .tuner-display{
+  min-height:105px!important;
+  padding:10px!important;
+}
+.musician-tools-suite.compact .metro-beat-ring{
+  width:88px!important;height:88px!important;
+}
+.musician-tools-suite.compact .metro-beat-ring strong{font-size:28px!important}
+.musician-tools-suite.compact .tuner-display strong{font-size:44px!important}
+.musician-tools-suite.compact .tuner-note-grid button{min-height:30px!important}
+.musician-tools-suite.compact .metro-action-row button,
+.musician-tools-suite.compact .tool-main-action{min-height:38px!important}
+@media(max-width:1050px){
+  .musician-tools-suite.full .musician-tools-grid{
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+  }
+  .musician-tools-suite.full .musician-tool-card{min-height:282px!important}
+}
+@media(max-width:820px){
+  .musician-tools-suite.full .musician-tools-switch{display:grid!important;grid-template-columns:1fr 1fr}
+  .musician-tools-suite.full .musician-tools-grid{display:block!important}
+  .musician-tools-suite.full .musician-tools-grid .musician-tool-slot{display:none}
+  .musician-tools-suite.full .musician-tools-grid.active-metronome .metronome-slot,
+  .musician-tools-suite.full .musician-tools-grid.active-tuner .tuner-slot{display:block}
+  .musician-tools-suite.full .musician-tool-card{min-height:0!important}
+}
+@media(max-width:680px){
+  .musician-tools-suite.compact .musician-tools-switch{display:grid!important;grid-template-columns:1fr 1fr}
+  .musician-tools-suite.compact .musician-tools-grid{display:block!important}
+  .musician-tools-suite.compact .musician-tools-grid .musician-tool-slot{display:none}
+  .musician-tools-suite.compact .musician-tools-grid.active-metronome .metronome-slot,
+  .musician-tools-suite.compact .musician-tools-grid.active-tuner .tuner-slot{display:block}
+  .musician-tools-suite.compact .musician-tool-card{min-height:0!important}
+}
