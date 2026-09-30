@@ -78,16 +78,30 @@ function normalizeStockItem(item:InventoryStockItem):InventoryStockItem{
 
 
 const TECH_ICON_OPTIONS:Array<{value:InventoryTechnicalIcon;label:string}>=[
-  {value:'auto',label:'Auto'},{value:'guitar',label:'Guitare'},{value:'bass',label:'Basse'},{value:'keyboard',label:'Piano / clavier'},
-  {value:'drums',label:'Batterie'},{value:'microphone',label:'Micro'},{value:'mixer',label:'Table / console'},{value:'speaker',label:'Baffle / enceinte'},
-  {value:'jack',label:'Jack 6,35'},{value:'minijack',label:'Mini-jack 3,5'},{value:'xlr',label:'XLR'},{value:'rca',label:'RCA'},
-  {value:'rj45',label:'RJ45'},{value:'usb',label:'USB'},{value:'midi',label:'MIDI'},{value:'power',label:'Alimentation'},
-  {value:'cable',label:'Câble'},{value:'adapter',label:'Adaptateur'},{value:'network',label:'Réseau'},{value:'generic',label:'Générique'}
+  {value:'auto',label:'Auto'},
+  {value:'guitar',label:'Guitare'},{value:'acoustic-guitar',label:'Guitare acoustique'},{value:'electric-guitar',label:'Guitare électrique'},{value:'bass',label:'Basse'},{value:'ukulele',label:'Ukulélé'},
+  {value:'keyboard',label:'Piano / clavier'},{value:'drums',label:'Batterie'},{value:'saxophone',label:'Saxophone'},{value:'trumpet',label:'Trompette'},{value:'flute',label:'Flûte'},{value:'violin',label:'Violon'},{value:'cello',label:'Violoncelle'},
+  {value:'microphone',label:'Micro'},{value:'mixer',label:'Table / console'},{value:'speaker',label:'Baffle / enceinte'},{value:'amplifier',label:'Ampli'},{value:'pedal',label:'Pédale / footswitch'},
+  {value:'headphones',label:'Casque'},{value:'inear',label:'In-ear'},{value:'stand',label:'Pied'},{value:'tripod',label:'Trépied'},{value:'musicstand',label:'Pupitre'},
+  {value:'dibox',label:'DI Box'},{value:'patchbay',label:'Patchbay'},{value:'stagebox',label:'Stagebox'},{value:'rack',label:'Rack'},{value:'case',label:'Flight case'},
+  {value:'laptop',label:'Ordinateur portable'},{value:'tablet',label:'Tablette'},{value:'phone',label:'Téléphone'},{value:'camera',label:'Caméra'},{value:'projector',label:'Projecteur'},
+  {value:'jack',label:'Jack 6,35'},{value:'trs',label:'Jack TRS'},{value:'ts',label:'Jack TS'},{value:'minijack',label:'Mini-jack 3,5'},{value:'xlr',label:'XLR'},{value:'rca',label:'RCA'},{value:'speakon',label:'Speakon'},
+  {value:'rj45',label:'RJ45'},{value:'usb',label:'USB-A'},{value:'usbc',label:'USB-C'},{value:'hdmi',label:'HDMI'},{value:'optical',label:'Optique / Toslink'},{value:'lightning',label:'Lightning'},{value:'midi',label:'MIDI'},
+  {value:'power',label:'Alimentation'},{value:'powerstrip',label:'Multiprise'},{value:'ups',label:'Onduleur'},{value:'charger',label:'Chargeur'},{value:'battery',label:'Batterie / pile'},
+  {value:'cable',label:'Câble'},{value:'adapter',label:'Adaptateur'},{value:'network',label:'Réseau'},{value:'router',label:'Routeur'},{value:'switch',label:'Switch réseau'},{value:'wifi',label:'Wi-Fi'},{value:'bluetooth',label:'Bluetooth'},
+  {value:'sdcard',label:'Carte SD'},{value:'harddrive',label:'Disque / SSD'},{value:'generic',label:'Générique'}
 ]
 
 function technicalIconFromText(text:string):InventoryTechnicalIcon{
   const value=text.toLowerCase()
   if(/mini.?jack|3[,.]5/.test(value))return 'minijack'
+  if(/speakon/.test(value))return 'speakon'
+  if(/\btrs\b/.test(value))return 'trs'
+  if(/\bts\b/.test(value))return 'ts'
+  if(/usb.?c|type.?c/.test(value))return 'usbc'
+  if(/hdmi/.test(value))return 'hdmi'
+  if(/toslink|optique|optical/.test(value))return 'optical'
+  if(/lightning/.test(value))return 'lightning'
   if(/xlr/.test(value))return 'xlr'
   if(/\brca\b/.test(value))return 'rca'
   if(/rj45|ethernet/.test(value))return 'rj45'
@@ -95,12 +109,30 @@ function technicalIconFromText(text:string):InventoryTechnicalIcon{
   if(/\bmidi\b/.test(value))return 'midi'
   if(/jack|6[,.]35/.test(value))return 'jack'
   if(/guitare basse|\bbasse\b/.test(value))return 'bass'
+  if(/guitare électrique|guitare electrique|electric guitar/.test(value))return 'electric-guitar'
+  if(/guitare acoustique|acoustic guitar/.test(value))return 'acoustic-guitar'
+  if(/ukul[eé]l[eé]/.test(value))return 'ukulele'
   if(/guitare/.test(value))return 'guitar'
+  if(/sax/.test(value))return 'saxophone'
+  if(/trompette|trumpet/.test(value))return 'trumpet'
+  if(/fl[uû]te|flute/.test(value))return 'flute'
+  if(/violoncelle|cello/.test(value))return 'cello'
+  if(/violon|violin/.test(value))return 'violin'
   if(/piano|clavier|keyboard|synth/.test(value))return 'keyboard'
   if(/batterie|drum|caisse|tom|cymbal/.test(value))return 'drums'
   if(/micro|mic\b/.test(value))return 'microphone'
+  if(/di box|dibox|direct box/.test(value))return 'dibox'
+  if(/stagebox|stage box/.test(value))return 'stagebox'
+  if(/patchbay|patch bay/.test(value))return 'patchbay'
   if(/table de mix|console|mixer|mr18|xr18/.test(value))return 'mixer'
+  if(/ampli|amplifier/.test(value))return 'amplifier'
   if(/baffle|enceinte|speaker|retour|monitor/.test(value))return 'speaker'
+  if(/casque|headphone/.test(value))return 'headphones'
+  if(/in.?ear|iem/.test(value))return 'inear'
+  if(/pupitre|music stand/.test(value))return 'musicstand'
+  if(/tr[eé]pied|tripod/.test(value))return 'tripod'
+  if(/pied|stand/.test(value))return 'stand'
+  if(/p[eé]dale|footswitch|pedal/.test(value))return 'pedal'
   if(/prise|alimentation|alim|secteur|onduleur|multiprise|iec/.test(value))return 'power'
   if(/routeur|répéteur|repeteur|wifi|réseau|network/.test(value))return 'network'
   if(/adaptateur|adapter|convertisseur/.test(value))return 'adapter'
@@ -131,6 +163,36 @@ function TechnicalIcon({icon,text='',className=''}:{icon?:InventoryTechnicalIcon
   if(kind==='network')return <svg {...common} className={'technical-icon '+className}><circle cx="16" cy="16" r="3"/><circle cx="6" cy="7" r="2"/><circle cx="26" cy="7" r="2"/><circle cx="6" cy="25" r="2"/><circle cx="26" cy="25" r="2"/><path d="M14 14 8 9M18 14l6-5M14 18l-6 5M18 18l6 5"/></svg>
   if(kind==='adapter')return <svg {...common} className={'technical-icon '+className}><path d="M4 10h9l3 3 3-3h9M4 22h9l3-3 3 3h9"/><path d="M7 7v6M25 7v6M7 19v6M25 19v6"/></svg>
   if(kind==='cable')return <svg {...common} className={'technical-icon '+className}><path d="M4 8h7v5H8v5a6 6 0 0 0 12 0v-4h-3l5-6 5 6h-3v4a10 10 0 0 1-20 0v-5H4z"/></svg>
+  if(kind==='saxophone')return <svg {...common} className={'technical-icon '+className}><path d="M20 4c-2 5-4 8-3 13 1 4 5 7 9 5 2-1 3-4 1-6-2-2-4 0-4 2"/><path d="M17 7h5M16 11h5M16 15h4M14 22c-3 3-7 4-10 1"/></svg>
+  if(kind==='trumpet')return <svg {...common} className={'technical-icon '+className}><path d="M3 14h14l8-5v14l-8-5H3z"/><path d="M9 10v4M12 10v4M15 10v4"/></svg>
+  if(kind==='flute')return <svg {...common} className={'technical-icon '+className}><path d="M4 18 26 9M7 17l-2-4M25 9l3 2"/><circle cx="11" cy="15" r="1"/><circle cx="16" cy="13" r="1"/><circle cx="21" cy="11" r="1"/></svg>
+  if(kind==='violin'||kind==='cello')return <svg {...common} className={'technical-icon '+className}><path d="M16 4v7c-5 1-7 4-5 7-2 3 0 7 5 8 5-1 7-5 5-8 2-3 0-6-5-7"/><path d="M13 15h6M16 26v4"/>{kind==='cello'&&<path d="M16 30v2"/>}</svg>
+  if(kind==='amplifier')return <svg {...common} className={'technical-icon '+className}><rect x="4" y="5" width="24" height="22" rx="2"/><circle cx="11" cy="17" r="5"/><circle cx="22" cy="17" r="3"/><path d="M8 9h2M13 9h2M18 9h2M23 9h2"/></svg>
+  if(kind==='pedal')return <svg {...common} className={'technical-icon '+className}><path d="M8 5h16l3 22H5z"/><circle cx="16" cy="20" r="4"/><path d="M11 10h10"/></svg>
+  if(kind==='headphones'||kind==='inear')return <svg {...common} className={'technical-icon '+className}><path d="M6 17v-3a10 10 0 0 1 20 0v3"/><rect x="4" y="16" width="6" height="10" rx="3"/><rect x="22" y="16" width="6" height="10" rx="3"/>{kind==='inear'&&<path d="M10 21c4 0 3 7 6 7s2-7 6-7"/>}</svg>
+  if(kind==='stand'||kind==='tripod'||kind==='musicstand')return <svg {...common} className={'technical-icon '+className}><path d="M16 5v18M16 23 8 30M16 23l8 7"/>{kind==='tripod'&&<path d="M16 23v7"/>}{kind==='musicstand'&&<path d="M8 5h16l-2 10H10z"/>}</svg>
+  if(kind==='dibox')return <svg {...common} className={'technical-icon '+className}><rect x="5" y="8" width="22" height="16" rx="3"/><path d="M9 16h5M18 12h5M18 16h5M18 20h5"/><circle cx="11" cy="16" r="2"/></svg>
+  if(kind==='patchbay'||kind==='stagebox')return <svg {...common} className={'technical-icon '+className}><rect x="3" y="7" width="26" height="18" rx="2"/><circle cx="8" cy="12" r="1.5"/><circle cx="14" cy="12" r="1.5"/><circle cx="20" cy="12" r="1.5"/><circle cx="26" cy="12" r="1.5"/><circle cx="8" cy="20" r="1.5"/><circle cx="14" cy="20" r="1.5"/><circle cx="20" cy="20" r="1.5"/><circle cx="26" cy="20" r="1.5"/></svg>
+  if(kind==='rack'||kind==='case')return <svg {...common} className={'technical-icon '+className}><rect x="6" y="3" width="20" height="26" rx="2"/><path d="M9 9h14M9 14h14M9 19h14M9 24h14"/>{kind==='case'&&<path d="M12 3V1h8v2M4 12h2M26 12h2"/>}</svg>
+  if(kind==='laptop')return <svg {...common} className={'technical-icon '+className}><rect x="6" y="5" width="20" height="15" rx="2"/><path d="M3 24h26l-3 3H6z"/></svg>
+  if(kind==='tablet'||kind==='phone')return <svg {...common} className={'technical-icon '+className}><rect x={kind==='phone'?10:7} y="3" width={kind==='phone'?12:18} height="26" rx="3"/><path d="M14 25h4"/></svg>
+  if(kind==='camera')return <svg {...common} className={'technical-icon '+className}><rect x="4" y="9" width="24" height="17" rx="3"/><circle cx="16" cy="17" r="5"/><path d="M10 9l2-4h8l2 4"/></svg>
+  if(kind==='projector')return <svg {...common} className={'technical-icon '+className}><rect x="4" y="9" width="24" height="15" rx="3"/><circle cx="21" cy="16" r="4"/><path d="M8 13h5M8 18h5M10 24v4M22 24v4"/></svg>
+  if(kind==='speakon')return <svg {...common} className={'technical-icon '+className}><circle cx="16" cy="16" r="11"/><path d="M11 10h6v5h4v7H11z"/><path d="M18 8l4 2-2 4"/></svg>
+  if(kind==='trs'||kind==='ts')return <svg {...common} className={'technical-icon '+className}><path d="M4 17h15l6-5V8h4v8l-7 6H4z"/><path d="M9 17v5M14 17v5"/>{kind==='trs'&&<path d="M19 13v8"/>}</svg>
+  if(kind==='usbc')return <svg {...common} className={'technical-icon '+className}><rect x="4" y="10" width="24" height="12" rx="6"/><path d="M10 16h12"/></svg>
+  if(kind==='hdmi')return <svg {...common} className={'technical-icon '+className}><path d="M5 11h22l-3 12H8z"/><path d="M10 15h12M11 19h10"/></svg>
+  if(kind==='optical')return <svg {...common} className={'technical-icon '+className}><rect x="6" y="6" width="20" height="20" rx="3"/><circle cx="16" cy="16" r="5"/><path d="M16 8v3M16 21v3M8 16h3M21 16h3"/></svg>
+  if(kind==='lightning')return <svg {...common} className={'technical-icon '+className}><path d="M18 2 8 18h7l-1 12 10-17h-7z"/></svg>
+  if(kind==='powerstrip')return <svg {...common} className={'technical-icon '+className}><rect x="4" y="10" width="24" height="12" rx="4"/><circle cx="9" cy="16" r="2"/><circle cx="16" cy="16" r="2"/><circle cx="23" cy="16" r="2"/></svg>
+  if(kind==='ups')return <svg {...common} className={'technical-icon '+className}><rect x="7" y="3" width="18" height="26" rx="3"/><path d="M11 8h10v6H11z"/><path d="m17 16-4 6h4l-2 5 5-7h-4z"/></svg>
+  if(kind==='charger')return <svg {...common} className={'technical-icon '+className}><rect x="9" y="8" width="14" height="14" rx="3"/><path d="M13 8V3M19 8V3M16 22v7"/><path d="m17 11-4 6h4l-2 4 5-6h-4z"/></svg>
+  if(kind==='battery')return <svg {...common} className={'technical-icon '+className}><rect x="5" y="9" width="22" height="14" rx="2"/><path d="M27 13h3v6h-3M10 16h5M12.5 13.5v5"/></svg>
+  if(kind==='router'||kind==='switch')return <svg {...common} className={'technical-icon '+className}><rect x="4" y="12" width="24" height="12" rx="3"/><path d="M8 18h2M13 18h2M18 18h2M23 18h2"/>{kind==='router'&&<path d="M9 12V5M23 12V5"/>}</svg>
+  if(kind==='wifi')return <svg {...common} className={'technical-icon '+className}><path d="M4 12a18 18 0 0 1 24 0M8 17a12 12 0 0 1 16 0M12 22a6 6 0 0 1 8 0"/><circle cx="16" cy="27" r="1.5" fill="currentColor"/></svg>
+  if(kind==='bluetooth')return <svg {...common} className={'technical-icon '+className}><path d="M15 3 24 11l-9 8V3zm0 16 9 8-9 2V19M8 9l16 14M8 23l16-14"/></svg>
+  if(kind==='sdcard')return <svg {...common} className={'technical-icon '+className}><path d="M9 3h14l5 5v21H4V8z"/><path d="M10 3v7M14 3v7M18 3v7M22 4v6"/></svg>
+  if(kind==='harddrive')return <svg {...common} className={'technical-icon '+className}><rect x="5" y="5" width="22" height="22" rx="3"/><circle cx="16" cy="15" r="6"/><circle cx="16" cy="15" r="1.5"/><path d="m20 19 4 4"/></svg>
   return <svg {...common} className={'technical-icon '+className}><rect x="5" y="5" width="22" height="22" rx="5"/><path d="M10 16h12M16 10v12"/></svg>
 }
 
@@ -1295,7 +1357,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
   const [selectedSchemaNode,setSelectedSchemaNode]=useState('')
   const [selectedSchemaLink,setSelectedSchemaLink]=useState('')
   const schemaPointerRef=useRef<{id:string;startX:number;startY:number;moved:boolean}|null>(null)
-  const schemaResizeRef=useRef<{id:string;startX:number;startY:number;width:number;height:number;axis:'both'|'x'|'y'}|null>(null)
+  const schemaResizeRef=useRef<{id:string;startX:number;startY:number;width:number;height:number;x:number;y:number;handle:'n'|'ne'|'e'|'se'|'s'|'sw'|'w'|'nw'}|null>(null)
   const schemaRotateRef=useRef<{id:string;cx:number;cy:number}|null>(null)
   const schemaRouteRef=useRef<{linkId:string;pointIndex:number}|null>(null)
   const [diagnosticNodeId,setDiagnosticNodeId]=useState('')
@@ -1652,11 +1714,20 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     const route=orthogonal?[{x:(a.x+b.x)/2,y:a.y},{x:(a.x+b.x)/2,y:b.y}]:[...(link.route??[]),{x:(a.x+b.x)/2,y:(a.y+b.y)/2}]
     updateInstallationLink(link.id,{route})
   }
-  const resizeInstallationNodeFromPointer=(state:{id:string;startX:number;startY:number;width:number;height:number;axis:'both'|'x'|'y'},clientX:number,clientY:number,commit=false)=>{
-    const patch:Partial<(typeof installation.nodes)[number]>={}
-    if(state.axis!=='y')patch.width=Math.max(52,state.width+(clientX-state.startX))
-    if(state.axis!=='x')patch.height=Math.max(48,state.height+(clientY-state.startY))
-    setInstallationNodeGeometry(state.id,patch,commit)
+  const resizeInstallationNodeFromPointer=(state:{id:string;startX:number;startY:number;width:number;height:number;x:number;y:number;handle:'n'|'ne'|'e'|'se'|'s'|'sw'|'w'|'nw'},clientX:number,clientY:number,commit=false)=>{
+    const dx=clientX-state.startX,dy=clientY-state.startY,minW=52,minH=48
+    let x=state.x,y=state.y,width=state.width,height=state.height
+    if(state.handle.includes('e'))width=Math.max(minW,state.width+dx)
+    if(state.handle.includes('s'))height=Math.max(minH,state.height+dy)
+    if(state.handle.includes('w')){
+      const wanted=state.width-dx
+      if(wanted>=minW){width=wanted;x=state.x+dx}else{width=minW;x=state.x+state.width-minW}
+    }
+    if(state.handle.includes('n')){
+      const wanted=state.height-dy
+      if(wanted>=minH){height=wanted;y=state.y+dy}else{height=minH;y=state.y+state.height-minH}
+    }
+    setInstallationNodeGeometry(state.id,{x,y,width,height},commit)
   }
   const setInstallationNodePosition=(id:string,x:number,y:number,commit=false)=>{
     if(!program)return
@@ -2046,8 +2117,8 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
                     onPointerDown={e=>{e.stopPropagation();const rect=e.currentTarget.parentElement?.getBoundingClientRect();if(!rect)return;schemaRotateRef.current={id:node.id,cx:rect.left+rect.width/2,cy:rect.top+rect.height/2};e.currentTarget.setPointerCapture(e.pointerId)}}
                     onPointerMove={e=>{const state=schemaRotateRef.current;if(!state||state.id!==node.id||!e.currentTarget.hasPointerCapture(e.pointerId))return;const angle=Math.round((Math.atan2(e.clientY-state.cy,e.clientX-state.cx)*180/Math.PI+90+360)%360);setInstallationNodeGeometry(node.id,{rotation:angle},false)}}
                     onPointerUp={e=>{const state=schemaRotateRef.current;if(state){const angle=Math.round((Math.atan2(e.clientY-state.cy,e.clientX-state.cx)*180/Math.PI+90+360)%360);setInstallationNodeGeometry(node.id,{rotation:angle},true)}schemaRotateRef.current=null;try{e.currentTarget.releasePointerCapture(e.pointerId)}catch{}}}><RotateCcw/></button>
-                  {(['x','y','both'] as const).map(axis=><button type="button" key={axis} className={'schema-resize-handle axis-'+axis} aria-label={axis==='x'?'Étirer horizontalement':axis==='y'?'Étirer verticalement':'Redimensionner librement'} title={axis==='x'?'Largeur':axis==='y'?'Hauteur':'Largeur + hauteur'}
-                    onPointerDown={e=>{e.stopPropagation();schemaResizeRef.current={id:node.id,startX:e.clientX,startY:e.clientY,width,height,axis};e.currentTarget.setPointerCapture(e.pointerId)}}
+                  {(['n','ne','e','se','s','sw','w','nw'] as const).map(handle=><button type="button" key={handle} className={'schema-resize-handle handle-'+handle} aria-label={'Redimensionner '+handle} title="Rogner / étirer"
+                    onPointerDown={e=>{e.stopPropagation();schemaResizeRef.current={id:node.id,startX:e.clientX,startY:e.clientY,width,height,x,y,handle};e.currentTarget.setPointerCapture(e.pointerId)}}
                     onPointerMove={e=>{const state=schemaResizeRef.current;if(!state||state.id!==node.id||!e.currentTarget.hasPointerCapture(e.pointerId))return;resizeInstallationNodeFromPointer(state,e.clientX,e.clientY,false)}}
                     onPointerUp={e=>{const state=schemaResizeRef.current;if(state)resizeInstallationNodeFromPointer(state,e.clientX,e.clientY,true);schemaResizeRef.current=null;try{e.currentTarget.releasePointerCapture(e.pointerId)}catch{}}}><span/></button>)}
                 </>}

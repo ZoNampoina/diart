@@ -23,7 +23,7 @@ import { createDirectShare, getOwnProfile, heartbeatCurrentDevice, prepareLocalA
 import { DIART_RELEASES } from './releases'
 import { DIART_LOGO_DAY, DIART_LOGO_NIGHT } from './brand'
 
-const APP_VERSION='3.4.0'
+const APP_VERSION='3.4.1'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -38,7 +38,8 @@ const navGroupDefs = [
   {label:'Bibliothèque',ids:['dashboard','library','artists','authors','favorites','recent']},
   {label:'Organisation',ids:['setlists','inventory','recueils']},
   {label:'Partage',ids:['community','admin']},
-  {label:'Outils',ids:['tools','import','backup','history','shortcuts','gestures','about','settings']}
+  {label:'Outils',ids:['tools','import','backup','shortcuts','gestures']},
+  {label:'À propos',ids:['history','settings','about']}
 ] as const
 type Toast = { id:number; text:string; action?:{label:string;run:()=>void} }
 type ShareTarget={entity_type:DirectShareEntityType;label:string;entity_id?:string;artist_name?:string}

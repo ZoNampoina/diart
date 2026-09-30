@@ -123,7 +123,7 @@ export type InventoryCategory = string
 export type InventoryStockStatus = 'available'|'reserved'|'in_use'|'repair'|'maintenance'|'unavailable'
 export type InventoryPortDirection = 'input'|'output'|'bidirectional'|'power'
 export type InventorySignalLevel = 'mic'|'line'|'instrument'|'speaker'|'digital'|'midi'|'power'|'unknown'
-export type InventoryTechnicalIcon = 'auto'|'guitar'|'bass'|'keyboard'|'drums'|'microphone'|'mixer'|'speaker'|'jack'|'minijack'|'xlr'|'rca'|'rj45'|'usb'|'midi'|'power'|'cable'|'adapter'|'network'|'generic'
+export type InventoryTechnicalIcon = 'auto'|'guitar'|'acoustic-guitar'|'electric-guitar'|'bass'|'ukulele'|'keyboard'|'drums'|'microphone'|'mixer'|'speaker'|'saxophone'|'trumpet'|'flute'|'violin'|'cello'|'amplifier'|'pedal'|'headphones'|'inear'|'stand'|'tripod'|'musicstand'|'dibox'|'patchbay'|'stagebox'|'rack'|'case'|'laptop'|'tablet'|'phone'|'camera'|'projector'|'jack'|'trs'|'ts'|'minijack'|'xlr'|'rca'|'speakon'|'rj45'|'usb'|'usbc'|'hdmi'|'optical'|'lightning'|'midi'|'power'|'powerstrip'|'ups'|'charger'|'battery'|'cable'|'adapter'|'network'|'router'|'switch'|'wifi'|'bluetooth'|'sdcard'|'harddrive'|'generic'
 export type InventoryPhantomMode = 'none'|'required'|'supported'|'blocked'
 
 export interface InventoryCharacteristic {
