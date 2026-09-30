@@ -219,6 +219,14 @@ export interface InstallationSuggestion {
   channelAssignment?: string
 }
 
+export interface InstallationSnapshot {
+  id: string
+  name: string
+  nodes: InstallationNode[]
+  links: InstallationLink[]
+  createdAt: string
+}
+
 export interface InventoryInstallation {
   nodes: InstallationNode[]
   links: InstallationLink[]
@@ -228,6 +236,7 @@ export interface InventoryInstallation {
   analysisMode?: 'local'|'ai'
   versionName?: string
   zones?: string[]
+  snapshots?: InstallationSnapshot[]
 }
 
 export type InventoryFrequency = 'once'|'weekly'|'monthly'

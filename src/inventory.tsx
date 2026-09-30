@@ -1136,6 +1136,9 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
   const [installationNodeName,setInstallationNodeName]=useState('')
   const [installationStockId,setInstallationStockId]=useState('')
   const [installationProvider,setInstallationProvider]=useState(DEFAULT_PROVIDER)
+  const [installationView,setInstallationView]=useState<'schema'|'list'|'patch'|'diagnostic'>('schema')
+  const [diagnosticNodeId,setDiagnosticNodeId]=useState('')
+  const [snapshotName,setSnapshotName]=useState('')
   const [linkFromNode,setLinkFromNode]=useState('')
   const [linkToNode,setLinkToNode]=useState('')
   const [linkFromPort,setLinkFromPort]=useState('')
@@ -1377,7 +1380,41 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     void persist({date,weekday})
   }
 
-  const installation=program?.installation??{nodes:[],links:[],suggestions:[],aiSummary:'',analysisMode:undefined,analyzedAt:undefined}
+  const installation=program?.installation??{nodes:[],links:[],suggestions:[],aiSummary:'',analysisMode:undefined,analyzedAt:undefined,snapshots:[]}
+  const installationNeeds=useMemo(()=>{
+    const counts=new Map<string,number>()
+    for(const node of installation.nodes)if(node.stockItemId)counts.set(node.stockItemId,(counts.get(node.stockItemId)??0)+1)
+    return Array.from(counts.entries()).map(([stockItemId,quantity])=>{
+      const item=stock.find(value=>value.id===stockItemId)
+      const available=program&&item?effectiveStockQuantity(item,program,programs):0
+      return {stockItemId,quantity,item,available,shortage:Math.max(0,quantity-available)}
+    })
+  },[installation.nodes,stock,program,programs])
+  const installationShortages=installationNeeds.filter(value=>value.shortage>0)
+  const electricalSummary=useMemo(()=>{
+    let knownWatts=0,knownDevices=0,powered=0
+    for(const node of installation.nodes){
+      const source=node.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
+      const isPowered=(source?.ports??[]).some(port=>port.direction==='power')||/alimentation|prise|onduleur|baffle|table|mr18|piano|clavier|répéteur|repeteur/i.test(node.name)
+      if(isPowered)powered++
+      const power=(source?.characteristics??[]).find(c=>/puissance|power|watt/i.test(c.label))
+      const watts=power?Number(String(power.value).replace(',','.').match(/[\d.]+/)?.[0]??0):0
+      if(watts>0){knownWatts+=watts;knownDevices++}
+    }
+    return {powered,knownWatts:Math.round(knownWatts),knownDevices,outlets:Math.max(1,powered)}
+  },[installation.nodes,stock])
+  const diagnosticChain=useMemo(()=>{
+    if(!diagnosticNodeId)return [] as string[]
+    const seen=new Set<string>(),order:string[]=[]
+    const walk=(id:string)=>{
+      if(seen.has(id))return
+      seen.add(id)
+      for(const link of installation.links.filter(link=>link.toNodeId===id))walk(link.fromNodeId)
+      order.push(id)
+    }
+    walk(diagnosticNodeId)
+    return order
+  },[diagnosticNodeId,installation.links])
   const stockByNode=(nodeId:string)=>{
     const node=installation.nodes.find(item=>item.id===nodeId)
     return node?.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
@@ -1421,6 +1458,37 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     void persist({installation:{...installation,nodes:[...installation.nodes,...nodes],links:[...installation.links,...links],suggestions:[]}})
     toast('Modèle '+(kind==='piano'?'Piano':kind==='drums'?'Batterie':'MR18 + réseau')+' ajouté.')
   }
+  const reserveInstallation=async()=>{
+    if(!program)return
+    if(installationShortages.length){toast(installationShortages.length+' matériel(s) insuffisant(s) dans le stock.');return}
+    let next=[...items]
+    for(const need of installationNeeds){
+      if(!need.item)continue
+      const existing=next.find(item=>item.stockItemId===need.stockItemId)
+      if(existing)next=next.map(item=>item.id===existing.id?{...item,quantity:Math.max(item.quantity,need.quantity),returned:false}:item)
+      else next.push({id:crypto.randomUUID(),name:need.item.name,category:need.item.category,quantity:need.quantity,stockItemId:need.stockItemId,loaded:false,returned:false})
+    }
+    await persist({items:next})
+    await logActivity('update','Installation réservée',program.name+' · '+installationNeeds.length+' référence(s)',{source:'inventory',inventoryProgramId:program.id})
+    toast('Matériels de l’installation réservés dans le programme.')
+  }
+  const saveInstallationSnapshot=async()=>{
+    if(!program)return
+    const stamp=now()
+    const name=snapshotName.trim()||'Plan '+((installation.snapshots?.length??0)+1)
+    const snapshot={id:crypto.randomUUID(),name,nodes:installation.nodes.map(node=>({...node})),links:installation.links.map(link=>({...link,compatibilityNotes:[...(link.compatibilityNotes??[])]})),createdAt:stamp}
+    await persist({installation:{...installation,snapshots:[...(installation.snapshots??[]),snapshot]}})
+    setSnapshotName('')
+    await logActivity('update','Version installation enregistrée',name,{source:'inventory',inventoryProgramId:program.id})
+    toast('Version « '+name+' » enregistrée.')
+  }
+  const restoreInstallationSnapshot=async(id:string)=>{
+    const snapshot=(installation.snapshots??[]).find(value=>value.id===id)
+    if(!snapshot)return
+    await persist({installation:{...installation,nodes:snapshot.nodes.map(node=>({...node})),links:snapshot.links.map(link=>({...link,compatibilityNotes:[...(link.compatibilityNotes??[])]})),suggestions:[],aiSummary:'',analysisMode:undefined,analyzedAt:undefined}})
+    toast('Version « '+snapshot.name+' » restaurée.')
+  }
+  const deleteInstallationSnapshot=(id:string)=>void persist({installation:{...installation,snapshots:(installation.snapshots??[]).filter(value=>value.id!==id)}})
   const removeInstallationNode=(id:string)=>{
     void persist({installation:{
       ...installation,
@@ -1618,7 +1686,29 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
         <span><b>Installation avancée</b><small>Schéma des équipements, liaisons et proposition automatique des matériels nécessaires.</small></span>
         <span className="installation-mode-badges"><em>{online?<><Wifi/>En ligne</>:<><WifiOff/>Hors ligne</>}</em>{installation.analysisMode&&<em>{installation.analysisMode==='ai'?'IA':'Local'}</em>}{installationOpen?<ChevronUp/>:<ChevronDown/>}</span>
       </button>
-      {installationOpen&&<div className="installation-advanced-body">
+      {installationOpen&&<div className={'installation-advanced-body install-mode-'+installationView}>
+        <div className="installation-workspace-toolbar">
+          <div className="installation-view-switch">
+            <button className={installationView==='schema'?'active':''} onClick={()=>setInstallationView('schema')}><Network/>Schéma</button>
+            <button className={installationView==='list'?'active':''} onClick={()=>setInstallationView('list')}><Boxes/>Liste</button>
+            <button className={installationView==='patch'?'active':''} onClick={()=>setInstallationView('patch')}><Link2/>Patch</button>
+            <button className={installationView==='diagnostic'?'active':''} onClick={()=>setInstallationView('diagnostic')}><Settings2/>Diagnostic</button>
+          </div>
+          <div className="installation-validation-actions">
+            <span className={installationShortages.length?'warning':'ok'}>{installationShortages.length?installationShortages.length+' manque(s) stock':'Stock compatible'}</span>
+            <button className="primary" disabled={!installation.nodes.length||installationShortages.length>0} onClick={()=>void reserveInstallation()}><PackageCheck/>Réserver l’installation</button>
+          </div>
+        </div>
+        <div className="installation-electrical-summary">
+          <div><b>{electricalSummary.powered}</b><span>appareils alimentés</span></div>
+          <div><b>{electricalSummary.outlets}</b><span>prises / départs à prévoir</span></div>
+          <div><b>{electricalSummary.knownWatts?electricalSummary.knownWatts+' W':'—'}</b><span>puissance connue ({electricalSummary.knownDevices})</span></div>
+          <div><b>{installation.links.filter(link=>(link.kind??installationLinkKind(link,program,stock))==='network').length}</b><span>liaisons réseau</span></div>
+        </div>
+        {installationView==='list'&&<div className="installation-list-view">{installation.nodes.length?installation.nodes.map((node,index)=>{const source=stockByNode(node.id);const need=node.stockItemId?installationNeeds.find(value=>value.stockItemId===node.stockItemId):undefined;return <article key={node.id}><span>{index+1}</span><div><b>{node.name}</b><small>{node.zone??'Scène'} · {source?normalizeProvider(source.provider)+' · '+categoryLabel(source.category,categories):'Équipement libre'}</small></div>{need&&<em className={need.shortage?'warning':'ok'}>{need.shortage?'manque '+need.shortage:'dispo '+need.available}</em>}</article>}):<div className="installation-empty">Aucun équipement.</div>}</div>}
+        {installationView==='patch'&&<div className="installation-patch-view">{installation.links.length?installation.links.map((link,index)=>{const from=installation.nodes.find(node=>node.id===link.fromNodeId),to=installation.nodes.find(node=>node.id===link.toNodeId);const kind=link.kind??installationLinkKind(link,program,stock);return <article key={link.id}><span>{index+1}</span><b>{link.assignedChannel||'Auto'}</b><div>{from?.name??'?'} <em>→</em> {to?.name??'?'}</div><small>{kind}{link.lengthMeters?' · '+link.lengthMeters+' m':''}</small></article>}):<div className="installation-empty">Aucune liaison dans le patch.</div>}</div>}
+        {installationView==='diagnostic'&&<div className="installation-diagnostic-view"><div className="installation-diagnostic-picker"><label>Équipement à diagnostiquer<select value={diagnosticNodeId} onChange={e=>setDiagnosticNodeId(e.target.value)}><option value="">Choisir…</option>{installation.nodes.map(node=><option value={node.id} key={node.id}>{node.name}</option>)}</select></label></div>{diagnosticNodeId&&<><div className="diagnostic-chain">{diagnosticChain.map((id,index)=>{const node=installation.nodes.find(value=>value.id===id);return <span key={id}><b>{node?.name??'?'}</b>{index<diagnosticChain.length-1&&<ChevronRight/>}</span>})}</div><div className="diagnostic-findings">{installation.links.filter(link=>diagnosticChain.includes(link.fromNodeId)&&diagnosticChain.includes(link.toNodeId)&&(link.compatibility==='warning'||(link.compatibilityNotes?.length??0)>0)).map(link=><div key={link.id}><AlertTriangle/><span>{link.compatibilityNotes?.join(' · ')||'Liaison à vérifier'}</span></div>)}{!installation.links.some(link=>diagnosticChain.includes(link.fromNodeId)&&diagnosticChain.includes(link.toNodeId)&&link.compatibility==='warning')&&<div className="diagnostic-ok"><Check/>Aucune incompatibilité bloquante détectée sur cette chaîne.</div>}</div></>}</div>}
+        <div className="installation-version-manager"><div><b>Versions du plan</b><small>Enregistrez Plan A, Plan B, répétition, concert… puis restaurez-les à tout moment.</small></div><div className="installation-version-create"><input value={snapshotName} onChange={e=>setSnapshotName(e.target.value)} placeholder={'Plan '+((installation.snapshots?.length??0)+1)}/><button className="secondary" disabled={!installation.nodes.length} onClick={()=>void saveInstallationSnapshot()}><Save/>Enregistrer version</button></div>{(installation.snapshots??[]).length>0&&<div className="installation-version-list">{(installation.snapshots??[]).map(snapshot=><span key={snapshot.id}><button className="bare-action" onClick={()=>void restoreInstallationSnapshot(snapshot.id)}><RotateCcw/>{snapshot.name}</button><small>{new Date(snapshot.createdAt).toLocaleString('fr-FR')}</small><button className="bare-action danger-icon" onClick={()=>deleteInstallationSnapshot(snapshot.id)}><Trash2/></button></span>)}</div>}</div>
         <div className="installation-builder">
           <div className="installation-builder-head"><Network/><span><b>1. Équipements</b><small>Ajoutez les éléments de l’installation depuis le stock ou librement.</small></span></div>
           <div className="installation-template-bar">
