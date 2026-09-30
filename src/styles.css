@@ -12314,3 +12314,46 @@ button.song-info-value.key.active{
   .program-section-tabs button:nth-child(2),
   .installation-advanced-panel{display:none!important}
 }
+
+
+/* DI'ART 3.4 — stage sizing, free crop handles and routed cable modes */
+.topview-stage{
+  width:var(--stage-width,980px)!important;
+  min-width:var(--stage-width,980px)!important;
+  height:var(--stage-height,650px)!important;
+  min-height:var(--stage-height,650px)!important;
+}
+.installation-stage-toolbar{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:7px 9px;border:1px solid var(--line);border-radius:11px;background:var(--surface)
+}
+.installation-stage-toolbar>span b,.installation-stage-toolbar>span small{display:block}
+.installation-stage-toolbar>span b{font-size:11px}
+.installation-stage-toolbar>span small{font-size:8px;color:var(--muted)}
+.installation-stage-toolbar>div{display:flex;gap:5px;flex-wrap:wrap}
+.installation-stage-toolbar button{min-height:31px;padding:0 8px;font-size:8px}
+.schema-wire-hit,.schema-wire{fill:none}
+.schema-wire-group.mode-curve .schema-wire{stroke-linecap:round;stroke-linejoin:round}
+.schema-resize-handle.axis-both{right:-12px;bottom:-12px}
+.schema-resize-handle.axis-x{right:-12px;top:50%;bottom:auto;transform:translateY(-50%);cursor:ew-resize}
+.schema-resize-handle.axis-y{bottom:-12px;left:50%;right:auto;transform:translateX(-50%);cursor:ns-resize}
+.schema-resize-handle.axis-x span{width:8px;height:2px;border:0;border-top:2px solid currentColor}
+.schema-resize-handle.axis-y span{width:2px;height:8px;border:0;border-left:2px solid currentColor}
+.schema-node-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.schema-node-actions .schema-remove-node{justify-self:auto}
+.schema-route-mode-switch{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:3px;border:1px solid var(--line);
+  border-radius:10px;background:var(--surface)
+}
+.schema-route-mode-switch button{
+  min-height:32px;border:0;border-radius:7px;background:transparent;color:var(--muted);font-size:9px;font-weight:800;padding:0 8px
+}
+.schema-route-mode-switch button.active{background:var(--surface2);color:var(--accent2);box-shadow:inset 0 0 0 1px var(--line)}
+.schema-link-inspector-actions{
+  grid-template-columns:minmax(220px,1.3fr) auto auto minmax(130px,.8fr) 110px!important;
+}
+@media(max-width:950px){
+  .installation-stage-toolbar{align-items:flex-start;flex-direction:column}
+  .schema-link-inspector-actions{grid-template-columns:1fr 1fr!important}
+  .schema-route-mode-switch{grid-column:1/-1}
+}

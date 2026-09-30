@@ -434,6 +434,22 @@ function installationEquipmentType(name:string,category?:string):'keyboard'|'dru
   if(/câble|cable|xlr|jack|rca|speakon|midi/.test(value))return 'cable'
   return 'generic'
 }
+function svgCablePath(points:Array<{x:number;y:number}>,mode:InstallationLink['routeMode']='straight'):string{
+  if(!points.length)return ''
+  if(points.length===1)return 'M '+points[0].x+' '+points[0].y
+  if(mode!=='curve')return points.map((point,index)=>(index?'L ':'M ')+point.x+' '+point.y).join(' ')
+  if(points.length===2)return 'M '+points[0].x+' '+points[0].y+' L '+points[1].x+' '+points[1].y
+  let path='M '+points[0].x+' '+points[0].y
+  for(let i=1;i<points.length-1;i++){
+    const current=points[i],next=points[i+1]
+    const mid={x:(current.x+next.x)/2,y:(current.y+next.y)/2}
+    path+=' Q '+current.x+' '+current.y+' '+mid.x+' '+mid.y
+  }
+  const before=points[points.length-2],last=points[points.length-1]
+  path+=' Q '+before.x+' '+before.y+' '+last.x+' '+last.y
+  return path
+}
+
 function schemaLayerForLink(kind:InstallationLink['kind']):'audio'|'power'|'connectivity'{
   if(kind==='power')return 'power'
   if(kind==='audio')return 'audio'
@@ -1277,7 +1293,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
   const [selectedSchemaNode,setSelectedSchemaNode]=useState('')
   const [selectedSchemaLink,setSelectedSchemaLink]=useState('')
   const schemaPointerRef=useRef<{id:string;startX:number;startY:number;moved:boolean}|null>(null)
-  const schemaResizeRef=useRef<{id:string;startX:number;startY:number;width:number;height:number}|null>(null)
+  const schemaResizeRef=useRef<{id:string;startX:number;startY:number;width:number;height:number;axis:'both'|'x'|'y'}|null>(null)
   const schemaRotateRef=useRef<{id:string;cx:number;cy:number}|null>(null)
   const schemaRouteRef=useRef<{linkId:string;pointIndex:number}|null>(null)
   const [diagnosticNodeId,setDiagnosticNodeId]=useState('')
@@ -1634,6 +1650,12 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     const route=orthogonal?[{x:(a.x+b.x)/2,y:a.y},{x:(a.x+b.x)/2,y:b.y}]:[...(link.route??[]),{x:(a.x+b.x)/2,y:(a.y+b.y)/2}]
     updateInstallationLink(link.id,{route})
   }
+  const resizeInstallationNodeFromPointer=(state:{id:string;startX:number;startY:number;width:number;height:number;axis:'both'|'x'|'y'},clientX:number,clientY:number,commit=false)=>{
+    const patch:Partial<(typeof installation.nodes)[number]>={}
+    if(state.axis!=='y')patch.width=Math.max(52,state.width+(clientX-state.startX))
+    if(state.axis!=='x')patch.height=Math.max(48,state.height+(clientY-state.startY))
+    setInstallationNodeGeometry(state.id,patch,commit)
+  }
   const setInstallationNodePosition=(id:string,x:number,y:number,commit=false)=>{
     if(!program)return
     const nextInstallation={...installation,nodes:installation.nodes.map(node=>node.id===id?{...node,x:Math.max(8,Math.round(x)),y:Math.max(8,Math.round(y))}:node)}
@@ -1748,6 +1770,17 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     void persist({installation:{...installation,links,suggestions:[],aiSummary:'',analyzedAt:undefined,analysisMode:undefined}})
   }
   const removeInstallationLink=(id:string)=>{if(selectedSchemaLink===id)setSelectedSchemaLink('');void persist({installation:{...installation,links:installation.links.filter(link=>link.id!==id),suggestions:[],aiSummary:'',analyzedAt:undefined,analysisMode:undefined}})}
+  useEffect(()=>{
+    const onDelete=(event:KeyboardEvent)=>{
+      if(event.key!=='Delete')return
+      const target=event.target as HTMLElement|null
+      if(target?.closest('input,textarea,select,[contenteditable="true"]'))return
+      if(selectedSchemaNode){event.preventDefault();removeInstallationNode(selectedSchemaNode);setSelectedSchemaNode('');toast('Équipement supprimé.');return}
+      if(selectedSchemaLink){event.preventDefault();removeInstallationLink(selectedSchemaLink);setSelectedSchemaLink('');toast('Liaison supprimée.')}
+    }
+    window.addEventListener('keydown',onDelete)
+    return()=>window.removeEventListener('keydown',onDelete)
+  },[selectedSchemaNode,selectedSchemaLink,installation.nodes,installation.links])
   const autoAssignChannels=()=>{
     if(!program)return
     const links=enrichInstallationLinks(program,stock)
@@ -1937,6 +1970,10 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
             <div className={'installation-layer-pill power '+(installationLayers.power?'visible':'hidden')+' '+(activeSchemaLayer==='power'?'active':'')}><button type="button" className="layer-main" onClick={()=>selectActiveSchemaLayer('power')}><Zap/><span><b>Électricité</b><small>Alimentation · {installation.links.filter(link=>schemaLayerForLink(link.kind??installationLinkKind(link,program,stock))==='power').length}</small></span></button><button type="button" className="layer-eye" aria-label={installationLayers.power?'Masquer Électricité':'Afficher Électricité'} onClick={()=>toggleInstallationLayer('power')}>{installationLayers.power?<Eye/>:<EyeOff/>}</button></div>
             <div className={'installation-layer-pill connectivity '+(installationLayers.connectivity?'visible':'hidden')+' '+(activeSchemaLayer==='connectivity'?'active':'')}><button type="button" className="layer-main" onClick={()=>selectActiveSchemaLayer('connectivity')}><Network/><span><b>Connectique</b><small>Réseau / MIDI / data · {installation.links.filter(link=>schemaLayerForLink(link.kind??installationLinkKind(link,program,stock))==='connectivity').length}</small></span></button><button type="button" className="layer-eye" aria-label={installationLayers.connectivity?'Masquer Connectique':'Afficher Connectique'} onClick={()=>toggleInstallationLayer('connectivity')}>{installationLayers.connectivity?<Eye/>:<EyeOff/>}</button></div>
           </div>
+          <div className="installation-stage-toolbar">
+            <span><b>Scène</b><small>{installation.stageWidth??980} × {installation.stageHeight??650}</small></span>
+            <div><button className="secondary" onClick={()=>resizeStage(-120,0)} title="Réduire la largeur"><Minus/>L</button><button className="secondary" onClick={()=>resizeStage(120,0)} title="Agrandir la largeur"><Plus/>L</button><button className="secondary" onClick={()=>resizeStage(0,-100)} title="Réduire la hauteur"><Minus/>H</button><button className="secondary" onClick={()=>resizeStage(0,100)} title="Agrandir la hauteur"><Plus/>H</button><button className="secondary" onClick={()=>void persist({installation:{...installation,stageWidth:1400,stageHeight:900}})}>Grande scène</button></div>
+          </div>
           <div className={'schema-click-link-status '+(selectedSchemaNode?'armed':'')}>
             <span className={'schema-link-kind '+activeSchemaLayer}>{activeSchemaLayer==='audio'?<Link2/>:activeSchemaLayer==='power'?<Zap/>:<Network/>}</span>
             {selectedSchemaNode?<><b>{installation.nodes.find(node=>node.id===selectedSchemaNode)?.name}</b><span> sélectionné · cliquez maintenant sur l’équipement à relier.</span><button className="bare-action" onClick={()=>setSelectedSchemaNode('')}><X/></button></>:<span>Cliquez sur un équipement, puis sur un second pour créer une liaison <b>{activeSchemaLayer==='audio'?'audio':activeSchemaLayer==='power'?'électrique':'connectique'}</b>.</span>}
@@ -1967,7 +2004,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
             <input value={installationNodeName} onChange={e=>{setInstallationNodeName(e.target.value);if(e.target.value)setInstallationStockId('')}} placeholder="Ou équipement libre…"/>
             <button className="primary" disabled={!installationStockId&&!installationNodeName.trim()} onClick={addInstallationNode}><Plus/>Ajouter</button>
           </div>
-          <div className="installation-canvas installation-schematic topview-stage">
+          <div className="installation-canvas installation-schematic topview-stage" style={{'--stage-width':(installation.stageWidth??980)+'px','--stage-height':(installation.stageHeight??650)+'px'} as CSSProperties}>
             <div className="topview-stage-markers" aria-hidden="true"><span>FOND DE SCÈNE</span><span>AVANT-SCÈNE</span><span>PUBLIC / RÉGIE</span></div>
             {installation.links.length>0&&<svg className="installation-wire-layer" aria-label="Câblage du schéma">{installation.links.map(link=>{
               const from=installation.nodes.find(n=>n.id===link.fromNodeId),to=installation.nodes.find(n=>n.id===link.toNodeId)
@@ -1976,11 +2013,12 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
               const kind=link.kind??installationLinkKind(link,program,stock),layer=schemaLayerForLink(kind)
               if(!installationLayers[layer])return null
               const points=[{x:a.x,y:a.y},...(link.route??[]),{x:b.x,y:b.y}]
-              const value=points.map(point=>point.x+','+point.y).join(' ')
+              const routeMode=link.routeMode??((link.route?.length??0)>0?'zigzag':'straight')
+              const path=svgCablePath(points,routeMode)
               const selected=selectedSchemaLink===link.id
-              return <g key={link.id} className={'schema-wire-group '+(selected?'selected':'')}>
-                <polyline className="schema-wire-hit" points={value} onPointerDown={e=>{e.stopPropagation();setSelectedSchemaLink(link.id);setSelectedSchemaNode('')}}/>
-                <polyline className={'wire-'+kind+' schema-wire layer-'+layer} points={value}/>
+              return <g key={link.id} className={'schema-wire-group mode-'+routeMode+' '+(selected?'selected':'')}>
+                <path className="schema-wire-hit" d={path} onPointerDown={e=>{e.stopPropagation();setSelectedSchemaLink(link.id);setSelectedSchemaNode('')}}/>
+                <path className={'wire-'+kind+' schema-wire layer-'+layer} d={path}/>
                 {selected&&(link.route??[]).map((point,pointIndex)=><circle key={pointIndex} className="schema-route-handle" cx={point.x} cy={point.y} r="8"
                   onPointerDown={e=>{e.stopPropagation();schemaRouteRef.current={linkId:link.id,pointIndex};e.currentTarget.setPointerCapture(e.pointerId)}}
                   onPointerMove={e=>{const state=schemaRouteRef.current;if(!state||state.linkId!==link.id||state.pointIndex!==pointIndex||!e.currentTarget.hasPointerCapture(e.pointerId))return;const svg=e.currentTarget.ownerSVGElement,rect=svg?.getBoundingClientRect();if(!rect)return;const route=[...(link.route??[])];route[pointIndex]={x:e.clientX-rect.left,y:e.clientY-rect.top};setInstallationLinkRoute(link.id,route,false)}}
@@ -2006,15 +2044,15 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
                     onPointerDown={e=>{e.stopPropagation();const rect=e.currentTarget.parentElement?.getBoundingClientRect();if(!rect)return;schemaRotateRef.current={id:node.id,cx:rect.left+rect.width/2,cy:rect.top+rect.height/2};e.currentTarget.setPointerCapture(e.pointerId)}}
                     onPointerMove={e=>{const state=schemaRotateRef.current;if(!state||state.id!==node.id||!e.currentTarget.hasPointerCapture(e.pointerId))return;const angle=Math.round((Math.atan2(e.clientY-state.cy,e.clientX-state.cx)*180/Math.PI+90+360)%360);setInstallationNodeGeometry(node.id,{rotation:angle},false)}}
                     onPointerUp={e=>{const state=schemaRotateRef.current;if(state){const angle=Math.round((Math.atan2(e.clientY-state.cy,e.clientX-state.cx)*180/Math.PI+90+360)%360);setInstallationNodeGeometry(node.id,{rotation:angle},true)}schemaRotateRef.current=null;try{e.currentTarget.releasePointerCapture(e.pointerId)}catch{}}}><RotateCcw/></button>
-                  <button type="button" className="schema-resize-handle" aria-label="Redimensionner" title="Étirer / rétrécir"
-                    onPointerDown={e=>{e.stopPropagation();schemaResizeRef.current={id:node.id,startX:e.clientX,startY:e.clientY,width,height};e.currentTarget.setPointerCapture(e.pointerId)}}
-                    onPointerMove={e=>{const state=schemaResizeRef.current;if(!state||state.id!==node.id||!e.currentTarget.hasPointerCapture(e.pointerId))return;setInstallationNodeGeometry(node.id,{width:Math.max(52,state.width+(e.clientX-state.startX)),height:Math.max(48,state.height+(e.clientY-state.startY))},false)}}
-                    onPointerUp={e=>{const state=schemaResizeRef.current;if(state)setInstallationNodeGeometry(node.id,{width:Math.max(52,state.width+(e.clientX-state.startX)),height:Math.max(48,state.height+(e.clientY-state.startY))},true);schemaResizeRef.current=null;try{e.currentTarget.releasePointerCapture(e.pointerId)}catch{}}}><span/></button>
+                  {(['x','y','both'] as const).map(axis=><button type="button" key={axis} className={'schema-resize-handle axis-'+axis} aria-label={axis==='x'?'Étirer horizontalement':axis==='y'?'Étirer verticalement':'Redimensionner librement'} title={axis==='x'?'Largeur':axis==='y'?'Hauteur':'Largeur + hauteur'}
+                    onPointerDown={e=>{e.stopPropagation();schemaResizeRef.current={id:node.id,startX:e.clientX,startY:e.clientY,width,height,axis};e.currentTarget.setPointerCapture(e.pointerId)}}
+                    onPointerMove={e=>{const state=schemaResizeRef.current;if(!state||state.id!==node.id||!e.currentTarget.hasPointerCapture(e.pointerId))return;resizeInstallationNodeFromPointer(state,e.clientX,e.clientY,false)}}
+                    onPointerUp={e=>{const state=schemaResizeRef.current;if(state)resizeInstallationNodeFromPointer(state,e.clientX,e.clientY,true);schemaResizeRef.current=null;try{e.currentTarget.releasePointerCapture(e.pointerId)}catch{}}}><span/></button>)}
                 </>}
               </div>
             }):(!installation.nodes.length?<div className="installation-empty topview-empty">Ajoutez les équipements de la scène ou de la chaîne audio.</div>:null)}
           </div>
-          {selectedSchemaNode&&installation.nodes.some(node=>node.id===selectedSchemaNode)&&(()=>{const node=installation.nodes.find(value=>value.id===selectedSchemaNode)!;const source=node.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined;return <div className="schema-node-inspector">
+          {selectedSchemaNode&&installation.nodes.some(node=>node.id===selectedSchemaNode)&&(()=>{const node=installation.nodes.find(value=>value.id===selectedSchemaNode)!;const source=node.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined;const need=node.stockItemId?installationNeeds.find(value=>value.stockItemId===node.stockItemId):undefined;const canDuplicate=!source||!need||need.quantity<need.available;return <div className="schema-node-inspector">
             <div className="schema-node-inspector-head"><span><b>Équipement sélectionné</b><small>Placement et représentation vue du dessus</small></span><button className="bare-action" onClick={()=>setSelectedSchemaNode('')}><X/></button></div>
             <div className="schema-node-inspector-grid">
               <label><span>Nom</span><input value={node.name} onChange={e=>updateInstallationNode(node.id,{name:e.target.value})}/></label>
@@ -2024,14 +2062,14 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
               <div className="schema-rotation-control"><span>Orientation</span><div><input type="range" min="0" max="359" value={node.rotation??0} onChange={e=>updateInstallationNode(node.id,{rotation:Number(e.target.value)})}/><b>{node.rotation??0}°</b></div></div>
             </div>
             {source&&(source.ports?.length??0)>0&&<div className="schema-node-ports">{(source.ports??[]).map(port=><em key={port.id}>{port.count}× {port.connector} · {port.direction==='input'?'IN':port.direction==='output'?'OUT':port.direction==='power'?'POWER':'I/O'}</em>)}</div>}
-            <button className="danger schema-remove-node" onClick={()=>{removeInstallationNode(node.id);setSelectedSchemaNode('')}}><Trash2/>Retirer du schéma</button>
+            <div className="schema-node-actions"><button className="secondary" disabled={!canDuplicate} onClick={()=>duplicateInstallationNode(node.id)}><Copy/>Dupliquer</button><button className="secondary" onClick={()=>updateInstallationNode(node.id,{width:undefined,height:undefined,rotation:0,scale:1})}><RotateCcw/>Réinitialiser cadre</button><button className="danger schema-remove-node" onClick={()=>{removeInstallationNode(node.id);setSelectedSchemaNode('')}}><Trash2/>Supprimer</button></div>
           </div>})()}
           {selectedSchemaLink&&installation.links.some(link=>link.id===selectedSchemaLink)&&(()=>{const link=installation.links.find(value=>value.id===selectedSchemaLink)!;const from=installation.nodes.find(node=>node.id===link.fromNodeId),to=installation.nodes.find(node=>node.id===link.toNodeId);const kind=link.kind??installationLinkKind(link,program,stock);return <div className="schema-link-inspector">
             <div className="schema-node-inspector-head"><span><b>Câble / liaison sélectionnée</b><small>{from?.name??'?'} → {to?.name??'?'}</small></span><button className="bare-action" onClick={()=>setSelectedSchemaLink('')}><X/></button></div>
             <div className="schema-link-inspector-actions">
-              <button className="secondary" onClick={()=>addCableBend(link,false)}><Plus/>Ajouter un point</button>
-              <button className="secondary" onClick={()=>addCableBend(link,true)}><LayoutGrid/>Aligner à 90°</button>
-              <button className="secondary" disabled={!(link.route?.length)} onClick={()=>updateInstallationLink(link.id,{route:undefined})}><Minus/>Ligne droite</button>
+              <div className="schema-route-mode-switch"><button className={(link.routeMode??'straight')==='straight'?'active':''} onClick={()=>setLinkRouteMode(link,'straight')}>Droit</button><button className={link.routeMode==='zigzag'?'active':''} onClick={()=>setLinkRouteMode(link,'zigzag')}>Zigzag</button><button className={link.routeMode==='curve'?'active':''} onClick={()=>setLinkRouteMode(link,'curve')}>Courbe</button></div>
+              <button className="secondary" onClick={()=>addCableBend(link,false)}><Plus/>Point de passage</button>
+              <button className="secondary" onClick={()=>addCableBend(link,true)}><LayoutGrid/>90°</button>
               <label><span>Type</span><select value={kind??'unknown'} onChange={e=>updateInstallationLink(link.id,{kind:e.target.value as InstallationLink['kind']})}><option value="audio">Audio</option><option value="power">Alimentation</option><option value="network">Réseau</option><option value="midi">MIDI</option><option value="data">Données</option><option value="accessory">Accessoire</option><option value="unknown">Autre</option></select></label>
               <label><span>Longueur</span><div className="schema-length-input"><input type="number" min="0" step=".5" value={link.lengthMeters??''} onChange={e=>updateInstallationLink(link.id,{lengthMeters:Number(e.target.value)>0?Number(e.target.value):undefined})}/><em>m</em></div></label>
             </div>
