@@ -123,12 +123,14 @@ export type InventoryCategory = string
 export type InventoryStockStatus = 'available'|'reserved'|'in_use'|'repair'|'maintenance'|'unavailable'
 export type InventoryPortDirection = 'input'|'output'|'bidirectional'|'power'
 export type InventorySignalLevel = 'mic'|'line'|'instrument'|'speaker'|'digital'|'midi'|'power'|'unknown'
+export type InventoryTechnicalIcon = 'auto'|'guitar'|'bass'|'keyboard'|'drums'|'microphone'|'mixer'|'speaker'|'jack'|'minijack'|'xlr'|'rca'|'rj45'|'usb'|'midi'|'power'|'cable'|'adapter'|'network'|'generic'
 export type InventoryPhantomMode = 'none'|'required'|'supported'|'blocked'
 
 export interface InventoryCharacteristic {
   id: string
   label: string
   value: string
+  icon?: InventoryTechnicalIcon
 }
 
 export interface InventoryPort {
@@ -141,6 +143,7 @@ export interface InventoryPort {
   balanced?: boolean
   stereo?: boolean
   phantom?: InventoryPhantomMode
+  icon?: InventoryTechnicalIcon
 }
 
 export interface InventoryMaterial {
@@ -163,6 +166,7 @@ export interface InventoryStockItem {
   characteristics?: InventoryCharacteristic[]
   ports?: InventoryPort[]
   notes?: string
+  representationIcon?: InventoryTechnicalIcon
   createdAt: string
   updatedAt: string
   deletedAt: string | null
@@ -193,6 +197,8 @@ export interface InstallationNode {
   role?: 'source'|'processing'|'destination'|'power'|'network'|'accessory'
   scale?: number
   rotation?: number
+  width?: number
+  height?: number
 }
 
 export interface InstallationLink {
@@ -207,6 +213,7 @@ export interface InstallationLink {
   compatibility?: 'ok'|'adapter'|'di'|'phantom'|'warning'
   compatibilityNotes?: string[]
   kind?: 'audio'|'power'|'network'|'midi'|'data'|'accessory'|'unknown'
+  route?: Array<{x:number;y:number}>
 }
 
 export interface InstallationSuggestion {

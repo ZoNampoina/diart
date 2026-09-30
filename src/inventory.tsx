@@ -9,7 +9,7 @@ import { analyzeInventoryInstallationWithAI } from './cloud'
 import type {
   ActivityEntry, InstallationLink, InstallationSuggestion, InventoryCategory, InventoryCharacteristic, InventoryFrequency,
   InventoryKit, InventoryMaterial, InventoryPhantomMode, InventoryPort, InventoryPortDirection,
-  InventoryProgram, InventorySignalLevel, InventoryStockItem, InventoryStockStatus
+  InventoryProgram, InventorySignalLevel, InventoryStockItem, InventoryStockStatus, InventoryTechnicalIcon
 } from './types'
 
 type InventoryCategoryDef={id:InventoryCategory;label:string}
@@ -74,6 +74,64 @@ function normalizeStockItem(item:InventoryStockItem):InventoryStockItem{
     provider:normalizeProvider(item.provider),
     status:item.status??'available'
   }
+}
+
+
+const TECH_ICON_OPTIONS:Array<{value:InventoryTechnicalIcon;label:string}>=[
+  {value:'auto',label:'Auto'},{value:'guitar',label:'Guitare'},{value:'bass',label:'Basse'},{value:'keyboard',label:'Piano / clavier'},
+  {value:'drums',label:'Batterie'},{value:'microphone',label:'Micro'},{value:'mixer',label:'Table / console'},{value:'speaker',label:'Baffle / enceinte'},
+  {value:'jack',label:'Jack 6,35'},{value:'minijack',label:'Mini-jack 3,5'},{value:'xlr',label:'XLR'},{value:'rca',label:'RCA'},
+  {value:'rj45',label:'RJ45'},{value:'usb',label:'USB'},{value:'midi',label:'MIDI'},{value:'power',label:'Alimentation'},
+  {value:'cable',label:'Câble'},{value:'adapter',label:'Adaptateur'},{value:'network',label:'Réseau'},{value:'generic',label:'Générique'}
+]
+
+function technicalIconFromText(text:string):InventoryTechnicalIcon{
+  const value=text.toLowerCase()
+  if(/mini.?jack|3[,.]5/.test(value))return 'minijack'
+  if(/xlr/.test(value))return 'xlr'
+  if(/\brca\b/.test(value))return 'rca'
+  if(/rj45|ethernet/.test(value))return 'rj45'
+  if(/\busb\b/.test(value))return 'usb'
+  if(/\bmidi\b/.test(value))return 'midi'
+  if(/jack|6[,.]35/.test(value))return 'jack'
+  if(/guitare basse|\bbasse\b/.test(value))return 'bass'
+  if(/guitare/.test(value))return 'guitar'
+  if(/piano|clavier|keyboard|synth/.test(value))return 'keyboard'
+  if(/batterie|drum|caisse|tom|cymbal/.test(value))return 'drums'
+  if(/micro|mic\b/.test(value))return 'microphone'
+  if(/table de mix|console|mixer|mr18|xr18/.test(value))return 'mixer'
+  if(/baffle|enceinte|speaker|retour|monitor/.test(value))return 'speaker'
+  if(/prise|alimentation|alim|secteur|onduleur|multiprise|iec/.test(value))return 'power'
+  if(/routeur|répéteur|repeteur|wifi|réseau|network/.test(value))return 'network'
+  if(/adaptateur|adapter|convertisseur/.test(value))return 'adapter'
+  if(/câble|cable|speakon/.test(value))return 'cable'
+  return 'generic'
+}
+
+function resolvedTechnicalIcon(icon:InventoryTechnicalIcon|undefined,text:string):InventoryTechnicalIcon{
+  return !icon||icon==='auto'?technicalIconFromText(text):icon
+}
+
+function TechnicalIcon({icon,text='',className=''}:{icon?:InventoryTechnicalIcon;text?:string;className?:string}){
+  const kind=resolvedTechnicalIcon(icon,text)
+  const common={viewBox:'0 0 32 32',fill:'none',stroke:'currentColor',strokeWidth:1.8,strokeLinecap:'round' as const,strokeLinejoin:'round' as const,'aria-hidden':true}
+  if(kind==='guitar'||kind==='bass')return <svg {...common} className={'technical-icon '+className}><path d="M13 18c-2.5-3.4-6.7-2.9-8.3-.2-1.7 2.8.2 6.5 3.4 6.7 2.4.2 3.8-1.6 5.2-3l2.2 2.2c1.7 1.7 4.4-.8 2.6-2.6l-2.2-2.2 7.8-7.8"/><path d="M22.5 7.5 27 3l2 2-4.5 4.5M19.7 10.3l4 4"/><circle cx="9.2" cy="20.4" r="1.7"/></svg>
+  if(kind==='keyboard')return <svg {...common} className={'technical-icon '+className}><rect x="3" y="7" width="26" height="18" rx="2"/><path d="M7 11v10M11 11v10M15 11v10M19 11v10M23 11v10M27 11v10"/><path d="M9 11v5M13 11v5M21 11v5M25 11v5" strokeWidth="3"/></svg>
+  if(kind==='drums')return <svg {...common} className={'technical-icon '+className}><ellipse cx="16" cy="18" rx="7" ry="6"/><circle cx="8" cy="10" r="4"/><circle cx="24" cy="10" r="4"/><path d="M6 24 4 29M26 24l2 5M16 12V5M11 5h10"/></svg>
+  if(kind==='microphone')return <svg {...common} className={'technical-icon '+className}><rect x="11" y="3" width="10" height="17" rx="5"/><path d="M7 14a9 9 0 0 0 18 0M16 23v6M11 29h10"/></svg>
+  if(kind==='mixer')return <svg {...common} className={'technical-icon '+className}><rect x="3" y="4" width="26" height="24" rx="2"/><path d="M8 8v16M13 8v16M18 8v16M23 8v16"/><circle cx="8" cy="13" r="1.5"/><circle cx="13" cy="19" r="1.5"/><circle cx="18" cy="11" r="1.5"/><circle cx="23" cy="16" r="1.5"/></svg>
+  if(kind==='speaker')return <svg {...common} className={'technical-icon '+className}><rect x="7" y="3" width="18" height="26" rx="2"/><circle cx="16" cy="19" r="6"/><circle cx="16" cy="9" r="2"/></svg>
+  if(kind==='xlr')return <svg {...common} className={'technical-icon '+className}><circle cx="16" cy="16" r="11"/><circle cx="16" cy="10" r="1.5" fill="currentColor"/><circle cx="11" cy="18" r="1.5" fill="currentColor"/><circle cx="21" cy="18" r="1.5" fill="currentColor"/></svg>
+  if(kind==='rca')return <svg {...common} className={'technical-icon '+className}><circle cx="16" cy="16" r="10"/><circle cx="16" cy="16" r="4"/><path d="M3 16h5M24 16h5"/></svg>
+  if(kind==='rj45')return <svg {...common} className={'technical-icon '+className}><path d="M6 9h20v15H6zM10 9V5h12v4"/><path d="M9 14h2M13 14h2M17 14h2M21 14h2M10 19h12"/></svg>
+  if(kind==='usb')return <svg {...common} className={'technical-icon '+className}><path d="M16 28V6M16 6l-4 4M16 6l4 4M16 17l-6-4M10 13H6M16 21l6-4M22 17h4"/><circle cx="6" cy="13" r="2"/><rect x="24" y="15" width="4" height="4" rx="1"/></svg>
+  if(kind==='midi')return <svg {...common} className={'technical-icon '+className}><circle cx="16" cy="16" r="11"/><circle cx="10" cy="13" r="1.2" fill="currentColor"/><circle cx="16" cy="10" r="1.2" fill="currentColor"/><circle cx="22" cy="13" r="1.2" fill="currentColor"/><circle cx="12" cy="20" r="1.2" fill="currentColor"/><circle cx="20" cy="20" r="1.2" fill="currentColor"/></svg>
+  if(kind==='jack'||kind==='minijack')return <svg {...common} className={'technical-icon '+className}><path d="M5 19h14l6-6V8h4v8l-7 7H5z"/><path d="M9 19v4M13 19v4"/>{kind==='minijack'&&<path d="M23 10h6"/>}</svg>
+  if(kind==='power')return <svg {...common} className={'technical-icon '+className}><path d="M13 3v11M19 3v11M10 12h12v4a6 6 0 0 1-6 6v7M11 29h10"/></svg>
+  if(kind==='network')return <svg {...common} className={'technical-icon '+className}><circle cx="16" cy="16" r="3"/><circle cx="6" cy="7" r="2"/><circle cx="26" cy="7" r="2"/><circle cx="6" cy="25" r="2"/><circle cx="26" cy="25" r="2"/><path d="M14 14 8 9M18 14l6-5M14 18l-6 5M18 18l6 5"/></svg>
+  if(kind==='adapter')return <svg {...common} className={'technical-icon '+className}><path d="M4 10h9l3 3 3-3h9M4 22h9l3-3 3 3h9"/><path d="M7 7v6M25 7v6M7 19v6M25 19v6"/></svg>
+  if(kind==='cable')return <svg {...common} className={'technical-icon '+className}><path d="M4 8h7v5H8v5a6 6 0 0 0 12 0v-4h-3l5-6 5 6h-3v4a10 10 0 0 1-20 0v-5H4z"/></svg>
+  return <svg {...common} className={'technical-icon '+className}><rect x="5" y="5" width="22" height="22" rx="5"/><path d="M10 16h12M16 10v12"/></svg>
 }
 
 function normalizeCategory(value:unknown,name=''):InventoryCategory{
@@ -160,12 +218,15 @@ function normalizeProgram(program:InventoryProgram):InventoryProgram{
       returned:item.returned??false
     })),
     installation:{
+      ...(program.installation??{nodes:[],links:[]}),
       nodes:program.installation?.nodes??[],
       links:program.installation?.links??[],
       suggestions:program.installation?.suggestions??[],
       aiSummary:program.installation?.aiSummary??'',
       analyzedAt:program.installation?.analyzedAt,
-      analysisMode:program.installation?.analysisMode
+      analysisMode:program.installation?.analysisMode,
+      snapshots:program.installation?.snapshots??[],
+      layers:program.installation?.layers??{materials:true,audio:true,power:true,connectivity:true}
     }
   }
 }
