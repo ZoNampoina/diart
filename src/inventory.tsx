@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   AlertTriangle, Archive, Boxes, BrainCircuit, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp,
   ClipboardCheck, Eye, History, ImageDown, LayoutGrid, Link2, Minus, Network, PackageCheck, PackagePlus,
-  PackageSearch, Plus, Repeat2, Save, Settings2, Trash2, Wifi, WifiOff, X, Globe2, Share2
+  PackageSearch, Plus, Repeat2, RotateCcw, Save, Settings2, Trash2, Wifi, WifiOff, X, Globe2, Share2
 } from 'lucide-react'
 import { db, logActivity } from './db'
 import { analyzeInventoryInstallationWithAI } from './cloud'
