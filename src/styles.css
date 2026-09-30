@@ -11284,3 +11284,170 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
   .installation-version-list>span{grid-template-columns:minmax(0,1fr) 34px}
   .installation-version-list small{grid-column:1/-1;grid-row:2}
 }
+
+
+/* DI'ART 3.2.1 — compact song details and unified musician tools */
+.song-collapsible-section{
+  padding:0;
+  overflow:hidden;
+}
+.song-collapsible-head{
+  min-height:62px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:0 16px;
+}
+.song-collapsible-toggle{
+  flex:1;
+  min-width:0;
+  min-height:62px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  border:0;
+  padding:0;
+  background:transparent;
+  color:var(--text);
+  text-align:left;
+}
+.song-collapsible-toggle>span{min-width:0}
+.song-collapsible-toggle b,
+.song-collapsible-toggle small{display:block}
+.song-collapsible-toggle b{font-size:15px}
+.song-collapsible-toggle small{
+  margin-top:3px;
+  color:var(--muted);
+  font-size:11px;
+  font-weight:500;
+}
+.song-collapsible-toggle>svg{
+  width:18px;
+  height:18px;
+  flex:0 0 auto;
+  color:var(--muted);
+}
+.song-collapsible-actions{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  flex:0 0 auto;
+}
+.song-collapsible-actions .lyrics-history-button{
+  min-height:34px;
+  padding:0 10px;
+}
+.song-collapsible-body{
+  border-top:1px solid var(--line);
+  padding:14px 16px 16px;
+}
+.song-info-section .song-collapsible-body{padding:0 16px 12px}
+.song-info-grid{display:grid}
+.song-info-item{
+  display:grid;
+  grid-template-columns:minmax(130px,.9fr) minmax(0,1.2fr) 34px;
+  gap:12px;
+  align-items:center;
+  min-height:48px;
+  border-bottom:1px solid var(--line);
+}
+.song-info-item:last-child{border-bottom:0}
+.song-info-item>span{
+  color:var(--muted);
+  font-size:13px;
+}
+.song-info-value{
+  min-width:0;
+  justify-self:end;
+  text-align:right;
+  color:var(--text);
+  overflow-wrap:anywhere;
+}
+.song-info-value.tags{font-weight:750}
+button.song-info-value{
+  border:0;
+  padding:6px 9px;
+  border-radius:9px;
+  background:transparent;
+  font-weight:850;
+  font-size:15px;
+}
+button.song-info-value.key{color:var(--accent2)}
+button.song-info-value.key.active{
+  background:color-mix(in srgb,var(--accent2) 10%,transparent);
+}
+.song-info-item .field-delete-action{
+  justify-self:end;
+  width:32px;
+  height:32px;
+}
+.song-collapsible-section .performance-text,
+.song-collapsible-section .chord-sheet,
+.song-collapsible-section .lyrics-text{margin:0}
+.song-collapsible-section.lyrics-panel .song-collapsible-body{padding-top:12px}
+.song-tools-section .song-collapsible-body{padding:10px}
+.song-tools-section .musician-tools-grid{margin:0}
+.musician-tools-suite{width:100%}
+.musician-tools-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+  align-items:stretch;
+}
+.musician-tool-card{
+  min-height:360px;
+  height:100%;
+  display:flex!important;
+  flex-direction:column;
+  gap:14px;
+}
+.metronome-card.musician-tool-card .metro-display,
+.tuner-card.musician-tool-card .tuner-display{
+  min-height:145px;
+  flex:0 0 auto;
+}
+.metronome-card.musician-tool-card .metro-controls{
+  margin-top:auto;
+}
+.tuner-card.musician-tool-card>button:last-child{
+  margin-top:auto;
+}
+.tuner-card.musician-tool-card .tuner-note-grid{
+  margin-top:auto;
+}
+.tools-intro{margin-top:16px}
+.song-tools-section .musician-tool-card{
+  box-shadow:none;
+  background:var(--surface2);
+}
+.song-tools-section .musician-tool-card .tuner-display,
+.song-tools-section .musician-tool-card .metro-display{
+  background:var(--surface);
+}
+@media(max-width:900px){
+  .musician-tools-grid{grid-template-columns:1fr}
+  .musician-tool-card{min-height:0}
+}
+@media(max-width:620px){
+  .song-collapsible-head{padding:0 12px}
+  .song-collapsible-body{padding:12px}
+  .song-info-section .song-collapsible-body{padding:0 12px 8px}
+  .song-info-item{
+    grid-template-columns:minmax(100px,.85fr) minmax(0,1.15fr) 32px;
+    gap:8px;
+    min-height:45px;
+  }
+  .song-info-item>span{font-size:12px}
+  .song-info-value{font-size:13px}
+  .song-collapsible-actions .lyrics-history-button{
+    width:34px;
+    min-width:34px;
+    padding:0;
+    overflow:hidden;
+    color:transparent;
+    gap:0;
+  }
+  .song-collapsible-actions .lyrics-history-button svg{color:var(--text)}
+  .song-tools-section .song-collapsible-body{padding:8px}
+}
