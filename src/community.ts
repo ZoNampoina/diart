@@ -13,6 +13,7 @@ export interface DiartProfile{
   created_at:string
   last_seen_at?:string|null
   public_imported_at?:string|null
+  display_name_changed_at?:string|null
 }
 export interface DiartDevice{
   id:string
@@ -250,4 +251,25 @@ export async function createDirectShare(entity_type:DirectShareEntityType,option
 }
 export async function redeemDirectShare(code:string){
   return directShareAction<DirectShareRedeemed>('redeem_share',{code})
+}
+
+
+export async function updateOwnDisplayNameOnce(displayName:string):Promise<DiartProfile>{
+  const name=displayName.trim()
+  if(name.length<2)throw new Error('Le nom doit contenir au moins 2 caractères.')
+  const {data:{user},error:userError}=await supabase.auth.getUser()
+  if(userError)throw userError
+  if(!user)throw new Error('Connexion requise.')
+  if(user.user_metadata?.diart_display_name_changed_at)throw new Error('Le nom a déjà été modifié une fois.')
+  const changedAt=new Date().toISOString()
+  const {data,error}=await supabase.from('diart_profiles').update({display_name:name,last_seen_at:changedAt}).eq('user_id',user.id).select('*').single()
+  if(error)throw error
+  const {error:authError}=await supabase.auth.updateUser({data:{...user.user_metadata,display_name:name,diart_display_name_changed_at:changedAt}})
+  if(authError)throw authError
+  return {...data,display_name:name,display_name_changed_at:changedAt} as DiartProfile
+}
+
+export async function hasUsedDisplayNameChange():Promise<boolean>{
+  const {data:{user}}=await supabase.auth.getUser()
+  return Boolean(user?.user_metadata?.diart_display_name_changed_at)
 }

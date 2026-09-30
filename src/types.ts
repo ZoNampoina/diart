@@ -189,6 +189,8 @@ export interface InstallationNode {
   stockItemId?: string
   x?: number
   y?: number
+  zone?: string
+  role?: 'source'|'processing'|'destination'|'power'|'network'|'accessory'
 }
 
 export interface InstallationLink {
@@ -202,6 +204,7 @@ export interface InstallationLink {
   assignedChannel?: string
   compatibility?: 'ok'|'adapter'|'di'|'phantom'|'warning'
   compatibilityNotes?: string[]
+  kind?: 'audio'|'power'|'network'|'midi'|'data'|'accessory'|'unknown'
 }
 
 export interface InstallationSuggestion {
@@ -223,6 +226,8 @@ export interface InventoryInstallation {
   aiSummary?: string
   analyzedAt?: string
   analysisMode?: 'local'|'ai'
+  versionName?: string
+  zones?: string[]
 }
 
 export type InventoryFrequency = 'once'|'weekly'|'monthly'

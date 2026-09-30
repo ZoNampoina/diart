@@ -30,6 +30,58 @@ export function normalizeKey(value: unknown): string {
   return `${root}${q}${suffix}`
 }
 
+export function normalizeKeySequence(value:unknown):string{
+  const raw=normalizeText(value)
+  if(!raw)return ''
+  return raw.split(/\s*(?:→|>|\/|\||-|–|—)\s*/).map(normalizeKey).filter(Boolean).join('-')
+}
+
+export function primaryKey(value:unknown):string{
+  const sequence=normalizeKeySequence(value)
+  return sequence.split('-')[0]||''
+}
+
+export function transposeKeySequence(value:string,semitones:number):string{
+  const sequence=normalizeKeySequence(value)
+  if(!sequence)return ''
+  return sequence.split('-').map(key=>transposeKey(key,semitones)).join('-')
+}
+
+export function suggestKeyFromChords(value:string):string{
+  const text=String(value??'')
+  if(!text.trim())return ''
+  const roots:{root:number;minor:boolean}[]=[]
+  const tokenRe=/(?:^|[\s|,;\[])([A-Ga-g])([#b♯♭]?)(m|min|minor)?(?=[0-9a-zA-Z#b♯♭/()]*)(?=$|[\s|,;\]])/g
+  let match:RegExpExecArray|null
+  while((match=tokenRe.exec(text))){
+    const key=normalizeKey(match[1]+match[2])
+    const root=NOTE_INDEX[key]
+    if(root!==undefined)roots.push({root,minor:Boolean(match[3])})
+  }
+  if(!roots.length)return ''
+  const majorDegrees=[0,2,4,5,7,9,11]
+  const minorDegrees=[0,2,3,5,7,8,10]
+  let best={score:-Infinity,key:''}
+  for(let tonic=0;tonic<12;tonic++){
+    for(const minor of [false,true]){
+      const degrees=minor?minorDegrees:majorDegrees
+      let score=0
+      for(const chord of roots){
+        const degree=(chord.root-tonic+12)%12
+        const idx=degrees.indexOf(degree)
+        if(idx>=0)score+=idx===0?5:(idx===4?3:2)
+        else score-=2
+        if(degree===0&&chord.minor===minor)score+=2
+      }
+      if(score>best.score){
+        const note=(minor?FLAT_NOTES:SHARP_NOTES)[tonic]
+        best={score,key:(CANONICAL_ENHARMONIC[note]??note)+(minor?'m':'')}
+      }
+    }
+  }
+  return best.key
+}
+
 export function transposeKey(value: string, semitones: number): string {
   const raw = normalizeText(value)
   if (!raw) return raw
