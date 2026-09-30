@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   AlertTriangle, Archive, Boxes, BrainCircuit, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp,
-  ClipboardCheck, Eye, History, ImageDown, LayoutGrid, Link2, Minus, Network, PackageCheck, PackagePlus,
-  PackageSearch, Plus, Repeat2, RotateCcw, Save, Settings2, Trash2, Wifi, WifiOff, X, Globe2, Share2
+  ClipboardCheck, Eye, EyeOff, History, ImageDown, LayoutGrid, Link2, Minus, Network, PackageCheck, PackagePlus,
+  PackageSearch, Plus, Repeat2, RotateCcw, Save, Settings2, Trash2, Wifi, WifiOff, X, Globe2, Share2, Zap
 } from 'lucide-react'
 import { db, logActivity } from './db'
 import { analyzeInventoryInstallationWithAI } from './cloud'
@@ -360,6 +360,23 @@ function autoAssignInstallationChannels(program:InventoryProgram,stock:Inventory
     }
     return {...link,assignedChannel:labels.join(' → ')||link.assignedChannel||''}
   })
+}
+function installationEquipmentType(name:string,category?:string):'keyboard'|'drums'|'mixer'|'speaker'|'microphone'|'power'|'network'|'cable'|'generic'{
+  const value=(name+' '+(category??'')).toLowerCase()
+  if(/piano|clavier|keyboard|synth/.test(value))return 'keyboard'
+  if(/batterie|drum|caisse|tom|cymbal/.test(value))return 'drums'
+  if(/table|mix|console|mr18|xr18|mixer/.test(value))return 'mixer'
+  if(/baffle|enceinte|speaker|retour|monitor/.test(value))return 'speaker'
+  if(/micro|mic\b/.test(value))return 'microphone'
+  if(/prise|alim|onduleur|multiprise|power|secteur/.test(value))return 'power'
+  if(/routeur|répéteur|repeteur|wifi|rj45|ethernet|switch réseau|network/.test(value))return 'network'
+  if(/câble|cable|xlr|jack|rca|speakon|midi/.test(value))return 'cable'
+  return 'generic'
+}
+function schemaLayerForLink(kind:InstallationLink['kind']):'audio'|'power'|'connectivity'{
+  if(kind==='power')return 'power'
+  if(kind==='audio')return 'audio'
+  return 'connectivity'
 }
 function installationLinkKind(link:InstallationLink,program:InventoryProgram,stock:InventoryStockItem[]):InstallationLink['kind']{
   const installation=program.installation??{nodes:[],links:[]}
@@ -1137,6 +1154,9 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
   const [installationStockId,setInstallationStockId]=useState('')
   const [installationProvider,setInstallationProvider]=useState(DEFAULT_PROVIDER)
   const [installationView,setInstallationView]=useState<'schema'|'list'|'patch'|'diagnostic'>('schema')
+  const [activeSchemaLayer,setActiveSchemaLayer]=useState<'audio'|'power'|'connectivity'>('audio')
+  const [selectedSchemaNode,setSelectedSchemaNode]=useState('')
+  const schemaPointerRef=useRef<{id:string;startX:number;startY:number;moved:boolean}|null>(null)
   const [diagnosticNodeId,setDiagnosticNodeId]=useState('')
   const [snapshotName,setSnapshotName]=useState('')
   const [linkFromNode,setLinkFromNode]=useState('')
@@ -1380,7 +1400,13 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     void persist({date,weekday})
   }
 
-  const installation=program?.installation??{nodes:[],links:[],suggestions:[],aiSummary:'',analysisMode:undefined,analyzedAt:undefined,snapshots:[]}
+  const installation=program?.installation??{nodes:[],links:[],suggestions:[],aiSummary:'',analysisMode:undefined,analyzedAt:undefined,snapshots:[],layers:{materials:true,audio:true,power:true,connectivity:true}}
+  const installationLayers={
+    materials:installation.layers?.materials!==false,
+    audio:installation.layers?.audio!==false,
+    power:installation.layers?.power!==false,
+    connectivity:installation.layers?.connectivity!==false
+  }
   const installationNeeds=useMemo(()=>{
     const counts=new Map<string,number>()
     for(const node of installation.nodes)if(node.stockItemId)counts.set(node.stockItemId,(counts.get(node.stockItemId)??0)+1)
@@ -1419,13 +1445,37 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     const node=installation.nodes.find(item=>item.id===nodeId)
     return node?.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
   }
+  const toggleInstallationLayer=(layer:keyof typeof installationLayers)=>{
+    void persist({installation:{...installation,layers:{...installationLayers,[layer]:!installationLayers[layer]}}})
+  }
+  const selectActiveSchemaLayer=(layer:'audio'|'power'|'connectivity')=>{
+    setActiveSchemaLayer(layer)
+    if(!installationLayers[layer])void persist({installation:{...installation,layers:{...installationLayers,[layer]:true}}})
+  }
+  const connectSchemaNodes=(fromNodeId:string,toNodeId:string)=>{
+    if(!program||fromNodeId===toNodeId)return
+    const kind:InstallationLink['kind']=activeSchemaLayer==='audio'?'audio':activeSchemaLayer==='power'?'power':'network'
+    const rawLink:InstallationLink={id:crypto.randomUUID(),fromNodeId,toNodeId,kind}
+    const draftProgram={...program,installation:{...installation,links:[...installation.links,rawLink],suggestions:[]}}
+    const links=enrichInstallationLinks(draftProgram,stock)
+    void persist({installation:{...installation,links,suggestions:[],aiSummary:'',analyzedAt:undefined,analysisMode:undefined}})
+    const from=installation.nodes.find(node=>node.id===fromNodeId)?.name??'Équipement'
+    const to=installation.nodes.find(node=>node.id===toNodeId)?.name??'équipement'
+    toast(from+' → '+to+' · '+(activeSchemaLayer==='audio'?'Audio':activeSchemaLayer==='power'?'Électricité':'Connectique'))
+  }
+  const handleSchemaNodeClick=(nodeId:string)=>{
+    if(!selectedSchemaNode){setSelectedSchemaNode(nodeId);return}
+    if(selectedSchemaNode===nodeId){setSelectedSchemaNode('');return}
+    connectSchemaNodes(selectedSchemaNode,nodeId)
+    setSelectedSchemaNode('')
+  }
   const addInstallationNode=()=>{
     if(!program)return
     const stockItem=installationStockId?stock.find(item=>item.id===installationStockId):undefined
     const name=(stockItem?.name??installationNodeName).trim()
     if(!name){toast('Choisissez un matériel ou saisissez un nom.');return}
     const index=installation.nodes.length
-    const node={id:crypto.randomUUID(),name,stockItemId:stockItem?.id,x:40+(index%4)*210,y:40+Math.floor(index/4)*150,zone:'Scène'}
+    const node={id:crypto.randomUUID(),name,stockItemId:stockItem?.id,x:70+(index%4)*180,y:85+Math.floor(index/4)*135,zone:'Scène',scale:1,rotation:0}
     void persist({installation:{...installation,nodes:[...installation.nodes,node]}})
     setInstallationNodeName('');setInstallationStockId('')
   }
@@ -1448,7 +1498,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     const baseX=30,baseY=35
     const nodes=definitions.map((name,index)=>{
       const matched=stock.find(item=>normalizeProvider(item.provider)===installationProvider&&item.name.toLowerCase().includes(name.toLowerCase().replace('xlr-xlr','xlr')))
-      return {id:crypto.randomUUID(),name:matched?.name??name,stockItemId:matched?.id,x:baseX+(index%4)*210,y:baseY+Math.floor(index/4)*150,zone:index<4?'Scène':'Régie'}
+      return {id:crypto.randomUUID(),name:matched?.name??name,stockItemId:matched?.id,x:baseX+(index%4)*180,y:baseY+Math.floor(index/4)*135,zone:index<4?'Scène':'Régie',scale:1,rotation:0}
     })
     const links:InstallationLink[]=[]
     const connect=(a:number,b:number,linkKind:InstallationLink['kind']='unknown')=>{if(nodes[a]&&nodes[b])links.push({id:crypto.randomUUID(),fromNodeId:nodes[a].id,toNodeId:nodes[b].id,kind:linkKind})}
@@ -1696,9 +1746,22 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
           </div>
           <div className="installation-validation-actions">
             <span className={installationShortages.length?'warning':'ok'}>{installationShortages.length?installationShortages.length+' manque(s) stock':'Stock compatible'}</span>
-            <button className="primary" disabled={!installation.nodes.length||installationShortages.length>0} onClick={()=>void reserveInstallation()}><PackageCheck/>Réserver l’installation</button>
+            <button className="primary" disabled={!installation.nodes.length||installationShortages.length>0} onClick={()=>void reserveInstallation()}><PackageCheck/><span>Réserver</span></button>
           </div>
         </div>
+        {installationView==='schema'&&<div className="installation-layer-toolbar">
+          <div className="installation-layer-title"><span><LayoutGrid/></span><div><b>Couches du plan</b><small>Superposez, masquez ou choisissez la couche de liaison active.</small></div></div>
+          <div className="installation-layer-list">
+            <div className={'installation-layer-pill materials '+(installationLayers.materials?'visible':'hidden')}><button type="button" className="layer-main" onClick={()=>void 0}><Boxes/><span><b>Matos</b><small>{installation.nodes.length} élément(s)</small></span></button><button type="button" className="layer-eye" aria-label={installationLayers.materials?'Masquer Matos':'Afficher Matos'} onClick={()=>toggleInstallationLayer('materials')}>{installationLayers.materials?<Eye/>:<EyeOff/>}</button></div>
+            <div className={'installation-layer-pill audio '+(installationLayers.audio?'visible':'hidden')+' '+(activeSchemaLayer==='audio'?'active':'')}><button type="button" className="layer-main" onClick={()=>selectActiveSchemaLayer('audio')}><Link2/><span><b>Câblage</b><small>Audio · {installation.links.filter(link=>schemaLayerForLink(link.kind??installationLinkKind(link,program,stock))==='audio').length}</small></span></button><button type="button" className="layer-eye" aria-label={installationLayers.audio?'Masquer Câblage':'Afficher Câblage'} onClick={()=>toggleInstallationLayer('audio')}>{installationLayers.audio?<Eye/>:<EyeOff/>}</button></div>
+            <div className={'installation-layer-pill power '+(installationLayers.power?'visible':'hidden')+' '+(activeSchemaLayer==='power'?'active':'')}><button type="button" className="layer-main" onClick={()=>selectActiveSchemaLayer('power')}><Zap/><span><b>Électricité</b><small>Alimentation · {installation.links.filter(link=>schemaLayerForLink(link.kind??installationLinkKind(link,program,stock))==='power').length}</small></span></button><button type="button" className="layer-eye" aria-label={installationLayers.power?'Masquer Électricité':'Afficher Électricité'} onClick={()=>toggleInstallationLayer('power')}>{installationLayers.power?<Eye/>:<EyeOff/>}</button></div>
+            <div className={'installation-layer-pill connectivity '+(installationLayers.connectivity?'visible':'hidden')+' '+(activeSchemaLayer==='connectivity'?'active':'')}><button type="button" className="layer-main" onClick={()=>selectActiveSchemaLayer('connectivity')}><Network/><span><b>Connectique</b><small>Réseau / MIDI / data · {installation.links.filter(link=>schemaLayerForLink(link.kind??installationLinkKind(link,program,stock))==='connectivity').length}</small></span></button><button type="button" className="layer-eye" aria-label={installationLayers.connectivity?'Masquer Connectique':'Afficher Connectique'} onClick={()=>toggleInstallationLayer('connectivity')}>{installationLayers.connectivity?<Eye/>:<EyeOff/>}</button></div>
+          </div>
+          <div className={'schema-click-link-status '+(selectedSchemaNode?'armed':'')}>
+            <span className={'schema-link-kind '+activeSchemaLayer}>{activeSchemaLayer==='audio'?<Link2/>:activeSchemaLayer==='power'?<Zap/>:<Network/>}</span>
+            {selectedSchemaNode?<><b>{installation.nodes.find(node=>node.id===selectedSchemaNode)?.name}</b><span> sélectionné · cliquez maintenant sur l’équipement à relier.</span><button className="bare-action" onClick={()=>setSelectedSchemaNode('')}><X/></button></>:<span>Cliquez sur un équipement, puis sur un second pour créer une liaison <b>{activeSchemaLayer==='audio'?'audio':activeSchemaLayer==='power'?'électrique':'connectique'}</b>.</span>}
+          </div>
+        </div>}
         <div className="installation-electrical-summary">
           <div><b>{electricalSummary.powered}</b><span>appareils alimentés</span></div>
           <div><b>{electricalSummary.outlets}</b><span>prises / départs à prévoir</span></div>
@@ -1724,23 +1787,37 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
             <input value={installationNodeName} onChange={e=>{setInstallationNodeName(e.target.value);if(e.target.value)setInstallationStockId('')}} placeholder="Ou équipement libre…"/>
             <button className="primary" disabled={!installationStockId&&!installationNodeName.trim()} onClick={addInstallationNode}><Plus/>Ajouter</button>
           </div>
-          <div className="installation-canvas installation-schematic">
-            {installation.nodes.length&&<svg className="installation-wire-layer" aria-hidden="true">{installation.links.map(link=>{const from=installation.nodes.find(n=>n.id===link.fromNodeId),to=installation.nodes.find(n=>n.id===link.toNodeId);if(!from||!to)return null;const fi=installation.nodes.indexOf(from),ti=installation.nodes.indexOf(to);const fx=(from.x??40+(fi%4)*210)+90,fy=(from.y??40+Math.floor(fi/4)*150)+54,tx=(to.x??40+(ti%4)*210)+90,ty=(to.y??40+Math.floor(ti/4)*150)+54;const kind=link.kind??installationLinkKind(link,program,stock);return <line key={link.id} className={'wire-'+kind} x1={fx} y1={fy} x2={tx} y2={ty}/>})}</svg>}
-            {installation.nodes.length?installation.nodes.map((node,index)=>{
+          <div className="installation-canvas installation-schematic topview-stage">
+            <div className="topview-stage-markers" aria-hidden="true"><span>FOND DE SCÈNE</span><span>AVANT-SCÈNE</span><span>PUBLIC / RÉGIE</span></div>
+            {installation.links.length>0&&<svg className="installation-wire-layer" aria-hidden="true">{installation.links.map(link=>{const from=installation.nodes.find(n=>n.id===link.fromNodeId),to=installation.nodes.find(n=>n.id===link.toNodeId);if(!from||!to)return null;const fi=installation.nodes.indexOf(from),ti=installation.nodes.indexOf(to);const fs=from.scale??1,ts=to.scale??1;const fx=(from.x??70+(fi%4)*180)+55*fs,fy=(from.y??85+Math.floor(fi/4)*135)+42*fs,tx=(to.x??70+(ti%4)*180)+55*ts,ty=(to.y??85+Math.floor(ti/4)*135)+42*ts;const kind=link.kind??installationLinkKind(link,program,stock);const layer=schemaLayerForLink(kind);if(!installationLayers[layer])return null;return <line key={link.id} className={'wire-'+kind+' schema-wire layer-'+layer} x1={fx} y1={fy} x2={tx} y2={ty}/>})}</svg>}
+            {installationLayers.materials&&installation.nodes.length?installation.nodes.map((node,index)=>{
               const source=node.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
-              const x=node.x??40+(index%4)*210,y=node.y??40+Math.floor(index/4)*150
-              return <div className={'installation-node draggable role-'+(node.role??'processing')} key={node.id} style={{left:x,top:y}} onPointerDown={e=>{if((e.target as HTMLElement).closest('button,input,select'))return;e.currentTarget.setPointerCapture(e.pointerId)}} onPointerMove={e=>{if(!e.currentTarget.hasPointerCapture(e.pointerId))return;const rect=e.currentTarget.parentElement?.getBoundingClientRect();if(rect)setInstallationNodePosition(node.id,e.clientX-rect.left-90,e.clientY-rect.top-28,false)}} onPointerUp={e=>{const rect=e.currentTarget.parentElement?.getBoundingClientRect();if(rect)setInstallationNodePosition(node.id,e.clientX-rect.left-90,e.clientY-rect.top-28,true);try{e.currentTarget.releasePointerCapture(e.pointerId)}catch{}}}>
-                <span className="installation-node-index">{index+1}</span>
-                <input className="installation-node-name" value={node.name} onChange={e=>updateInstallationNode(node.id,{name:e.target.value})}/>
-                <select className="installation-node-zone" value={node.zone??'Scène'} onChange={e=>updateInstallationNode(node.id,{zone:e.target.value})}><option>Scène</option><option>Scène gauche</option><option>Scène droite</option><option>Centre</option><option>Régie</option><option>Public</option><option>Backstage</option></select>
-                <small>{source?normalizeProvider(source.provider)+' · '+categoryLabel(source.category,categories):'Équipement libre'}</small>
-                {source&&((source.ports?.length??0)>0||source.characteristics?.length)&&<div className="installation-node-tech">
-                  {(source.ports??[]).slice(0,5).map(port=><em key={port.id}>{port.count}× {port.connector} · {port.direction==='input'?'IN':port.direction==='output'?'OUT':port.direction==='power'?'POWER':'I/O'}</em>)}
-                </div>}
-                <button className="bare-action danger-icon" onClick={()=>removeInstallationNode(node.id)}><Trash2/></button>
+              const x=node.x??70+(index%4)*180,y=node.y??85+Math.floor(index/4)*135
+              const scale=Math.max(.65,Math.min(1.65,node.scale??1))
+              const equipmentType=installationEquipmentType(node.name,source?.category)
+              const style={left:x,top:y,'--node-scale':scale,'--node-rotation':(node.rotation??0)+'deg'} as CSSProperties
+              const selected=selectedSchemaNode===node.id
+              return <div className={'installation-topview-node type-'+equipmentType+(selected?' selected':'')} key={node.id} style={style}
+                onPointerDown={e=>{if((e.target as HTMLElement).closest('button,input,select'))return;schemaPointerRef.current={id:node.id,startX:e.clientX,startY:e.clientY,moved:false};e.currentTarget.setPointerCapture(e.pointerId)}}
+                onPointerMove={e=>{const state=schemaPointerRef.current;if(!state||state.id!==node.id||!e.currentTarget.hasPointerCapture(e.pointerId))return;const dx=e.clientX-state.startX,dy=e.clientY-state.startY;if(Math.hypot(dx,dy)>6)state.moved=true;if(state.moved){const rect=e.currentTarget.parentElement?.getBoundingClientRect();if(rect)setInstallationNodePosition(node.id,e.clientX-rect.left-(55*scale),e.clientY-rect.top-(42*scale),false)}}}
+                onPointerUp={e=>{const state=schemaPointerRef.current;const rect=e.currentTarget.parentElement?.getBoundingClientRect();if(state?.moved&&rect)setInstallationNodePosition(node.id,e.clientX-rect.left-(55*scale),e.clientY-rect.top-(42*scale),true);else handleSchemaNodeClick(node.id);schemaPointerRef.current=null;try{e.currentTarget.releasePointerCapture(e.pointerId)}catch{}}}>
+                <span className="equipment-topview-glyph" aria-hidden="true"><i/><i/><i/><i/></span>
+                <span className="equipment-topview-label"><b>{node.name}</b><small>{node.zone??'Scène'}</small></span>
               </div>
-            }):<div className="installation-empty">Ajoutez les équipements de la scène ou de la chaîne audio.</div>}
+            }):(!installation.nodes.length?<div className="installation-empty topview-empty">Ajoutez les équipements de la scène ou de la chaîne audio.</div>:null)}
           </div>
+          {selectedSchemaNode&&installation.nodes.some(node=>node.id===selectedSchemaNode)&&(()=>{const node=installation.nodes.find(value=>value.id===selectedSchemaNode)!;const source=node.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined;return <div className="schema-node-inspector">
+            <div className="schema-node-inspector-head"><span><b>Équipement sélectionné</b><small>Placement et représentation vue du dessus</small></span><button className="bare-action" onClick={()=>setSelectedSchemaNode('')}><X/></button></div>
+            <div className="schema-node-inspector-grid">
+              <label><span>Nom</span><input value={node.name} onChange={e=>updateInstallationNode(node.id,{name:e.target.value})}/></label>
+              <label><span>Zone</span><select value={node.zone??'Scène'} onChange={e=>updateInstallationNode(node.id,{zone:e.target.value})}><option>Scène</option><option>Scène gauche</option><option>Scène droite</option><option>Centre</option><option>Régie</option><option>Public</option><option>Backstage</option></select></label>
+              <div className="schema-scale-control"><span>Échelle</span><div><button className="secondary" onClick={()=>updateInstallationNode(node.id,{scale:Math.max(.65,(node.scale??1)-.1)})}><Minus/></button><b>{Math.round((node.scale??1)*100)}%</b><button className="secondary" onClick={()=>updateInstallationNode(node.id,{scale:Math.min(1.65,(node.scale??1)+.1)})}><Plus/></button></div></div>
+              <div className="schema-rotation-control"><span>Orientation</span><button className="secondary" onClick={()=>updateInstallationNode(node.id,{rotation:((node.rotation??0)+90)%360})}><RotateCcw/>{node.rotation??0}°</button></div>
+            </div>
+            {source&&(source.ports?.length??0)>0&&<div className="schema-node-ports">{(source.ports??[]).map(port=><em key={port.id}>{port.count}× {port.connector} · {port.direction==='input'?'IN':port.direction==='output'?'OUT':port.direction==='power'?'POWER':'I/O'}</em>)}</div>}
+            <button className="danger schema-remove-node" onClick={()=>{removeInstallationNode(node.id);setSelectedSchemaNode('')}}><Trash2/>Retirer du schéma</button>
+          </div>})()}
+
         </div>
 
         <div className="installation-builder">
@@ -1767,7 +1844,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
                 <em>→</em>
                 <div className="link-endpoint"><b>{to?.name??'?'}</b><small>{toPort?.connector??'auto'}{toPort?.signalLevel?' · '+toPort.signalLevel:''}</small></div>
                 <label className="link-length-edit"><input type="number" min="0" step="0.5" value={link.lengthMeters??''} onChange={e=>updateInstallationLink(link.id,{lengthMeters:Number(e.target.value)>0?Number(e.target.value):undefined})}/><span>m</span></label>
-                <span className="link-channel">{kind==='power'?'Alimentation':kind==='network'?'Réseau':kind==='midi'?'MIDI':kind==='data'?'Données':kind==='accessory'?'Accessoire':kind==='audio'?'Audio':'Liaison'} · {link.assignedChannel||'canal auto'}</span>
+                <label className="link-kind-edit"><select value={kind??'unknown'} onChange={e=>updateInstallationLink(link.id,{kind:e.target.value as InstallationLink['kind']})}><option value="audio">Audio</option><option value="power">Alimentation</option><option value="network">Réseau</option><option value="midi">MIDI</option><option value="data">Données</option><option value="accessory">Accessoire</option><option value="unknown">Autre</option></select></label><span className="link-channel">{link.assignedChannel||'canal auto'}</span>
                 <span className={'link-compat-badge '+(link.compatibility??'ok')}>{link.compatibility==='di'?'DI':link.compatibility==='phantom'?'48V':link.compatibility==='adapter'?'Adapt.':link.compatibility==='warning'?'À vérifier':'OK'}</span>
                 <button className="bare-action danger-icon" onClick={()=>removeInstallationLink(link.id)}><Trash2/></button>
                 {(link.compatibilityNotes?.length??0)>0&&<div className="link-compat-notes">{link.compatibilityNotes?.map((note,n)=><small key={n}>{note}</small>)}</div>}

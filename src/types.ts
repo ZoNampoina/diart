@@ -191,6 +191,8 @@ export interface InstallationNode {
   y?: number
   zone?: string
   role?: 'source'|'processing'|'destination'|'power'|'network'|'accessory'
+  scale?: number
+  rotation?: number
 }
 
 export interface InstallationLink {
@@ -237,6 +239,12 @@ export interface InventoryInstallation {
   versionName?: string
   zones?: string[]
   snapshots?: InstallationSnapshot[]
+  layers?: {
+    materials?: boolean
+    audio?: boolean
+    power?: boolean
+    connectivity?: boolean
+  }
 }
 
 export type InventoryFrequency = 'once'|'weekly'|'monthly'

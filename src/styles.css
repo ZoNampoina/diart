@@ -11639,3 +11639,290 @@ button.song-info-value.key.active{
   .tuner-card.musician-tool-card .tuner-display{min-height:128px!important}
   .tuner-note-grid{grid-template-columns:repeat(6,minmax(0,1fr))!important}
 }
+
+
+/* DI'ART 3.3 — top-view layered installation plan */
+.installation-layer-toolbar{
+  display:grid;
+  gap:8px;
+  padding:10px;
+  border:1px solid var(--line);
+  border-radius:15px;
+  background:var(--surface2);
+}
+.installation-layer-title{display:flex;align-items:center;gap:9px}
+.installation-layer-title>span{
+  width:34px;height:34px;border-radius:11px;display:grid;place-items:center;
+  background:var(--surface);color:var(--accent2);border:1px solid var(--line)
+}
+.installation-layer-title>span svg{width:17px;height:17px}
+.installation-layer-title b,.installation-layer-title small{display:block}
+.installation-layer-title b{font-size:13px}
+.installation-layer-title small{margin-top:2px;color:var(--muted);font-size:9px}
+.installation-layer-list{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:6px;
+}
+.installation-layer-pill{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 34px;
+  align-items:stretch;
+  border:1px solid var(--line);
+  border-radius:12px;
+  overflow:hidden;
+  background:var(--surface);
+  transition:opacity .15s ease,border-color .15s ease,box-shadow .15s ease;
+}
+.installation-layer-pill.hidden{opacity:.48}
+.installation-layer-pill.active{border-color:color-mix(in srgb,var(--accent2) 55%,var(--line));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent2) 24%,transparent)}
+.installation-layer-pill.audio.active{border-color:#0d93a7}
+.installation-layer-pill.power.active{border-color:#d89a24}
+.installation-layer-pill.connectivity.active{border-color:#6b73d6}
+.installation-layer-pill .layer-main{
+  min-width:0;min-height:48px;border:0;background:transparent;color:var(--text);
+  display:flex;align-items:center;gap:8px;padding:7px 9px;text-align:left
+}
+.installation-layer-pill .layer-main>svg{width:17px;height:17px;flex:0 0 auto;color:var(--muted)}
+.installation-layer-pill.audio .layer-main>svg{color:#0d93a7}
+.installation-layer-pill.power .layer-main>svg{color:#d89a24}
+.installation-layer-pill.connectivity .layer-main>svg{color:#6b73d6}
+.installation-layer-pill .layer-main span{min-width:0}
+.installation-layer-pill .layer-main b,.installation-layer-pill .layer-main small{display:block}
+.installation-layer-pill .layer-main b{font-size:11px}
+.installation-layer-pill .layer-main small{margin-top:1px;color:var(--muted);font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.installation-layer-pill .layer-eye{
+  border:0;border-left:1px solid var(--line);background:transparent;color:var(--muted);
+  display:grid;place-items:center;padding:0
+}
+.installation-layer-pill .layer-eye svg{width:15px;height:15px}
+.schema-click-link-status{
+  min-height:38px;
+  display:flex;align-items:center;gap:7px;
+  padding:7px 9px;border-radius:11px;background:var(--surface);
+  color:var(--muted);font-size:9px
+}
+.schema-click-link-status.armed{color:var(--text);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent2) 30%,var(--line))}
+.schema-click-link-status>.schema-link-kind{width:25px;height:25px;border-radius:8px;display:grid;place-items:center;flex:0 0 auto}
+.schema-click-link-status>.schema-link-kind svg{width:13px;height:13px}
+.schema-link-kind.audio{background:color-mix(in srgb,#0d93a7 14%,var(--surface));color:#0d93a7}
+.schema-link-kind.power{background:color-mix(in srgb,#d89a24 14%,var(--surface));color:#d89a24}
+.schema-link-kind.connectivity{background:color-mix(in srgb,#6b73d6 14%,var(--surface));color:#6b73d6}
+.schema-click-link-status>.bare-action{margin-left:auto}
+.topview-stage{
+  position:relative;
+  min-width:980px!important;
+  min-height:650px!important;
+  height:clamp(650px,72vh,900px)!important;
+  background:
+    linear-gradient(90deg,transparent 49.8%,color-mix(in srgb,var(--line) 50%,transparent) 50%,transparent 50.2%),
+    linear-gradient(color-mix(in srgb,var(--line) 22%,transparent) 1px,transparent 1px),
+    linear-gradient(90deg,color-mix(in srgb,var(--line) 22%,transparent) 1px,transparent 1px),
+    color-mix(in srgb,var(--surface2) 94%,var(--bg))!important;
+  background-size:100% 100%,24px 24px,24px 24px,100% 100%!important;
+  overflow:hidden!important;
+}
+.topview-stage:before{
+  content:"";
+  position:absolute;
+  left:35px;right:35px;top:48px;bottom:118px;
+  border:2px solid color-mix(in srgb,var(--accent2) 18%,var(--line));
+  border-radius:22px;
+  pointer-events:none;
+}
+.topview-stage:after{
+  content:"";
+  position:absolute;
+  left:90px;right:90px;bottom:58px;
+  border-top:2px dashed color-mix(in srgb,var(--muted) 38%,transparent);
+  pointer-events:none;
+}
+.topview-stage-markers{position:absolute;inset:0;pointer-events:none;color:var(--muted);font-size:8px;font-weight:850;letter-spacing:.12em}
+.topview-stage-markers span:nth-child(1){position:absolute;top:23px;left:50%;transform:translateX(-50%)}
+.topview-stage-markers span:nth-child(2){position:absolute;bottom:126px;left:50%;transform:translateX(-50%)}
+.topview-stage-markers span:nth-child(3){position:absolute;bottom:27px;left:50%;transform:translateX(-50%)}
+.installation-wire-layer{z-index:1}
+.installation-wire-layer .schema-wire{stroke-width:3.5}
+.installation-wire-layer .layer-audio{stroke:#0d93a7}
+.installation-wire-layer .layer-power{stroke:#d89a24;stroke-dasharray:10 5}
+.installation-wire-layer .layer-connectivity{stroke:#6b73d6;stroke-dasharray:4 5}
+.installation-topview-node{
+  --node-scale:1;
+  --node-rotation:0deg;
+  position:absolute;
+  width:calc(110px * var(--node-scale));
+  min-height:calc(84px * var(--node-scale));
+  z-index:3;
+  display:grid;
+  justify-items:center;
+  align-content:start;
+  gap:4px;
+  touch-action:none;
+  cursor:grab;
+  user-select:none;
+}
+.installation-topview-node:active{cursor:grabbing;z-index:5}
+.installation-topview-node.selected .equipment-topview-glyph{
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent2) 26%,transparent),0 6px 18px color-mix(in srgb,#000 12%,transparent);
+  border-color:var(--accent2)
+}
+.equipment-topview-glyph{
+  position:relative;
+  width:calc(88px * var(--node-scale));
+  height:calc(54px * var(--node-scale));
+  transform:rotate(var(--node-rotation));
+  transform-origin:center;
+  border:1.5px solid color-mix(in srgb,var(--text) 42%,var(--line));
+  border-radius:10px;
+  background:var(--surface);
+  box-shadow:0 5px 14px color-mix(in srgb,#000 10%,transparent);
+  transition:box-shadow .12s ease,border-color .12s ease;
+}
+.equipment-topview-glyph i{position:absolute;display:block}
+.type-keyboard .equipment-topview-glyph{
+  border-radius:8px;
+  background:repeating-linear-gradient(90deg,#fbfbfb 0 10%,#d4d9db 10% 11.5%);
+}
+.type-keyboard .equipment-topview-glyph:before{
+  content:"";position:absolute;left:12%;right:12%;top:8%;height:38%;
+  background:repeating-linear-gradient(90deg,#26343a 0 7%,transparent 7% 14%);
+  border-radius:2px
+}
+.type-drums .equipment-topview-glyph{border:0;background:transparent;box-shadow:none}
+.type-drums .equipment-topview-glyph i{border:2px solid #7a8b91;border-radius:50%;background:var(--surface)}
+.type-drums .equipment-topview-glyph i:nth-child(1){width:45%;height:70%;left:28%;top:16%}
+.type-drums .equipment-topview-glyph i:nth-child(2){width:30%;height:48%;left:3%;top:3%}
+.type-drums .equipment-topview-glyph i:nth-child(3){width:30%;height:48%;right:3%;top:3%}
+.type-drums .equipment-topview-glyph i:nth-child(4){width:22%;height:34%;right:7%;bottom:0}
+.type-mixer .equipment-topview-glyph{
+  background:linear-gradient(180deg,color-mix(in srgb,var(--text) 8%,var(--surface)),var(--surface));
+}
+.type-mixer .equipment-topview-glyph:before{
+  content:"";position:absolute;inset:14% 10%;
+  background:repeating-linear-gradient(90deg,transparent 0 9%,#879399 9% 11%,transparent 11% 18%);
+}
+.type-mixer .equipment-topview-glyph:after{
+  content:"";position:absolute;left:10%;right:10%;top:22%;height:5px;
+  background:repeating-linear-gradient(90deg,var(--accent2) 0 4px,transparent 4px 10px)
+}
+.type-speaker .equipment-topview-glyph{width:calc(58px * var(--node-scale));height:calc(58px * var(--node-scale));border-radius:9px}
+.type-speaker .equipment-topview-glyph:before{
+  content:"";position:absolute;width:45%;aspect-ratio:1;border-radius:50%;left:27.5%;top:27.5%;
+  border:3px solid #78878c;box-shadow:inset 0 0 0 4px color-mix(in srgb,var(--text) 8%,transparent)
+}
+.type-microphone .equipment-topview-glyph{width:calc(24px * var(--node-scale));height:calc(70px * var(--node-scale));border-radius:999px}
+.type-microphone .equipment-topview-glyph:before{content:"";position:absolute;left:25%;right:25%;top:7%;height:30%;border-radius:999px;background:#7a8b91}
+.type-power .equipment-topview-glyph:before{
+  content:"";position:absolute;inset:22% 8%;
+  background:repeating-linear-gradient(90deg,#d89a24 0 8px,transparent 8px 16px);
+  border:1px solid color-mix(in srgb,#d89a24 40%,var(--line));border-radius:5px
+}
+.type-network .equipment-topview-glyph:before{
+  content:"";position:absolute;left:15%;right:15%;bottom:18%;height:3px;background:#6b73d6;
+  box-shadow:0 -10px 0 -1px #6b73d6,0 -20px 0 -2px #6b73d6
+}
+.type-cable .equipment-topview-glyph{border-radius:50%;width:calc(58px * var(--node-scale));height:calc(58px * var(--node-scale));background:transparent;border:4px double #0d93a7}
+.type-generic .equipment-topview-glyph:before{content:"";position:absolute;inset:22%;border:1px dashed var(--muted);border-radius:6px}
+.equipment-topview-label{
+  width:calc(120px * var(--node-scale));
+  text-align:center;
+  line-height:1.1;
+}
+.equipment-topview-label b,.equipment-topview-label small{display:block}
+.equipment-topview-label b{
+  font-size:calc(9px * var(--node-scale));
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.equipment-topview-label small{margin-top:2px;color:var(--muted);font-size:calc(7px * var(--node-scale))}
+.topview-empty{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+.schema-node-inspector{
+  display:grid;gap:9px;padding:10px;border:1px solid var(--line);border-radius:14px;background:var(--surface2)
+}
+.schema-node-inspector-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.schema-node-inspector-head b,.schema-node-inspector-head small{display:block}
+.schema-node-inspector-head small{margin-top:2px;color:var(--muted);font-size:9px}
+.schema-node-inspector-grid{display:grid;grid-template-columns:1.2fr .8fr .7fr .6fr;gap:7px}
+.schema-node-inspector-grid label,.schema-scale-control,.schema-rotation-control{display:grid;gap:4px}
+.schema-node-inspector-grid label>span,.schema-scale-control>span,.schema-rotation-control>span{font-size:8px;color:var(--muted);font-weight:800;text-transform:uppercase}
+.schema-scale-control>div{display:grid;grid-template-columns:34px 1fr 34px;align-items:center;gap:5px}
+.schema-scale-control button{min-width:34px;width:34px;padding:0}
+.schema-scale-control b{text-align:center;font-size:10px}
+.schema-rotation-control button{justify-content:center}
+.schema-node-ports{display:flex;gap:4px;flex-wrap:wrap}
+.schema-node-ports em{font-style:normal;font-size:8px;padding:3px 6px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted)}
+.schema-remove-node{justify-self:end}
+.link-kind-edit select{min-height:30px!important;font-size:8px!important;padding:0 5px!important}
+@media(max-width:760px){
+  .installation-advanced-body{gap:8px!important}
+  .installation-workspace-toolbar{
+    position:sticky;top:calc(58px + env(safe-area-inset-top));z-index:20;
+    padding:5px!important;gap:6px!important;border-radius:12px;
+    background:color-mix(in srgb,var(--surface) 94%,transparent);
+    backdrop-filter:blur(14px)
+  }
+  .installation-view-switch{
+    display:flex!important;
+    overflow-x:auto;
+    scrollbar-width:none;
+    gap:4px;
+  }
+  .installation-view-switch::-webkit-scrollbar{display:none}
+  .installation-view-switch button{
+    flex:0 0 auto;
+    min-height:34px!important;
+    padding:0 9px!important;
+    font-size:9px!important;
+    border-radius:9px!important;
+  }
+  .installation-view-switch button svg{width:14px;height:14px}
+  .installation-validation-actions{display:grid!important;grid-template-columns:1fr 42px;gap:5px!important;align-items:center}
+  .installation-validation-actions>span{font-size:8px!important;padding-left:5px}
+  .installation-validation-actions button{
+    width:42px!important;min-width:42px!important;height:34px!important;min-height:34px!important;padding:0!important;justify-content:center
+  }
+  .installation-validation-actions button>span{display:none}
+  .installation-layer-toolbar{padding:7px;border-radius:12px}
+  .installation-layer-title small{display:none}
+  .installation-layer-list{
+    display:flex;
+    overflow-x:auto;
+    gap:5px;
+    scrollbar-width:none;
+  }
+  .installation-layer-list::-webkit-scrollbar{display:none}
+  .installation-layer-pill{flex:0 0 132px}
+  .installation-layer-pill .layer-main{min-height:42px;padding:5px 7px}
+  .installation-layer-pill .layer-main b{font-size:9px}
+  .installation-layer-pill .layer-main small{font-size:7px}
+  .schema-click-link-status{font-size:8px;min-height:34px}
+  .installation-electrical-summary{
+    display:flex!important;
+    overflow-x:auto;
+    gap:5px!important;
+    scrollbar-width:none
+  }
+  .installation-electrical-summary::-webkit-scrollbar{display:none}
+  .installation-electrical-summary>div{flex:0 0 120px;padding:8px!important}
+  .installation-electrical-summary b{font-size:14px!important}
+  .installation-electrical-summary span{font-size:7px!important}
+  .installation-template-bar{padding:7px!important}
+  .installation-template-bar>span small{display:none}
+  .installation-template-bar>div{display:flex;overflow-x:auto;flex-wrap:nowrap!important}
+  .installation-template-bar button{flex:0 0 auto;min-height:32px!important;font-size:8px!important}
+  .installation-node-add{gap:4px!important}
+  .topview-stage{
+    min-width:760px!important;
+    min-height:560px!important;
+    height:620px!important;
+  }
+  .schema-node-inspector{
+    position:sticky;
+    bottom:8px;
+    z-index:19;
+    box-shadow:0 10px 32px color-mix(in srgb,#000 22%,transparent)
+  }
+  .schema-node-inspector-grid{grid-template-columns:1fr 1fr}
+  .schema-remove-node{width:100%;justify-content:center}
+  .installation-version-manager{order:80}
+  .installation-analysis{order:70}
+}
