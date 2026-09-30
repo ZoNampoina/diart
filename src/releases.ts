@@ -16,7 +16,7 @@ export const DIART_RELEASES:DiartRelease[]=[
       'Étape finale après import avec choix entre playlist existante, nouvelle playlist ou fin sans playlist.',
       'Conservation stricte de l’ordre original des morceaux importés et réutilisés.',
       'Ajout direct à une playlist existante sans modifier les morceaux déjà présents dans la bibliothèque.',
-      'Création d’une nouvelle playlist en un seul flux puis ouverture automatique de la liste créée.'
+      'Création d’une nouvelle playlist en un seul flux, puis ouverture automatique de la liste créée.'
     ]
   },
   {
