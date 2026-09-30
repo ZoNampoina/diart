@@ -280,12 +280,23 @@ export interface InventoryProgram {
 
 export type ActivityKind = 'create'|'update'|'import'|'complete'|'delete'|'restore'|'merge'|'export'|'backup_restore'|'play'
 
-export interface ActivityRestoreData {
+export interface SongFieldActivityRestoreData {
   kind:'song_field'
   field:keyof SongDraft
   value:unknown
   label:string
 }
+
+export interface ListImportActivityRestoreData {
+  kind:'list_import'
+  label:string
+  createdSongIds:string[]
+  setlistId?:string
+  createdSetlist?:boolean
+  previousSetlistSongIds?:string[]
+}
+
+export type ActivityRestoreData = SongFieldActivityRestoreData | ListImportActivityRestoreData
 
 export interface ActivityEntry {
   id:string
