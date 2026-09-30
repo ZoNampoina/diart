@@ -13185,6 +13185,9 @@ button.song-info-value.key.active{
 .smart-list-summary span{display:grid;gap:1px;padding:9px 10px;border-radius:10px;background:var(--surface-2,rgba(127,127,127,.08));font-size:.78rem}
 .smart-list-summary b{font-size:1.15rem}
 .smart-list-summary .found b{color:#26845d}.smart-list-summary .confirm b{color:#b47d14}.smart-list-summary .imported b{color:#2c6f9f}.smart-list-summary .minimal b{color:#7b669a}
+.smart-list-source-summary{display:flex;flex-wrap:wrap;gap:6px}
+.smart-list-source-summary span{padding:5px 8px;border-radius:999px;background:var(--surface-2,rgba(127,127,127,.08));font-size:.75rem;color:var(--muted,#73828a)}
+.smart-list-source-summary b{color:var(--text,#142129)}
 .smart-list-progress{display:flex;gap:11px;align-items:center;padding:11px 12px;border:1px solid var(--border,#d8e0e4);border-radius:12px}
 .smart-list-progress>svg{animation:smart-list-spin 1s linear infinite;flex:0 0 auto}
 .smart-list-progress>div{display:grid;gap:3px;min-width:0;flex:1}
