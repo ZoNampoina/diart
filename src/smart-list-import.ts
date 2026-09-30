@@ -136,8 +136,9 @@ export function parseSmartList(raw:string,songs:Song[]):SmartImportLine[]{
     const title=split?.title||cleaned,artist=split?.artist||''
     const local=matchLocalSongs(title,artist,songs)
     const top=local[0]
+    const ambiguousTitleOnly=!artist.trim()&&local.filter(candidate=>candidate.score>=SMART_IMPORT_THRESHOLDS.auto).length>1
     let status:SmartImportStatus='new',chosenSongId:string|undefined
-    if(top&&top.score>=SMART_IMPORT_THRESHOLDS.auto){status='found';chosenSongId=top.songId}
+    if(top&&top.score>=SMART_IMPORT_THRESHOLDS.auto&&!ambiguousTitleOnly){status='found';chosenSongId=top.songId}
     else if(top&&top.score>=SMART_IMPORT_THRESHOLDS.confirm)status='confirm'
     return {id:crypto.randomUUID(),position:index+1,original,cleaned,title,artist,parseConfidence:split?.confidence??70,status,candidates:local.slice(0,5),chosenSongId,origin:classifySongOrigin(title,artist,songs)}
   })
