@@ -143,6 +143,8 @@ export function SmartListImportModal({mode,songs,targetSetlist,onClose,onDone,to
   const [completion,setCompletion]=useState<CompletionState>(null)
 
   const counts=useMemo(()=>rows.reduce((acc,row)=>{acc.total++;if(row.status==='found')acc.found++;else if(row.status==='confirm')acc.confirm++;else if(row.status==='imported')acc.imported++;else if(row.status==='minimal')acc.minimal++;else if(row.status==='new')acc.new++;else if(row.status==='problem')acc.problem++;return acc},{total:0,found:0,confirm:0,imported:0,minimal:0,new:0,problem:0}),[rows])
+  const sourceCounts=useMemo(()=>rows.reduce<Record<string,number>>((acc,row)=>{const source=row.status==='found'?'DI’ART':row.status==='minimal'?'Fiche minimale':row.source;if(source)acc[source]=(acc[source]||0)+1;return acc},{}),[rows])
+  const manuallyVerified=useMemo(()=>rows.filter(row=>row.manual&&row.status==='found').length,[rows])
   const visibleRows=onlyAmbiguous?rows.filter(r=>r.status==='confirm'||r.status==='problem'):rows
 
   const rematch=(row:SmartImportLine,title=row.title,artist=row.artist):SmartImportLine=>{
@@ -266,6 +268,7 @@ export function SmartListImportModal({mode,songs,targetSetlist,onClose,onDone,to
       <div className="modal-actions"><button className="secondary" onClick={onClose}>Annuler</button><button className="primary" disabled={!raw.trim()||busy} onClick={()=>void analyze()}><Sparkles/>Analyser</button></div>
     </div>:<div className="smart-list-review">
       <div className="smart-list-summary"><span><b>{counts.total}</b>Morceaux</span><span className="found"><b>{counts.found}</b>DI’ART</span><span className="confirm"><b>{counts.confirm}</b>À confirmer</span><span className="imported"><b>{counts.imported}</b>Importés</span><span className="minimal"><b>{counts.minimal}</b>À compléter</span></div>
+      {Object.keys(sourceCounts).length>0&&<div className="smart-list-source-summary">{Object.entries(sourceCounts).map(([source,count])=><span key={source}><b>{count}</b> {source}</span>)}{manuallyVerified>0&&<span><b>{manuallyVerified}</b> vérifié{manuallyVerified>1?'s':''} manuellement</span>}</div>}
       {busy&&progress.total>0&&<div className="smart-list-progress"><LoaderCircle/><div><b>Recherche {progress.current}/{progress.total}</b><small>{progress.label}</small><progress max={progress.total} value={progress.current}/></div></div>}
       <div className="smart-list-toolbar"><label><input type="checkbox" checked={onlyAmbiguous} onChange={e=>setOnlyAmbiguous(e.target.checked)}/>Afficher seulement les cas à vérifier</label><button className="secondary" disabled={busy||!rows.some(r=>r.status==='new'||r.status==='problem')} onClick={()=>void importMissing()}><Search/>Importer les morceaux manquants</button></div>
       <div className="smart-list-rows">{visibleRows.map(row=>{const meta=statusMeta(row);const existing=songs.find(s=>s.id===row.chosenSongId);const incomplete=existing&&(!existing.chords?.trim()||!existing.lyrics?.trim());return <article className={`smart-list-row ${meta.className}`} key={row.id}>
