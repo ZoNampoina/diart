@@ -15,6 +15,7 @@ export interface SmartListImportResult{setlistId?:string;setlistName?:string;cre
 type Props={
   mode:SmartListImportMode
   songs:Song[]
+  setlists:Setlist[]
   targetSetlist?:Setlist|null
   onClose:()=>void
   onDone:(result:SmartListImportResult)=>Promise<void>|void
@@ -23,6 +24,7 @@ type Props={
 
 type ExternalDraft={draft:SongDraft;source:string;sourceUrl:string;score:number}
 type CompletionState={row:SmartImportLine;existing:Song;incoming:SongDraft;source:string}|null
+type PostImportState={orderedIds:string[];createdSongIds:string[];reusedSongs:number;minimalSongs:number;details:string;sessionId:string}
 
 const SOURCE_LABELS:Record<ExternalRecueilSource,string>={'ultimate-guitar':'Ultimate Guitar','acoustic-gasy':'AcousticGasy',chordify:'Chordify'}
 
@@ -130,7 +132,7 @@ function replacementPatch(incoming:SongDraft):Partial<SongDraft>{
   return content
 }
 
-export function SmartListImportModal({mode,songs,targetSetlist,onClose,onDone,toast}:Props){
+export function SmartListImportModal({mode,songs,setlists,targetSetlist,onClose,onDone,toast}:Props){
   const [raw,setRaw]=useState('')
   const [setlistName,setSetlistName]=useState(()=>targetSetlist?.name||`Setlist ${new Date().toLocaleDateString('fr-FR')}`)
   const [rows,setRows]=useState<SmartImportLine[]>([])
@@ -141,6 +143,10 @@ export function SmartListImportModal({mode,songs,targetSetlist,onClose,onDone,to
   const [editingId,setEditingId]=useState('')
   const [onlyAmbiguous,setOnlyAmbiguous]=useState(false)
   const [completion,setCompletion]=useState<CompletionState>(null)
+  const [postImport,setPostImport]=useState<PostImportState|null>(null)
+  const [playlistChoice,setPlaylistChoice]=useState<'existing'|'new'>(()=>setlists.length?'existing':'new')
+  const [playlistId,setPlaylistId]=useState(()=>setlists[0]?.id||'')
+  const [playlistName,setPlaylistName]=useState('')
 
   const counts=useMemo(()=>rows.reduce((acc,row)=>{acc.total++;if(row.status==='found')acc.found++;else if(row.status==='confirm')acc.confirm++;else if(row.status==='imported')acc.imported++;else if(row.status==='minimal')acc.minimal++;else if(row.status==='new')acc.new++;else if(row.status==='problem')acc.problem++;return acc},{total:0,found:0,confirm:0,imported:0,minimal:0,new:0,problem:0}),[rows])
   const sourceCounts=useMemo(()=>rows.reduce<Record<string,number>>((acc,row)=>{const source=row.status==='found'?'DI’ART':row.status==='minimal'?'Fiche minimale':row.source;if(source)acc[source]=(acc[source]||0)+1;return acc},{}),[rows])
@@ -238,6 +244,22 @@ export function SmartListImportModal({mode,songs,targetSetlist,onClose,onDone,to
     const unresolved=finalRows.filter(r=>r.status==='confirm'||r.status==='problem')
     if(unresolved.length){setRows(finalRows);setOnlyAmbiguous(true);toast(`${unresolved.length} cas ambigu${unresolved.length>1?'s':''} reste${unresolved.length>1?'nt':''} à confirmer.`);return}
     const orderedIds=finalRows.filter(r=>r.status!=='ignored'&&r.chosenSongId).map(r=>r.chosenSongId!)
+    const sessionId=crypto.randomUUID()
+    const sourceSummary=finalRows.filter(r=>r.source).reduce<Record<string,number>>((acc,r)=>{acc[r.source!]=(acc[r.source!]||0)+1;return acc},{})
+    const details=[`Liste brute :\n${raw.trim()}`,`Résolution : ${finalRows.map(r=>`${r.position}. ${r.title}${r.artist?' — '+r.artist:''} [${r.source||r.status}]`).join(' | ')}`,`Sources : ${Object.entries(sourceSummary).map(([k,v])=>`${k} ${v}`).join(', ')||'DI’ART local uniquement'}`].join('\n\n')
+    const createdSongIds=finalRows.filter(r=>r.status==='imported'||r.status==='minimal').map(r=>r.chosenSongId).filter((id):id is string=>Boolean(id))
+    const reusedSongs=finalRows.filter(r=>r.status==='found').length
+    const minimalSongs=finalRows.filter(r=>r.status==='minimal').length
+
+    if(mode==='songs-only'){
+      setRows(finalRows)
+      setPlaylistChoice(setlists.length?'existing':'new')
+      setPlaylistId(setlists[0]?.id||'')
+      setPlaylistName(`Playlist ${new Date().toLocaleDateString('fr-FR')}`)
+      setPostImport({orderedIds,createdSongIds,reusedSongs,minimalSongs,details,sessionId})
+      return
+    }
+
     setBusy(true)
     try{
       let setlistId:string|undefined,setlistLabel:string|undefined
@@ -248,20 +270,46 @@ export function SmartListImportModal({mode,songs,targetSetlist,onClose,onDone,to
         const merged=[...targetSetlist.songIds,...orderedIds]
         await updateSetlist(targetSetlist.id,{songIds:merged});setlistId=targetSetlist.id;setlistLabel=targetSetlist.name
       }
-      const sessionId=crypto.randomUUID()
-      const sourceSummary=finalRows.filter(r=>r.source).reduce<Record<string,number>>((acc,r)=>{acc[r.source!]=(acc[r.source!]||0)+1;return acc},{})
-      const details=[`Liste brute :\n${raw.trim()}`,`Résolution : ${finalRows.map(r=>`${r.position}. ${r.title}${r.artist?' — '+r.artist:''} [${r.source||r.status}]`).join(' | ')}`,`Sources : ${Object.entries(sourceSummary).map(([k,v])=>`${k} ${v}`).join(', ')||'DI’ART local uniquement'}`].join('\n\n')
-      const createdSongIds=finalRows.filter(r=>r.status==='imported'||r.status==='minimal').map(r=>r.chosenSongId).filter((id):id is string=>Boolean(id))
       await logActivity('import','Import intelligent de liste',details,{sessionId,setlistId,setlistName:setlistLabel,source:'Import liste intelligent',restoreData:{kind:'list_import',label:'Import intelligent de liste',createdSongIds,setlistId,createdSetlist:mode==='new-setlist',previousSetlistSongIds:mode==='append-setlist'?[...(targetSetlist?.songIds??[])]:undefined}})
-      const result={setlistId,setlistName:setlistLabel,createdSongs:createdSongIds.length,reusedSongs:finalRows.filter(r=>r.status==='found').length,minimalSongs:finalRows.filter(r=>r.status==='minimal').length,total:orderedIds.length}
-      await onDone(result)
+      await onDone({setlistId,setlistName:setlistLabel,createdSongs:createdSongIds.length,reusedSongs,minimalSongs,total:orderedIds.length})
+    }finally{setBusy(false)}
+  }
+
+  const completeSongsOnly=async(action:'skip'|'existing'|'new')=>{
+    if(!postImport)return
+    setBusy(true)
+    try{
+      let setlistId:string|undefined,setlistLabel:string|undefined,createdSetlist=false,previousSetlistSongIds:string[]|undefined
+      if(action==='existing'){
+        const target=setlists.find(list=>list.id===playlistId)
+        if(!target){toast('Choisissez une playlist existante.');return}
+        previousSetlistSongIds=[...target.songIds]
+        await updateSetlist(target.id,{songIds:[...target.songIds,...postImport.orderedIds]})
+        setlistId=target.id;setlistLabel=target.name
+      }else if(action==='new'){
+        if(!playlistName.trim()){toast('Donnez un nom à la nouvelle playlist.');return}
+        const list=await createSetlist(playlistName.trim())
+        await updateSetlist(list.id,{songIds:postImport.orderedIds})
+        setlistId=list.id;setlistLabel=list.name;createdSetlist=true
+      }
+      await logActivity('import','Import intelligent de liste',postImport.details,{sessionId:postImport.sessionId,setlistId,setlistName:setlistLabel,source:'Import liste intelligent',restoreData:{kind:'list_import',label:'Import intelligent de liste',createdSongIds:postImport.createdSongIds,setlistId,createdSetlist,previousSetlistSongIds}})
+      await onDone({setlistId,setlistName:setlistLabel,createdSongs:postImport.createdSongIds.length,reusedSongs:postImport.reusedSongs,minimalSongs:postImport.minimalSongs,total:postImport.orderedIds.length})
     }finally{setBusy(false)}
   }
 
   const title=mode==='songs-only'?'Importer une liste de morceaux':mode==='append-setlist'?`Importer dans « ${targetSetlist?.name||'Setlist'} »`:'Importer une liste en setlist'
-  return createPortal(<div className="modal-backdrop smart-list-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)onClose()}}><div className="modal smart-list-modal" role="dialog" aria-modal="true" aria-label={title}>
-    <div className="modal-head"><div><h3>{title}</h3><small>DI’ART local → source prioritaire → création minimale</small></div><button className="icon-btn" disabled={busy} onClick={onClose}><X/></button></div>
-    {!rows.length?<div className="smart-list-paste">
+  return createPortal(<div className="modal-backdrop smart-list-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy){if(postImport)void completeSongsOnly('skip');else onClose()}}}><div className="modal smart-list-modal" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="modal-head"><div><h3>{postImport?'Import terminé':title}</h3><small>{postImport?'Choisissez ce que vous voulez faire avec cette liste.':'DI’ART local → source prioritaire → création minimale'}</small></div><button className="icon-btn" disabled={busy} onClick={()=>{if(postImport)void completeSongsOnly('skip');else onClose()}}><X/></button></div>
+    {postImport?<div className="smart-list-paste">
+      <div className="smart-list-summary"><span><b>{postImport.orderedIds.length}</b>Morceaux prêts</span><span className="imported"><b>{postImport.createdSongIds.length}</b>Nouveaux</span><span className="found"><b>{postImport.reusedSongs}</b>Déjà dans DI’ART</span></div>
+      <div className="smart-list-options">
+        {setlists.length>0&&<label><input type="radio" name="post-import-playlist" checked={playlistChoice==='existing'} onChange={()=>setPlaylistChoice('existing')}/><span><b>Ajouter à une playlist existante</b><small>Les morceaux sont ajoutés à la suite, dans l’ordre de la liste importée.</small></span></label>}
+        {playlistChoice==='existing'&&setlists.length>0&&<label>Playlist<select value={playlistId} onChange={e=>setPlaylistId(e.target.value)}>{setlists.map(list=><option key={list.id} value={list.id}>{list.name}</option>)}</select></label>}
+        <label><input type="radio" name="post-import-playlist" checked={playlistChoice==='new'} onChange={()=>setPlaylistChoice('new')}/><span><b>Créer une nouvelle playlist</b><small>La playlist reprend exactement l’ordre de la liste importée.</small></span></label>
+        {playlistChoice==='new'&&<label>Nom de la playlist<input autoFocus value={playlistName} onChange={e=>setPlaylistName(e.target.value)} placeholder="Ex. Concert octobre"/></label>}
+      </div>
+      <div className="modal-actions"><button className="secondary" disabled={busy} onClick={()=>void completeSongsOnly('skip')}>Terminer sans playlist</button><button className="primary" disabled={busy||(playlistChoice==='existing'?!playlistId:!playlistName.trim())} onClick={()=>void completeSongsOnly(playlistChoice)}><ListMusic/>{playlistChoice==='existing'?'Ajouter à la playlist':'Créer la playlist'}</button></div>
+    </div>:!rows.length?<div className="smart-list-paste">
       {mode==='new-setlist'&&<label>Nom de la setlist<input value={setlistName} onChange={e=>setSetlistName(e.target.value)} placeholder="Ex. Mariage 03/10/2026"/></label>}
       <label>Liste brute<textarea autoFocus rows={11} value={raw} onChange={e=>setRaw(e.target.value)} placeholder={'1-Titre_Artiste\n2-Titre - Artiste\n3-Titre seulement'}/></label>
       <div className="smart-list-options"><label><input type="checkbox" checked={express} onChange={e=>setExpress(e.target.checked)}/><span><b>Import express</b><small>Recherche automatiquement les morceaux absents.</small></span></label><label><input type="checkbox" checked={trustStrong} onChange={e=>setTrustStrong(e.target.checked)}/><span><b>Faire confiance aux correspondances fortes</b><small>Les cas ambigus restent à confirmer.</small></span></label></div>
