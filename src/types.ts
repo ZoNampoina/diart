@@ -214,6 +214,7 @@ export interface InstallationLink {
   compatibilityNotes?: string[]
   kind?: 'audio'|'power'|'network'|'midi'|'data'|'accessory'|'unknown'
   route?: Array<{x:number;y:number}>
+  routeMode?: 'straight'|'zigzag'|'curve'
 }
 
 export interface InstallationSuggestion {
@@ -246,6 +247,8 @@ export interface InventoryInstallation {
   versionName?: string
   zones?: string[]
   snapshots?: InstallationSnapshot[]
+  stageWidth?: number
+  stageHeight?: number
   layers?: {
     materials?: boolean
     audio?: boolean

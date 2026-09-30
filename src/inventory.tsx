@@ -1267,6 +1267,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
   const [kitName,setKitName]=useState('')
   const [categories,setCategories]=useState<InventoryCategoryDef[]>(DEFAULT_CATEGORIES)
   const [programView,setProgramView]=useState<'materials'|'installation'>('materials')
+  const [advancedInstallationAvailable,setAdvancedInstallationAvailable]=useState(()=>window.matchMedia('(min-width:700px)').matches)
   const [installationOpen,setInstallationOpen]=useState(true)
   const [installationNodeName,setInstallationNodeName]=useState('')
   const [installationStockId,setInstallationStockId]=useState('')
@@ -1336,6 +1337,11 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
   const items=program?.items??[]
   const stockProviders=useMemo(()=>Array.from(new Set(stock.map(item=>normalizeProvider(item.provider)))).sort((a,b)=>a===DEFAULT_PROVIDER?-1:b===DEFAULT_PROVIDER?1:a.localeCompare(b,'fr')),[stock])
   useEffect(()=>{if(stockProviders.length&&!stockProviders.includes(installationProvider))setInstallationProvider(stockProviders[0])},[stockProviders,installationProvider])
+  useEffect(()=>{
+    const media=window.matchMedia('(min-width:700px)')
+    const update=()=>{setAdvancedInstallationAvailable(media.matches);if(!media.matches)setProgramView('materials')}
+    update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update)
+  },[])
   const categoryOrder=useMemo(()=>Array.from(new Set([...categories.map(item=>item.id),...stock.map(item=>item.category),...items.map(item=>item.category)])),[categories,stock,items])
   const selectedItems=useMemo(()=>items.filter(item=>item.quantity>0),[items])
   const totalQuantity=useMemo(()=>selectedItems.reduce((sum,item)=>sum+item.quantity,0),[selectedItems])
@@ -1654,6 +1660,34 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     void persist({installation:{...installation,nodes:[...installation.nodes,...nodes],links:[...installation.links,...links],suggestions:[]}})
     toast('Modèle '+(kind==='piano'?'Piano':kind==='drums'?'Batterie':'MR18 + réseau')+' ajouté.')
   }
+  const duplicateInstallationNode=(id:string)=>{
+    const source=installation.nodes.find(node=>node.id===id)
+    if(!source)return
+    const clone={...source,id:crypto.randomUUID(),x:(source.x??70)+34,y:(source.y??85)+34}
+    void persist({installation:{...installation,nodes:[...installation.nodes,clone]}})
+    setSelectedSchemaNode(clone.id);setSelectedSchemaLink('')
+    toast(source.name+' dupliqué.')
+  }
+  const setLinkRouteMode=(link:InstallationLink,mode:'straight'|'zigzag'|'curve')=>{
+    const from=installation.nodes.find(node=>node.id===link.fromNodeId),to=installation.nodes.find(node=>node.id===link.toNodeId)
+    if(!from||!to)return
+    const a=installationNodeCenter(from,installation.nodes.indexOf(from)),b=installationNodeCenter(to,installation.nodes.indexOf(to))
+    if(mode==='straight'){updateInstallationLink(link.id,{routeMode:'straight',route:undefined});return}
+    if(mode==='zigzag'){
+      const dx=b.x-a.x,dy=b.y-a.y
+      const route=Math.abs(dx)>=Math.abs(dy)
+        ?[{x:a.x+dx*.25,y:a.y},{x:a.x+dx*.25,y:a.y+dy*.45},{x:a.x+dx*.7,y:a.y+dy*.45},{x:a.x+dx*.7,y:b.y}]
+        :[{x:a.x,y:a.y+dy*.25},{x:a.x+dx*.45,y:a.y+dy*.25},{x:a.x+dx*.45,y:a.y+dy*.7},{x:b.x,y:a.y+dy*.7}]
+      updateInstallationLink(link.id,{routeMode:'zigzag',route});return
+    }
+    const route=link.route?.length?link.route:[{x:(a.x+b.x)/2,y:(a.y+b.y)/2-70}]
+    updateInstallationLink(link.id,{routeMode:'curve',route})
+  }
+  const resizeStage=(dw:number,dh:number)=>{
+    const width=Math.max(760,Math.min(2200,(installation.stageWidth??980)+dw))
+    const height=Math.max(560,Math.min(1600,(installation.stageHeight??650)+dh))
+    void persist({installation:{...installation,stageWidth:width,stageHeight:height}})
+  }
   const reserveInstallation=async()=>{
     if(!program)return
     if(installationShortages.length){toast(installationShortages.length+' matériel(s) insuffisant(s) dans le stock.');return}
@@ -1823,7 +1857,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     </section>
     <div className="program-section-tabs panel">
       <button className={programView==='materials'?'active':''} onClick={()=>setProgramView('materials')}><Boxes/><span>Matériels</span></button>
-      <button className={programView==='installation'?'active':''} onClick={()=>{setProgramView('installation');setInstallationOpen(true)}}><Network/><span>Installation avancée</span></button>
+      {advancedInstallationAvailable&&<button className={programView==='installation'?'active':''} onClick={()=>{setProgramView('installation');setInstallationOpen(true)}}><Network/><span>Installation avancée</span></button>}
     </div>
 
     {overviewOpen&&<section className="panel inventory-overview">

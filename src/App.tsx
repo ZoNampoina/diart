@@ -23,7 +23,7 @@ import { createDirectShare, getOwnProfile, heartbeatCurrentDevice, prepareLocalA
 import { DIART_RELEASES } from './releases'
 import { DIART_LOGO_DAY, DIART_LOGO_NIGHT } from './brand'
 
-const APP_VERSION='3.3.2'
+const APP_VERSION='3.4.0'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1938,13 +1938,12 @@ function SettingsPage({theme,setTheme,songs,refresh,toast,userEmail,profile,onPr
 function MusicianToolsPanel({initialBpm=96,signature='4/4',compact=false}:{initialBpm?:number;signature?:string;compact?:boolean}){
   const [activeTool,setActiveTool]=useState<'metronome'|'tuner'>('metronome')
   return <section className={'musician-tools-suite panel '+(compact?'compact':'full')}>
-    {!compact&&<div className="musician-tools-suite-head">
-      <div><span className="eyebrow">Outils musicaux</span><b>Métronome & Accordeur</b><small>Tempo, pulsation, détection et notes de référence.</small></div>
-      <div className="musician-tools-switch" role="tablist" aria-label="Choisir un outil">
-        <button type="button" role="tab" aria-selected={activeTool==='metronome'} className={activeTool==='metronome'?'active':''} onClick={()=>setActiveTool('metronome')}><Gauge/><span>Métronome</span></button>
-        <button type="button" role="tab" aria-selected={activeTool==='tuner'} className={activeTool==='tuner'?'active':''} onClick={()=>setActiveTool('tuner')}><Mic/><span>Accordeur</span></button>
-      </div>
-    </div>}
+    {!compact&&<div className="musician-tools-suite-title"><span className="eyebrow">Outils musicaux</span><b>Métronome & Accordeur</b><small>Tempo, pulsation, détection et notes de référence.</small></div>}
+    <div className="musician-tools-switch premium-switch" role="tablist" aria-label="Choisir un outil">
+      <span className={'premium-switch-indicator '+activeTool}/>
+      <button type="button" role="tab" aria-selected={activeTool==='metronome'} className={activeTool==='metronome'?'active':''} onClick={()=>setActiveTool('metronome')}><Gauge/><span>Métronome</span></button>
+      <button type="button" role="tab" aria-selected={activeTool==='tuner'} className={activeTool==='tuner'?'active':''} onClick={()=>setActiveTool('tuner')}><Mic/><span>Accordeur</span></button>
+    </div>
     <div className={'musician-tools-grid active-'+activeTool}>
       <div className="musician-tool-slot metronome-slot"><MetronomeCard initialBpm={initialBpm} signature={signature}/></div>
       <div className="musician-tool-slot tuner-slot"><TunerCard/></div>
