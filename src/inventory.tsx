@@ -1110,7 +1110,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
         </div>):<div className="inventory-overview-empty">Aucun mouvement enregistré pour le moment.</div>}
       </section>}
     </>}
-  </div>
+  </>
 }
 
 export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:{programId:string;onBack:()=>void;onChanged:()=>void;toast:(text:string)=>void;onShare:()=>void}){
@@ -1833,7 +1833,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     {confirmDelete&&<div className="inventory-confirm-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setConfirmDelete(false)}}>
       <div className="inventory-confirm panel"><button className="bare-action inventory-confirm-close" onClick={()=>setConfirmDelete(false)}><X/></button><h3>Supprimer ce programme ?</h3><p>Le programme sera retiré de la liste Inventaire.</p><div className="modal-actions"><button className="secondary" onClick={()=>setConfirmDelete(false)}>Annuler</button><button className="danger" onClick={()=>void removeProgram()}><Trash2/>Supprimer</button></div></div>
     </div>}
-  </>
+  </div>
 }
 function CATALOG_FLAT():{name:string;category:InventoryCategory}[]{
   return DEFAULT_CATEGORY_ORDER.flatMap(category=>(DEFAULT_CATALOG[category]??[]).map(name=>({name,category})))
