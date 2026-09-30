@@ -12357,3 +12357,69 @@ button.song-info-value.key.active{
   .schema-link-inspector-actions{grid-template-columns:1fr 1fr!important}
   .schema-route-mode-switch{grid-column:1/-1}
 }
+
+
+/* DI'ART 3.4 — connection composer and liaison cards */
+.installation-builder:has(.installation-link-composer){
+  padding:12px!important;
+  border-radius:16px!important;
+}
+.installation-link-composer{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 66px minmax(0,1fr);
+  gap:10px;
+  align-items:stretch;
+  padding:10px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:var(--surface2);
+}
+.link-composer-endpoint{
+  display:grid;
+  gap:7px;
+  padding:10px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:var(--surface);
+}
+.link-composer-endpoint.source{box-shadow:inset 3px 0 0 color-mix(in srgb,var(--accent2) 60%,transparent)}
+.link-composer-endpoint.target{box-shadow:inset -3px 0 0 color-mix(in srgb,var(--accent2) 60%,transparent)}
+.link-composer-label b,.link-composer-label small{display:block}
+.link-composer-label b{font-size:11px}
+.link-composer-label small{font-size:8px;color:var(--muted);margin-top:1px}
+.link-composer-arrow{
+  display:grid;place-items:center;align-content:center;gap:4px;
+  color:var(--muted);font-size:8px;font-weight:800;text-transform:uppercase
+}
+.link-composer-arrow svg{width:22px;height:22px;color:var(--accent2)}
+.link-composer-footer{
+  grid-column:1/-1;
+  display:grid;
+  grid-template-columns:minmax(170px,240px) minmax(180px,260px);
+  gap:8px;
+  justify-content:end;
+  align-items:end;
+}
+.installation-length-field{display:grid!important;gap:4px}
+.installation-length-field>span{font-size:8px;color:var(--muted);font-weight:800;text-transform:uppercase}
+.installation-length-field>div{display:grid;grid-template-columns:minmax(0,1fr) 24px;align-items:center}
+.installation-length-field em{font-style:normal;text-align:center;color:var(--muted);font-size:10px}
+.installation-link-list{display:grid!important;gap:7px!important;margin-top:10px}
+.installation-link-row.detailed{
+  cursor:pointer;
+  border-radius:12px!important;
+  transition:border-color .12s ease,box-shadow .12s ease,transform .12s ease;
+}
+.installation-link-row.detailed:hover{transform:translateY(-1px)}
+.installation-link-row.detailed.selected{
+  border-color:var(--accent2)!important;
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--accent2) 12%,transparent)
+}
+.link-route-badge{
+  padding:4px 7px;border-radius:999px;background:var(--surface2);border:1px solid var(--line);
+  color:var(--muted);font-size:8px;font-weight:800
+}
+@media(max-width:980px){
+  .installation-link-composer{grid-template-columns:1fr 44px 1fr}
+  .link-composer-footer{grid-template-columns:1fr 1fr}
+}

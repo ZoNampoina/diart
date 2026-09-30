@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import {
   AlertTriangle, Archive, Boxes, BrainCircuit, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp,
   ClipboardCheck, Eye, EyeOff, History, ImageDown, LayoutGrid, Link2, Minus, Network, PackageCheck, PackagePlus,
-  PackageSearch, Plus, Repeat2, RotateCcw, Save, Settings2, Trash2, Wifi, WifiOff, X, Globe2, Share2, Zap
+  PackageSearch, Plus, Repeat2, RotateCcw, Save, Settings2, Trash2, Wifi, WifiOff, X, Globe2, Share2, Zap, Copy
 } from 'lucide-react'
 import { db, logActivity } from './db'
 import { analyzeInventoryInstallationWithAI } from './cloud'
@@ -729,7 +729,8 @@ async function exportInstallationSchemaImage(program:InventoryProgram,stock:Inve
   const installation=program.installation??{nodes:[],links:[]}
   if(!installation.nodes.length)throw new Error('Le schéma est vide.')
   const width=1200,height=800
-  const sx=width/980,sy=height/650
+  const stageWidth=installation.stageWidth??980,stageHeight=installation.stageHeight??650
+  const sx=width/stageWidth,sy=height/stageHeight
   const center=(node:(typeof installation.nodes)[number],index:number)=>{
     const scale=node.scale??1
     const w=node.width??110*scale,h=node.height??84*scale
@@ -747,7 +748,8 @@ async function exportInstallationSchemaImage(program:InventoryProgram,stock:Inve
     const layer=schemaLayerForLink(kind)
     if(layers[layer]===false)return ''
     const points=[{x:a.x,y:a.y},...(link.route??[]).map(point=>({x:point.x*sx,y:point.y*sy})),{x:b.x,y:b.y}]
-    return `<polyline points="${points.map(point=>point.x.toFixed(1)+','+point.y.toFixed(1)).join(' ')}" fill="none" stroke="${linkColor(kind)}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" ${kind==='power'?'stroke-dasharray="14 7"':layer==='connectivity'?'stroke-dasharray="7 7"':''}/>`
+    const d=svgCablePath(points,link.routeMode??((link.route?.length??0)>0?'zigzag':'straight'))
+    return `<path d="${d}" fill="none" stroke="${linkColor(kind)}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" ${kind==='power'?'stroke-dasharray="14 7"':layer==='connectivity'?'stroke-dasharray="7 7"':''}/>`
   }).join('')
   const nodes=layers.materials===false?'':installation.nodes.map((node,index)=>{
     const source=node.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
@@ -2080,14 +2082,22 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
 
         <div className="installation-builder">
           <div className="installation-builder-head"><Link2/><span><b>2. Liaisons</b><small>Reliez une sortie vers une entrée. Les connectiques renseignées sont utilisées automatiquement.</small></span></div>
-          <div className="installation-link-add">
-            <select value={linkFromNode} onChange={e=>{setLinkFromNode(e.target.value);setLinkFromPort('')}}><option value="">Depuis…</option>{installation.nodes.map(node=><option value={node.id} key={node.id}>{node.name}</option>)}</select>
-            <select value={linkFromPort} onChange={e=>setLinkFromPort(e.target.value)} disabled={!linkFromNode}><option value="">Sortie auto</option>{(stockByNode(linkFromNode)?.ports??[]).filter(port=>port.direction==='output'||port.direction==='bidirectional').map(port=><option value={port.id} key={port.id}>{port.label||'Sortie'} · {port.connector} ×{port.count}</option>)}</select>
-            <span className="installation-arrow">→</span>
-            <select value={linkToNode} onChange={e=>{setLinkToNode(e.target.value);setLinkToPort('')}}><option value="">Vers…</option>{installation.nodes.map(node=><option value={node.id} key={node.id}>{node.name}</option>)}</select>
-            <select value={linkToPort} onChange={e=>setLinkToPort(e.target.value)} disabled={!linkToNode}><option value="">Entrée auto</option>{(stockByNode(linkToNode)?.ports??[]).filter(port=>port.direction==='input'||port.direction==='bidirectional').map(port=><option value={port.id} key={port.id}>{port.label||'Entrée'} · {port.connector} ×{port.count}</option>)}</select>
-            <label className="installation-length-field"><input type="number" min="0" step="0.5" inputMode="decimal" value={linkLengthMeters} onChange={e=>setLinkLengthMeters(e.target.value)} placeholder="Distance"/><span>m</span></label>
-            <button className="primary" disabled={!linkFromNode||!linkToNode||linkFromNode===linkToNode} onClick={addInstallationLink}><Plus/>Relier</button>
+          <div className="installation-link-composer">
+            <div className="link-composer-endpoint source">
+              <span className="link-composer-label"><b>Source</b><small>Équipement et sortie</small></span>
+              <select value={linkFromNode} onChange={e=>{setLinkFromNode(e.target.value);setLinkFromPort('')}}><option value="">Choisir la source…</option>{installation.nodes.map(node=><option value={node.id} key={node.id}>{node.name}</option>)}</select>
+              <select value={linkFromPort} onChange={e=>setLinkFromPort(e.target.value)} disabled={!linkFromNode}><option value="">Sortie automatique</option>{(stockByNode(linkFromNode)?.ports??[]).filter(port=>port.direction==='output'||port.direction==='bidirectional').map(port=><option value={port.id} key={port.id}>{port.label||'Sortie'} · {port.connector} ×{port.count}</option>)}</select>
+            </div>
+            <div className="link-composer-arrow"><Link2/><span>vers</span></div>
+            <div className="link-composer-endpoint target">
+              <span className="link-composer-label"><b>Destination</b><small>Équipement et entrée</small></span>
+              <select value={linkToNode} onChange={e=>{setLinkToNode(e.target.value);setLinkToPort('')}}><option value="">Choisir la destination…</option>{installation.nodes.map(node=><option value={node.id} key={node.id}>{node.name}</option>)}</select>
+              <select value={linkToPort} onChange={e=>setLinkToPort(e.target.value)} disabled={!linkToNode}><option value="">Entrée automatique</option>{(stockByNode(linkToNode)?.ports??[]).filter(port=>port.direction==='input'||port.direction==='bidirectional').map(port=><option value={port.id} key={port.id}>{port.label||'Entrée'} · {port.connector} ×{port.count}</option>)}</select>
+            </div>
+            <div className="link-composer-footer">
+              <label className="installation-length-field"><span>Distance estimée</span><div><input type="number" min="0" step="0.5" inputMode="decimal" value={linkLengthMeters} onChange={e=>setLinkLengthMeters(e.target.value)} placeholder="0"/><em>m</em></div></label>
+              <button className="primary" disabled={!linkFromNode||!linkToNode||linkFromNode===linkToNode} onClick={addInstallationLink}><Plus/>Créer la liaison</button>
+            </div>
           </div>
           <div className="installation-link-list">
             {installation.links.length?installation.links.map((link,index)=>{
@@ -2096,14 +2106,14 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
               const fromPort=(stockByNode(link.fromNodeId)?.ports??[]).find(port=>port.id===link.fromPort)
               const toPort=(stockByNode(link.toNodeId)?.ports??[]).find(port=>port.id===link.toPort)
               const kind=link.kind??installationLinkKind(link,program,stock)
-              return <div className={'installation-link-row detailed compatibility-'+(link.compatibility??'ok')+' link-kind-'+kind} key={link.id}>
+              return <div className={'installation-link-row detailed compatibility-'+(link.compatibility??'ok')+' link-kind-'+kind+(selectedSchemaLink===link.id?' selected':'')} key={link.id} onClick={e=>{if((e.target as HTMLElement).closest('input,select,button'))return;setSelectedSchemaLink(link.id);setSelectedSchemaNode('')}}>
                 <span>{index+1}</span>
                 <div className="link-endpoint"><b>{from?.name??'?'}</b><small>{fromPort?.connector??'auto'}{fromPort?.signalLevel?' · '+fromPort.signalLevel:''}</small></div>
                 <em>→</em>
                 <div className="link-endpoint"><b>{to?.name??'?'}</b><small>{toPort?.connector??'auto'}{toPort?.signalLevel?' · '+toPort.signalLevel:''}</small></div>
                 <label className="link-length-edit"><input type="number" min="0" step="0.5" value={link.lengthMeters??''} onChange={e=>updateInstallationLink(link.id,{lengthMeters:Number(e.target.value)>0?Number(e.target.value):undefined})}/><span>m</span></label>
                 <label className="link-kind-edit"><select value={kind??'unknown'} onChange={e=>updateInstallationLink(link.id,{kind:e.target.value as InstallationLink['kind']})}><option value="audio">Audio</option><option value="power">Alimentation</option><option value="network">Réseau</option><option value="midi">MIDI</option><option value="data">Données</option><option value="accessory">Accessoire</option><option value="unknown">Autre</option></select></label><span className="link-channel">{link.assignedChannel||'canal auto'}</span>
-                <span className={'link-compat-badge '+(link.compatibility??'ok')}>{link.compatibility==='di'?'DI':link.compatibility==='phantom'?'48V':link.compatibility==='adapter'?'Adapt.':link.compatibility==='warning'?'À vérifier':'OK'}</span>
+                <span className="link-route-badge">{link.routeMode==='curve'?'Courbe':link.routeMode==='zigzag'?'Zigzag':'Droit'}</span><span className={'link-compat-badge '+(link.compatibility??'ok')}>{link.compatibility==='di'?'DI':link.compatibility==='phantom'?'48V':link.compatibility==='adapter'?'Adapt.':link.compatibility==='warning'?'À vérifier':'OK'}</span>
                 <button className="bare-action danger-icon" onClick={()=>removeInstallationLink(link.id)}><Trash2/></button>
                 {(link.compatibilityNotes?.length??0)>0&&<div className="link-compat-notes">{link.compatibilityNotes?.map((note,n)=><small key={n}>{note}</small>)}</div>}
               </div>
