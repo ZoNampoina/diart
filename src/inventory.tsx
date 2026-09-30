@@ -144,6 +144,31 @@ function resolvedTechnicalIcon(icon:InventoryTechnicalIcon|undefined,text:string
   return !icon||icon==='auto'?technicalIconFromText(text):icon
 }
 
+function TechnicalIconPicker({value,text='',onChange,compact=false}:{value?:InventoryTechnicalIcon;text?:string;onChange:(value:InventoryTechnicalIcon)=>void;compact?:boolean}){
+  const selected=value??'auto'
+  const selectedOption=TECH_ICON_OPTIONS.find(option=>option.value===selected)??TECH_ICON_OPTIONS[0]
+  return <details className={'technical-icon-picker '+(compact?'compact':'')}>
+    <summary title="Choisir une icône">
+      <span className="technical-icon-picker-current"><TechnicalIcon icon={selected} text={text}/></span>
+      <span className="technical-icon-picker-current-label"><b>{selectedOption.label}</b>{selected==='auto'&&<small>Détection automatique</small>}</span>
+      <ChevronDown/>
+    </summary>
+    <div className="technical-icon-picker-popover">
+      <div className="technical-icon-picker-title"><b>Choisir une icône</b><small>{TECH_ICON_OPTIONS.length} représentations disponibles</small></div>
+      <div className="technical-icon-picker-grid">
+        {TECH_ICON_OPTIONS.map(option=><button type="button" key={option.value} className={selected===option.value?'active':''} onClick={event=>{
+          onChange(option.value)
+          event.currentTarget.closest('details')?.removeAttribute('open')
+        }}>
+          <span><TechnicalIcon icon={option.value} text={text}/></span>
+          <small>{option.label}</small>
+          {selected===option.value&&<Check/>}
+        </button>)}
+      </div>
+    </div>
+  </details>
+}
+
 function TechnicalIcon({icon,text='',className=''}:{icon?:InventoryTechnicalIcon;text?:string;className?:string}){
   const kind=resolvedTechnicalIcon(icon,text)
   const common={viewBox:'0 0 32 32',fill:'none',stroke:'currentColor',strokeWidth:1.8,strokeLinecap:'round' as const,strokeLinejoin:'round' as const,'aria-hidden':true}
@@ -1261,7 +1286,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                     <div className="stock-tech-section-head"><b>Informations générales</b></div>
                     <div className="stock-general-grid">
                       <label><span>Nom</span><input value={techDraft.name} onChange={e=>setTechDraft({...techDraft,name:e.target.value})}/></label>
-                      <label className="stock-icon-field"><span>Icône</span><div className="stock-icon-picker"><span className="stock-icon-preview"><TechnicalIcon icon={techDraft.representationIcon} text={techDraft.name+' '+techDraft.category}/></span><select value={techDraft.representationIcon??'auto'} onChange={e=>setTechDraft({...techDraft,representationIcon:e.target.value as InventoryTechnicalIcon})}>{TECH_ICON_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></div></label>
+                      <label className="stock-icon-field"><span>Icône</span><TechnicalIconPicker value={techDraft.representationIcon} text={techDraft.name+' '+techDraft.category} onChange={representationIcon=>setTechDraft({...techDraft,representationIcon})}/></label>
                       <label><span>Classe</span><select value={techDraft.category} onChange={e=>setTechDraft({...techDraft,category:e.target.value})}>{categories.map(category=><option key={category.id} value={category.id}>{category.label}</option>)}</select></label>
                       <label><span>Stockage</span><input value={normalizeProvider(techDraft.provider)} onChange={e=>setTechDraft({...techDraft,provider:e.target.value})}/></label>
                       <label className="span2"><span>Notes</span><input value={techDraft.notes??''} onChange={e=>setTechDraft({...techDraft,notes:e.target.value})} placeholder="Référence, usage, remarques…"/></label>
@@ -1271,7 +1296,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                     <div className="stock-tech-section-head"><b>Caractéristiques</b><button className="secondary" onClick={()=>setTechDraft({...techDraft,characteristics:[...(techDraft.characteristics??[]),{id:crypto.randomUUID(),label:'',value:''}]})}><Plus/>Champ</button></div>
                     {(techDraft.characteristics??[]).map((characteristic,index)=><div className="stock-tech-pair stock-tech-pair-with-icon" key={characteristic.id}>
                       <span className="stock-inline-tech-icon"><TechnicalIcon icon={characteristic.icon} text={characteristic.label+' '+characteristic.value}/></span>
-                      <select className="stock-tech-icon-select" value={characteristic.icon??'auto'} onChange={e=>setTechDraft({...techDraft,characteristics:(techDraft.characteristics??[]).map((value,i)=>i===index?{...value,icon:e.target.value as InventoryTechnicalIcon}:value)})}>{TECH_ICON_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select>
+                      <TechnicalIconPicker compact value={characteristic.icon} text={characteristic.label+' '+characteristic.value} onChange={icon=>setTechDraft({...techDraft,characteristics:(techDraft.characteristics??[]).map((value,i)=>i===index?{...value,icon}:value)})}/>
                       <input value={characteristic.label} onChange={e=>setTechDraft({...techDraft,characteristics:(techDraft.characteristics??[]).map((value,i)=>i===index?{...value,label:e.target.value}:value)})} placeholder="Ex. Entrées XLR"/>
                       <input value={characteristic.value} onChange={e=>setTechDraft({...techDraft,characteristics:(techDraft.characteristics??[]).map((value,i)=>i===index?{...value,value:e.target.value}:value)})} placeholder="Ex. 18 × XLR(F)"/>
                       <button className="bare-action danger-icon" onClick={()=>setTechDraft({...techDraft,characteristics:(techDraft.characteristics??[]).filter((_,i)=>i!==index)})}><Trash2/></button>
@@ -1281,7 +1306,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                     <div className="stock-tech-section-head"><b>Connectiques / ports</b><button className="secondary" onClick={()=>setTechDraft({...techDraft,ports:[...(techDraft.ports??[]),{id:crypto.randomUUID(),label:'',connector:'XLR(F)',direction:'input',count:1,signalLevel:'unknown',balanced:false,stereo:false,phantom:'none'}]})}><Plus/>Port</button></div>
                     {(techDraft.ports??[]).map((port,index)=><div className="stock-port-row advanced stock-port-row-with-icon" key={port.id}>
                       <span className="stock-inline-tech-icon connector-icon"><TechnicalIcon icon={port.icon} text={port.connector+' '+port.label}/></span>
-                      <select className="stock-tech-icon-select" value={port.icon??'auto'} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,icon:e.target.value as InventoryTechnicalIcon}:value)})}>{TECH_ICON_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select>
+                      <TechnicalIconPicker compact value={port.icon} text={port.connector+' '+port.label} onChange={icon=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,icon}:value)})}/>
                       <input value={port.label} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,label:e.target.value}:value)})} placeholder="Ex. Entrées micro"/>
                       <select value={port.connector} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,connector:e.target.value}:value)})}>{CONNECTOR_OPTIONS.map(value=><option value={value} key={value}>{value}</option>)}</select>
                       <select value={port.direction} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,direction:e.target.value as InventoryPortDirection}:value)})}><option value="input">Entrée</option><option value="output">Sortie</option><option value="bidirectional">Bidirectionnel</option><option value="power">Alimentation</option></select>

@@ -12536,3 +12536,157 @@ button.song-info-value.key.active{
   height:18px;
   border-left:1px dashed var(--accent2);
 }
+
+
+/* DI'ART 3.4.2 — visual technical icon picker */
+.technical-icon-picker{
+  position:relative;
+  min-width:0;
+}
+.technical-icon-picker>summary{
+  list-style:none;
+  min-height:42px;
+  display:grid;
+  grid-template-columns:36px minmax(0,1fr) 18px;
+  gap:8px;
+  align-items:center;
+  padding:4px 8px 4px 5px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:var(--surface);
+  cursor:pointer;
+  user-select:none;
+}
+.technical-icon-picker>summary::-webkit-details-marker{display:none}
+.technical-icon-picker[open]>summary{
+  border-color:color-mix(in srgb,var(--accent2) 55%,var(--line));
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--accent2) 10%,transparent);
+}
+.technical-icon-picker-current{
+  width:34px;height:34px;border-radius:9px;
+  display:grid;place-items:center;
+  color:var(--accent2);
+  background:var(--surface2);
+}
+.technical-icon-picker-current .technical-icon{width:20px;height:20px}
+.technical-icon-picker-current-label{min-width:0}
+.technical-icon-picker-current-label b,
+.technical-icon-picker-current-label small{display:block}
+.technical-icon-picker-current-label b{
+  font-size:10px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.technical-icon-picker-current-label small{
+  margin-top:1px;
+  color:var(--muted);
+  font-size:8px;
+}
+.technical-icon-picker>summary>svg{
+  width:15px;height:15px;color:var(--muted);
+  transition:transform .16s ease;
+}
+.technical-icon-picker[open]>summary>svg{transform:rotate(180deg)}
+.technical-icon-picker-popover{
+  position:absolute;
+  z-index:80;
+  left:0;
+  top:calc(100% + 6px);
+  width:min(660px,calc(100vw - 48px));
+  max-height:min(520px,70vh);
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr);
+  gap:8px;
+  padding:10px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:var(--surface);
+  box-shadow:0 18px 48px color-mix(in srgb,#000 20%,transparent);
+}
+.technical-icon-picker-title b,
+.technical-icon-picker-title small{display:block}
+.technical-icon-picker-title b{font-size:12px}
+.technical-icon-picker-title small{margin-top:2px;color:var(--muted);font-size:9px}
+.technical-icon-picker-grid{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(82px,1fr));
+  gap:6px;
+  overflow:auto;
+  padding:2px;
+}
+.technical-icon-picker-grid button{
+  position:relative;
+  min-height:78px;
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:6px;
+  padding:8px 5px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:var(--surface2);
+  color:var(--text);
+  text-align:center;
+}
+.technical-icon-picker-grid button:hover{
+  border-color:color-mix(in srgb,var(--accent2) 42%,var(--line));
+  background:color-mix(in srgb,var(--accent2) 6%,var(--surface2));
+}
+.technical-icon-picker-grid button.active{
+  border-color:var(--accent2);
+  box-shadow:inset 0 0 0 1px var(--accent2);
+}
+.technical-icon-picker-grid button>span{
+  width:38px;height:38px;border-radius:10px;
+  display:grid;place-items:center;
+  color:var(--accent2);
+  background:var(--surface);
+}
+.technical-icon-picker-grid button>span .technical-icon{width:24px;height:24px}
+.technical-icon-picker-grid button>small{
+  width:100%;
+  font-size:8px;
+  line-height:1.15;
+  color:var(--text);
+  white-space:normal;
+}
+.technical-icon-picker-grid button>svg{
+  position:absolute;
+  top:5px;right:5px;
+  width:13px;height:13px;
+  color:var(--accent2);
+}
+.technical-icon-picker.compact>summary{
+  min-height:34px;
+  grid-template-columns:28px minmax(0,1fr) 14px;
+  padding:3px 6px 3px 3px;
+  border-radius:9px;
+}
+.technical-icon-picker.compact .technical-icon-picker-current{
+  width:28px;height:28px;border-radius:8px;
+}
+.technical-icon-picker.compact .technical-icon-picker-current .technical-icon{width:17px;height:17px}
+.technical-icon-picker.compact .technical-icon-picker-current-label b{font-size:9px}
+.technical-icon-picker.compact .technical-icon-picker-current-label small{display:none}
+.stock-tech-pair-with-icon{
+  grid-template-columns:34px minmax(120px,170px) minmax(0,1fr) minmax(0,1fr) 34px!important;
+}
+.stock-port-row-with-icon{
+  grid-template-columns:34px minmax(120px,160px) minmax(130px,1.2fr) minmax(88px,.8fr) minmax(96px,.9fr) minmax(96px,.9fr) minmax(88px,.8fr) auto auto 72px 34px!important;
+}
+@media(max-width:1100px){
+  .technical-icon-picker-grid{grid-template-columns:repeat(5,minmax(78px,1fr))}
+}
+@media(max-width:760px){
+  .technical-icon-picker-popover{
+    position:fixed;
+    left:12px;
+    right:12px;
+    top:auto;
+    bottom:12px;
+    width:auto;
+    max-height:72vh;
+  }
+  .technical-icon-picker-grid{grid-template-columns:repeat(4,minmax(70px,1fr))}
+}
