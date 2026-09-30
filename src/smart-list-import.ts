@@ -26,6 +26,7 @@ export interface SmartImportLine{
 const VERSION_NOISE=/\b(?:live|acoustic|acoustique|version|cover|remix|remastered|radio edit|official(?: video| audio)?|lyrics?|paroles?|karaoke)\b/gi
 const FEAT_RE=/\b(?:feat(?:uring)?|ft)\.?\b/gi
 const MALAGASY_WORDS=new Set(['ny','aho','ianao','anao','aminao','aminay','antsika','izy','tsy','aza','mbola','rehefa','fitiavana','fitiavako','malala','fo','tanindrazana','mamiko','misy','ho','izao','hianao','tompoko','zanahary','andriamanitra'])
+const STRONG_MALAGASY_WORDS=new Set(['aminao','aminay','antsika','fitiavana','fitiavako','tanindrazana','mamiko','hianao','tompoko','zanahary','andriamanitra'])
 const MALAGASY_ARTISTS:string[]=['mahaleo','rossy','samoela','poopy','njakatiana','tsiliva','tarika','eric manana','d gary','lolo sy ny tariny','dadah','bodo','tovo j hay','ambondrona','jerry marcoss','shyn','denise','rija ramanantoanina','nanie','mika sy davis'].map(x=>normalizeIdentity(x))
 
 export const SMART_IMPORT_THRESHOLDS={auto:90,confirm:65,external:72}
@@ -157,7 +158,7 @@ export function classifySongOrigin(title:string,artist:string,songs:Song[]):Smar
     if(/tononkira|acoustic gasy|acousticgasy/.test(source))return 'malagasy'
   }
   const words=nTitle.split(' ').filter(Boolean),hits=words.filter(w=>MALAGASY_WORDS.has(w)).length
-  if(hits>=2||(hits>=1&&words.length<=4))return 'malagasy'
+  if(hits>=2||words.some(word=>STRONG_MALAGASY_WORDS.has(word)))return 'malagasy'
   if(nArtist||words.length>=2)return 'unknown'
   return 'unknown'
 }
