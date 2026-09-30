@@ -21,14 +21,16 @@ export function DiartAuthGate({onSignedIn}:{onSignedIn:()=>Promise<void>}){
   const [displayName,setDisplayName]=useState('')
   const [showPassword,setShowPassword]=useState(false)
   const [busy,setBusy]=useState(false)
+  const [busyLabel,setBusyLabel]=useState('')
   const [message,setMessage]=useState('')
   const submit=async()=>{
     if(!email.trim()||password.length<6)return
-    setBusy(true);setMessage('')
+    setBusy(true);setBusyLabel(mode==='login'?'Connexion au compte…':'Création du compte…');setMessage('')
     try{
       if(mode==='login'){
         const {error}=await signIn(email.trim(),password)
         if(error)throw error
+        setBusyLabel('Synchronisation du compte…')
         await onSignedIn()
       }else{
         const {data,error}=await supabase.auth.signUp({
@@ -36,11 +38,11 @@ export function DiartAuthGate({onSignedIn}:{onSignedIn:()=>Promise<void>}){
           options:{data:{display_name:displayName.trim()||email.trim().split('@')[0]}}
         })
         if(error)throw error
-        if(data.session)await onSignedIn()
+        if(data.session){setBusyLabel('Synchronisation du compte…');await onSignedIn()}
         else setMessage('Compte créé. Confirmez votre adresse e-mail, puis revenez vous connecter.')
       }
     }catch(e){setMessage(e instanceof Error?e.message:'Authentification impossible.')}
-    finally{setBusy(false)}
+    finally{setBusy(false);setBusyLabel('')}
   }
   return <div className="diart-auth-shell">
     <section className="diart-auth-card">
@@ -55,7 +57,8 @@ export function DiartAuthGate({onSignedIn}:{onSignedIn:()=>Promise<void>}){
         <label><span>Adresse e-mail</span><input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} placeholder="nom@exemple.com"/></label>
         <label><span>Mot de passe</span><div className="diart-password-field"><input type={showPassword?'text':'password'} autoComplete={mode==='login'?'current-password':'new-password'} value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void submit()}} placeholder="6 caractères minimum"/><button type="button" className="diart-password-toggle" aria-label={showPassword?'Masquer le mot de passe':'Afficher le mot de passe'} title={showPassword?'Masquer':'Afficher'} onClick={()=>setShowPassword(v=>!v)}>{showPassword?<EyeOff/>:<Eye/>}</button></div></label>
         {message&&<p className="diart-auth-message">{message}</p>}
-        <button className="primary diart-auth-submit" disabled={busy||!email.trim()||password.length<6} onClick={()=>void submit()}>{mode==='login'?<><LockKeyhole/>Associer cet appareil</>:<><UserRound/>Créer mon compte</>}</button>
+        <button className="primary diart-auth-submit" disabled={busy||!email.trim()||password.length<6} onClick={()=>void submit()}>{busy?<><RefreshCw className="diart-auth-sync-icon"/>{busyLabel||'Synchronisation…'}</>:mode==='login'?<><LockKeyhole/>Associer cet appareil</>:<><UserRound/>Créer mon compte</>}</button>
+        {busy&&<div className="diart-auth-sync-state" role="status" aria-live="polite"><span className="diart-loading-spinner"/><span>{busyLabel||'Synchronisation du compte…'}</span></div>}
       </div>
       <div className="diart-auth-foot"><MonitorSmartphone/><span>L’appareil sera enregistré dans votre compte avec son type, navigateur et dernière activité.</span></div>
     </section>
@@ -108,7 +111,7 @@ export function CommunityPage({profile,toast,onImported,onProfileChanged}:{profi
     </section>
     {!profile?.public_imported_at&&<section className="panel community-code-panel">
       <div><KeyRound/><span><b>Importer la base publique dans votre compte</b><small>Un code personnel généré par l’administrateur est demandé une seule fois.</small></span></div>
-      <div className="community-code-form"><input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="DIART-XXXX-XXXX"/><button className="primary" disabled={busy||!code.trim()} onClick={()=>void redeem()}><CloudDownload/>Importer</button></div>
+      <div className="community-code-form"><input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="DIART-XXXX-XXXX"/><button className="primary community-code-import-btn" aria-label="Importer avec ce code" title="Importer" disabled={busy||!code.trim()} onClick={()=>void redeem()}><CloudDownload/><span>Importer</span></button></div>
     </section>}
     <div className="community-tabs">
       <button className={tab==='songs'?'active':''} onClick={()=>setTab('songs')}><Music2/>Morceaux <b>{songs.length}</b></button>

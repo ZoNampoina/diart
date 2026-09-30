@@ -13018,3 +13018,152 @@ button.song-info-value.key.active{
   .stock-row-with-tech .compact-qty button{width:24px!important;min-width:24px!important}
   .stock-row-with-tech .compact-qty input{width:28px!important;min-width:28px!important}
 }
+
+
+/* DI'ART 3.4.5 — cloud-first sync, readable musician role, compact stock status */
+.stage-musician-role-control{min-width:0}
+.stage-control-group .stage-musician-role-select{
+  min-height:30px!important;
+  height:30px!important;
+  max-width:128px!important;
+  padding:3px 24px 3px 8px!important;
+  border:1px solid #28505a!important;
+  border-radius:8px!important;
+  background:#0d252c!important;
+  color:#e7fbff!important;
+  -webkit-text-fill-color:#e7fbff!important;
+  font-size:10px!important;
+  font-weight:850!important;
+  color-scheme:dark;
+}
+.stage-control-group .stage-musician-role-select option{
+  background:#07171c!important;
+  color:#e7fbff!important;
+}
+.field-edit-action{color:var(--accent2)!important}
+.song-collapsible-actions .field-edit-action,
+.hero-metric-with-delete .field-edit-action{flex:none}
+
+.diart-auth-sync-icon{animation:spin .8s linear infinite}
+.diart-auth-sync-state{
+  min-height:42px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  color:var(--accent2);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.02em;
+  background:color-mix(in srgb,var(--accent) 8%,var(--surface2));
+  border:1px solid color-mix(in srgb,var(--accent2) 20%,var(--line));
+  border-radius:11px;
+}
+.diart-auth-sync-state .diart-loading-spinner{width:18px;height:18px;border-width:2px}
+
+.stock-status-control{
+  --stock-status-color:#f2c94c;
+  position:relative;
+  min-width:0;
+  width:100%;
+  height:32px;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:0 24px 0 9px;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:var(--surface2);
+  color:var(--text);
+  cursor:pointer;
+  overflow:hidden;
+}
+.stock-status-control.status-available,.provider-stock-chip.status-available{--stock-status-color:#f2c94c}
+.stock-status-control.status-reserved,.provider-stock-chip.status-reserved{--stock-status-color:#2f80ed}
+.stock-status-control.status-in_use,.provider-stock-chip.status-in_use{--stock-status-color:#27ae60}
+.stock-status-control.status-repair,.provider-stock-chip.status-repair{--stock-status-color:#050505}
+.stock-status-control.status-maintenance,.provider-stock-chip.status-maintenance{--stock-status-color:#f2994a}
+.stock-status-control.status-unavailable,.provider-stock-chip.status-unavailable{--stock-status-color:#eb5757}
+.stock-status-dot{
+  width:10px;
+  height:10px;
+  flex:none;
+  display:inline-block;
+  border-radius:50%;
+  background:var(--stock-status-color);
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--stock-status-color) 55%,var(--line));
+}
+.status-repair .stock-status-dot{box-shadow:0 0 0 1px #87969a}
+.stock-status-label{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:9px;
+  font-weight:800;
+}
+.stock-status-native{
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  opacity:0!important;
+  cursor:pointer!important;
+  padding:0!important;
+  border:0!important;
+}
+.provider-stock-chip{
+  grid-template-columns:10px minmax(0,1fr) auto!important;
+  color:var(--text)!important;
+}
+.provider-stock-chip .stock-status-dot{grid-column:1;grid-row:1/3;align-self:center}
+.provider-stock-chip em{grid-column:2}
+.provider-stock-chip b{grid-column:3}
+.provider-stock-chip small{grid-column:2/-1!important;color:var(--muted)!important}
+
+.stock-row-with-tech>.stock-status-control{min-width:0!important}
+@media(max-width:620px){
+  .community-code-form{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) 46px!important;
+    gap:8px!important;
+  }
+  .community-code-import-btn{
+    width:46px!important;
+    min-width:46px!important;
+    padding:0!important;
+  }
+  .community-code-import-btn span{display:none!important}
+  .stock-row-with-tech{
+    grid-template-columns:28px minmax(0,1fr) 34px 96px 30px 30px!important;
+    min-width:0!important;
+    width:100%!important;
+    gap:4px!important;
+    overflow:visible!important;
+  }
+  .stock-row-with-tech>b{font-size:12px!important}
+  .stock-row-with-tech>.stock-status-control{
+    width:34px!important;
+    min-width:34px!important;
+    height:34px!important;
+    padding:0!important;
+    justify-content:center!important;
+    grid-column:auto!important;
+  }
+  .stock-status-control .stock-status-label{display:none!important}
+  .stock-status-control .stock-status-dot{width:12px;height:12px}
+  .stock-row-with-tech .compact-qty{
+    grid-template-columns:28px 36px 28px!important;
+    gap:2px!important;
+  }
+  .stock-row-with-tech .compact-qty button{
+    width:28px!important;min-width:28px!important;height:30px!important
+  }
+  .stock-row-with-tech .compact-qty input{
+    width:36px!important;min-width:36px!important;padding-inline:2px!important
+  }
+  .stock-row-with-tech .tech-action,
+  .stock-row-with-tech .compact-delete{
+    width:30px!important;min-width:30px!important;height:30px!important
+  }
+}

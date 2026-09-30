@@ -60,7 +60,7 @@ export async function syncSongs(userId:string,since=''){
     const remoteSong=r?.payload as Song|undefined
     const sameContent=Boolean(r&&remoteSong&&sameSyncContent(song,remoteSong))
     const bothChanged=Boolean(r&&since&&song.updatedAt>since&&r.updated_at>since&&!sameContent)
-    if(bothChanged&&r&&remoteSong){conflicts.push({kind:'song',id:song.id,local:song,remote:remoteSong,localUpdatedAt:song.updatedAt,remoteUpdatedAt:r.updated_at});remote.delete(song.id);continue}
+    if(bothChanged&&r&&remoteSong){await db.songs.put(remoteSong);pulled++;remote.delete(song.id);continue}
     if(!r || sameContent || newer(song.updatedAt,r.updated_at)) pushes.push({user_id:userId,id:song.id,payload:song,updated_at:song.updatedAt})
     else if(newer(r.updated_at,song.updatedAt)){await db.songs.put(r.payload as Song);pulled++}
     remote.delete(song.id)
@@ -86,7 +86,7 @@ export async function syncSetlists(userId:string,since=''){
     const remoteItem=r?.payload as Setlist|undefined
     const sameContent=Boolean(r&&remoteItem&&sameSyncContent(item,remoteItem))
     const bothChanged=Boolean(r&&since&&item.updatedAt>since&&r.updated_at>since&&!sameContent)
-    if(bothChanged&&r&&remoteItem){conflicts.push({kind:'setlist',id:item.id,local:item,remote:remoteItem,localUpdatedAt:item.updatedAt,remoteUpdatedAt:r.updated_at});remote.delete(item.id);continue}
+    if(bothChanged&&r&&remoteItem){await db.setlists.put(remoteItem);pulled++;remote.delete(item.id);continue}
     if(!r || sameContent || newer(item.updatedAt,r.updated_at)) pushes.push({user_id:userId,id:item.id,payload:item,updated_at:item.updatedAt})
     else if(newer(r.updated_at,item.updatedAt)){await db.setlists.put(r.payload as Setlist);pulled++}
     remote.delete(item.id)

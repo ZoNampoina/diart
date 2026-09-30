@@ -8,6 +8,19 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'3.4.5',
+    date:'30 septembre 2026',
+    title:'Synchronisation cloud et ergonomie scène/stock',
+    summary:'La synchronisation privilégie désormais le cloud en cas de concurrence et les écrans de scène, de connexion et de stock gagnent en lisibilité.',
+    highlights:[
+      'Synchronisation automatique déclenchée après chaque modification et priorité cloud lors d’une modification concurrente.',
+      'Animation visible pendant la connexion et la synchronisation initiale du compte.',
+      'Sélecteur Piano, Sax et autres rôles rendu lisible en Répétition, Live et plein écran.',
+      'Statuts de stock représentés par des points colorés, avec affichage compact sur Android.',
+      'Import public compact par icône sur Android et accès direct à la modification des autres spécifications d’un morceau.'
+    ]
+  },
+  {
     version:'3.1.1',
     date:'29 septembre 2026',
     title:'Partage direct par code fixe',

@@ -1269,9 +1269,13 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
               {items.map(item=><div className="stock-item-wrap" key={item.id}>
                 <div className={'stock-row stock-row-with-status stock-row-with-tech '+(item.quantity>0?'active':'empty-stock')}>
                   <span className="stock-representation-icon"><TechnicalIcon icon={item.representationIcon} text={item.name+' '+item.category}/></span><b>{item.name}</b>
-                  <select className={'stock-status-select status-'+(item.status??'available')} value={item.status??'available'} onChange={e=>void setStockStatus(item,e.target.value as InventoryStockStatus)}>
-                    {Object.entries(STOCK_STATUS_LABELS).map(([value,label])=><option value={value} key={value}>{label}</option>)}
-                  </select>
+                  <label className={'stock-status-control status-'+(item.status??'available')} title={STOCK_STATUS_LABELS[item.status??'available']}>
+                    <span className="stock-status-dot" aria-hidden="true"/>
+                    <span className="stock-status-label">{STOCK_STATUS_LABELS[item.status??'available']}</span>
+                    <select className="stock-status-native" aria-label={'Statut de '+item.name} value={item.status??'available'} onChange={e=>void setStockStatus(item,e.target.value as InventoryStockStatus)}>
+                      {Object.entries(STOCK_STATUS_LABELS).map(([value,label])=><option value={value} key={value}>{label}</option>)}
+                    </select>
+                  </label>
                   <div className="compact-qty">
                     <button disabled={item.quantity<=0} onClick={()=>void setStockQuantity(item,item.quantity-1)}><Minus/></button>
                     <input type="number" min="0" max="999" inputMode="numeric" value={item.quantity} onChange={e=>void setStockQuantity(item,Number(e.target.value))}/>
@@ -1334,7 +1338,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
             <div className="global-stock-category-head"><b>{categoryLabel(category,categories)}</b><span>{rows.reduce((sum,row)=>sum+row.total,0)} unités</span></div>
             {rows.map(row=><div className="global-stock-row" key={category+'-'+row.name}>
               <div><b>{row.name}</b><small>{row.providers.length} stockage{row.providers.length>1?'s':''}</small></div>
-              <div className="global-stock-providers">{row.providers.map(part=><span className={'provider-stock-chip status-'+part.status} key={part.id}><em>{part.provider}</em><b>{part.quantity}</b><small>{STOCK_STATUS_LABELS[part.status]}</small></span>)}</div>
+              <div className="global-stock-providers">{row.providers.map(part=><span className={'provider-stock-chip status-'+part.status} key={part.id}><i className="stock-status-dot" aria-hidden="true"/><em>{part.provider}</em><b>{part.quantity}</b><small>{STOCK_STATUS_LABELS[part.status]}</small></span>)}</div>
               <strong>{row.total}</strong>
             </div>)}
           </section>
