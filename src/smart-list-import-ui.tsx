@@ -249,8 +249,9 @@ export function SmartListImportModal({mode,songs,targetSetlist,onClose,onDone,to
       const sessionId=crypto.randomUUID()
       const sourceSummary=finalRows.filter(r=>r.source).reduce<Record<string,number>>((acc,r)=>{acc[r.source!]=(acc[r.source!]||0)+1;return acc},{})
       const details=[`Liste brute :\n${raw.trim()}`,`Résolution : ${finalRows.map(r=>`${r.position}. ${r.title}${r.artist?' — '+r.artist:''} [${r.source||r.status}]`).join(' | ')}`,`Sources : ${Object.entries(sourceSummary).map(([k,v])=>`${k} ${v}`).join(', ')||'DI’ART local uniquement'}`].join('\n\n')
-      await logActivity('import','Import intelligent de liste',details,{sessionId,setlistId,setlistName:setlistLabel,source:'Import liste intelligent'})
-      const result={setlistId,setlistName:setlistLabel,createdSongs:finalRows.filter(r=>r.status==='imported'||r.status==='minimal').length,reusedSongs:finalRows.filter(r=>r.status==='found').length,minimalSongs:finalRows.filter(r=>r.status==='minimal').length,total:orderedIds.length}
+      const createdSongIds=finalRows.filter(r=>r.status==='imported'||r.status==='minimal').map(r=>r.chosenSongId).filter((id):id is string=>Boolean(id))
+      await logActivity('import','Import intelligent de liste',details,{sessionId,setlistId,setlistName:setlistLabel,source:'Import liste intelligent',restoreData:{kind:'list_import',label:'Import intelligent de liste',createdSongIds,setlistId,createdSetlist:mode==='new-setlist',previousSetlistSongIds:mode==='append-setlist'?[...(targetSetlist?.songIds??[])]:undefined}})
+      const result={setlistId,setlistName:setlistLabel,createdSongs:createdSongIds.length,reusedSongs:finalRows.filter(r=>r.status==='found').length,minimalSongs:finalRows.filter(r=>r.status==='minimal').length,total:orderedIds.length}
       await onDone(result)
     }finally{setBusy(false)}
   }
