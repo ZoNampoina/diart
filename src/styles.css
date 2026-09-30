@@ -12076,3 +12076,122 @@ button.song-info-value.key.active{
   .stock-port-row-with-icon{grid-template-columns:32px minmax(0,1fr)!important}
   .stock-port-row-with-icon .stock-tech-icon-select{grid-column:2}
 }
+
+
+/* DI'ART 3.3.2 — freeform equipment sizing, cable routing and schema export */
+.installation-layer-title{grid-template-columns:34px minmax(0,1fr) auto}
+.schema-export-button{justify-self:end;min-height:34px;padding:0 10px;font-size:10px}
+.installation-wire-layer{pointer-events:auto!important}
+.schema-wire-group{pointer-events:stroke}
+.schema-wire-hit{
+  fill:none;
+  stroke:transparent;
+  stroke-width:18;
+  cursor:pointer;
+  pointer-events:stroke;
+}
+.schema-wire-group.selected .schema-wire{stroke-width:5.5;filter:drop-shadow(0 0 3px color-mix(in srgb,var(--accent2) 45%,transparent))}
+.schema-route-handle{
+  fill:var(--surface);
+  stroke:var(--accent2);
+  stroke-width:3;
+  cursor:move;
+  pointer-events:all;
+}
+.installation-topview-node{
+  min-width:52px!important;
+  min-height:48px!important;
+  width:auto;
+  height:auto;
+  align-content:center!important;
+}
+.equipment-topview-glyph{
+  width:78%!important;
+  height:58%!important;
+  min-width:28px;
+  min-height:28px;
+  display:grid!important;
+  place-items:center!important;
+  overflow:hidden;
+}
+.equipment-topview-glyph>.schema-equipment-icon{
+  width:52%!important;
+  height:52%!important;
+  min-width:22px;
+  min-height:22px;
+  color:var(--accent2);
+  position:relative;
+  z-index:2;
+}
+.installation-topview-node.type-keyboard .equipment-topview-glyph>.schema-equipment-icon,
+.installation-topview-node.type-drums .equipment-topview-glyph>.schema-equipment-icon,
+.installation-topview-node.type-mixer .equipment-topview-glyph>.schema-equipment-icon,
+.installation-topview-node.type-speaker .equipment-topview-glyph>.schema-equipment-icon,
+.installation-topview-node.type-microphone .equipment-topview-glyph>.schema-equipment-icon{
+  opacity:.92
+}
+.equipment-topview-label{width:94%!important}
+.equipment-topview-label b{font-size:9px!important}
+.equipment-topview-label small{font-size:7px!important}
+.schema-resize-handle,.schema-rotate-handle{
+  position:absolute;
+  z-index:8;
+  width:24px;height:24px;
+  border-radius:50%;
+  display:grid;place-items:center;
+  border:2px solid var(--accent2);
+  background:var(--surface);
+  color:var(--accent2);
+  box-shadow:0 3px 10px color-mix(in srgb,#000 18%,transparent);
+  padding:0;
+  touch-action:none;
+}
+.schema-resize-handle{right:-12px;bottom:-12px;cursor:nwse-resize}
+.schema-resize-handle span{
+  width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor
+}
+.schema-rotate-handle{right:-12px;top:-12px;cursor:grab}
+.schema-rotate-handle svg{width:13px;height:13px}
+.schema-link-inspector{
+  display:grid;
+  gap:9px;
+  padding:10px;
+  border:1px solid color-mix(in srgb,var(--accent2) 32%,var(--line));
+  border-radius:14px;
+  background:var(--surface2);
+}
+.schema-link-inspector-actions{
+  display:grid;
+  grid-template-columns:auto auto auto minmax(130px,1fr) 110px;
+  gap:7px;
+  align-items:end;
+}
+.schema-link-inspector-actions>label{display:grid;gap:4px}
+.schema-link-inspector-actions>label>span{font-size:8px;color:var(--muted);font-weight:800;text-transform:uppercase}
+.schema-length-input{display:grid;grid-template-columns:minmax(0,1fr) 20px;align-items:center}
+.schema-length-input em{font-style:normal;color:var(--muted);font-size:10px;text-align:center}
+.schema-route-points{display:flex;gap:6px;flex-wrap:wrap}
+.schema-route-points>span{
+  display:grid;
+  grid-template-columns:auto auto 26px;
+  gap:6px;
+  align-items:center;
+  padding:5px 6px 5px 9px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:var(--surface);
+}
+.schema-route-points b{font-size:9px}
+.schema-route-points small{font-size:8px;color:var(--muted)}
+.schema-route-points button{width:24px;height:24px}
+.schema-rotation-control>div{display:grid;grid-template-columns:minmax(0,1fr) 42px;align-items:center;gap:7px}
+.schema-rotation-control input[type="range"]{width:100%;min-height:auto;padding:0}
+.schema-rotation-control b{text-align:right;font-size:10px}
+@media(max-width:760px){
+  .installation-layer-title{grid-template-columns:30px minmax(0,1fr) 38px}
+  .schema-export-button{width:38px;min-width:38px;padding:0;justify-content:center}
+  .schema-export-button>span{display:none}
+  .schema-link-inspector-actions{grid-template-columns:1fr 1fr}
+  .schema-link-inspector-actions>button:nth-child(3){grid-column:1/-1}
+  .schema-node-inspector-grid{grid-template-columns:1fr 1fr!important}
+}
