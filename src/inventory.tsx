@@ -361,6 +361,25 @@ function autoAssignInstallationChannels(program:InventoryProgram,stock:Inventory
     return {...link,assignedChannel:labels.join(' → ')||link.assignedChannel||''}
   })
 }
+function installationLinkKind(link:InstallationLink,program:InventoryProgram,stock:InventoryStockItem[]):InstallationLink['kind']{
+  const installation=program.installation??{nodes:[],links:[]}
+  const fromNode=installation.nodes.find(item=>item.id===link.fromNodeId)
+  const toNode=installation.nodes.find(item=>item.id===link.toNodeId)
+  const fromStock=fromNode?.stockItemId?stock.find(item=>item.id===fromNode.stockItemId):undefined
+  const toStock=toNode?.stockItemId?stock.find(item=>item.id===toNode.stockItemId):undefined
+  const fromPort=(fromStock?.ports??[]).find(port=>port.id===link.fromPort)
+  const toPort=(toStock?.ports??[]).find(port=>port.id===link.toPort)
+  const connector=((fromPort?.connector??'')+' '+(toPort?.connector??'')).toLowerCase()
+  const levels=[fromPort?.signalLevel,toPort?.signalLevel]
+  if(levels.includes('power')||fromPort?.direction==='power'||toPort?.direction==='power'||/iec|secteur|alimentation|power/.test(connector))return 'power'
+  if(/rj45|ethernet|wifi|réseau|network/.test(connector+' '+(fromNode?.name??'')+' '+(toNode?.name??'').toLowerCase()))return 'network'
+  if(levels.includes('midi')||/midi/.test(connector))return 'midi'
+  if(levels.includes('digital')||/usb|hdmi/.test(connector))return 'data'
+  if(levels.some(level=>level==='mic'||level==='line'||level==='instrument'||level==='speaker')||/xlr|jack|rca|speakon/.test(connector))return 'audio'
+  if(/sustain|pédale|pedale/.test(((fromNode?.name??'')+' '+(toNode?.name??'')).toLowerCase()))return 'accessory'
+  return link.kind??'unknown'
+}
+
 function linkCompatibility(link:InstallationLink,program:InventoryProgram,stock:InventoryStockItem[]):{
   compatibility:'ok'|'adapter'|'di'|'phantom'|'warning'
   notes:string[]
@@ -845,12 +864,16 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   const saveTechnicalDraft=async()=>{
     if(!techDraft)return
     await db.inventoryStock.update(techDraft.id,{
+      name:techDraft.name.trim()||'Matériel',
+      category:techDraft.category,
+      provider:normalizeProvider(techDraft.provider),
+      notes:techDraft.notes??'',
       characteristics:(techDraft.characteristics??[]).filter(item=>item.label.trim()||item.value.trim()),
       ports:(techDraft.ports??[]).filter(item=>item.label.trim()||item.connector.trim()),
       updatedAt:now()
     })
-    await logActivity('update','Caractéristiques matériel',techDraft.name,{source:'inventory',inventoryStockItemId:techDraft.id,inventoryProvider:normalizeProvider(techDraft.provider)})
-    setTechDraft(null);await changed();toast('Caractéristiques enregistrées.')
+    await logActivity('update','Matériel modifié',techDraft.name,{source:'inventory',inventoryStockItemId:techDraft.id,inventoryProvider:normalizeProvider(techDraft.provider)})
+    setTechDraft(null);await changed();toast('Matériel modifié.')
   }
   const stockUnits=stock.reduce((sum,item)=>sum+item.quantity,0)
   const unavailableUnits=stock.filter(item=>statusBlocksAvailability(item.status)).reduce((sum,item)=>sum+item.quantity,0)
@@ -1024,6 +1047,15 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                 </div>
                 {techDraft?.id===item.id&&<div className="stock-tech-editor">
                   <div className="stock-tech-head"><span><b>Caractéristiques · {item.name}</b><small>Décrivez les propriétés et les entrées/sorties utilisables dans les schémas.</small></span><button className="bare-action" onClick={()=>setTechDraft(null)}><X/></button></div>
+                  <div className="stock-tech-section stock-general-editor">
+                    <div className="stock-tech-section-head"><b>Informations générales</b></div>
+                    <div className="stock-general-grid">
+                      <label><span>Nom</span><input value={techDraft.name} onChange={e=>setTechDraft({...techDraft,name:e.target.value})}/></label>
+                      <label><span>Classe</span><select value={techDraft.category} onChange={e=>setTechDraft({...techDraft,category:e.target.value})}>{categories.map(category=><option key={category.id} value={category.id}>{category.label}</option>)}</select></label>
+                      <label><span>Stockage</span><input value={normalizeProvider(techDraft.provider)} onChange={e=>setTechDraft({...techDraft,provider:e.target.value})}/></label>
+                      <label className="span2"><span>Notes</span><input value={techDraft.notes??''} onChange={e=>setTechDraft({...techDraft,notes:e.target.value})} placeholder="Référence, usage, remarques…"/></label>
+                    </div>
+                  </div>
                   <div className="stock-tech-section">
                     <div className="stock-tech-section-head"><b>Caractéristiques</b><button className="secondary" onClick={()=>setTechDraft({...techDraft,characteristics:[...(techDraft.characteristics??[]),{id:crypto.randomUUID(),label:'',value:''}]})}><Plus/>Champ</button></div>
                     {(techDraft.characteristics??[]).map((characteristic,index)=><div className="stock-tech-pair" key={characteristic.id}>
@@ -1078,8 +1110,9 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
         </div>):<div className="inventory-overview-empty">Aucun mouvement enregistré pour le moment.</div>}
       </section>}
     </>}
-  </>
+  </div>
 }
+
 export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:{programId:string;onBack:()=>void;onChanged:()=>void;toast:(text:string)=>void;onShare:()=>void}){
   const [program,setProgram]=useState<InventoryProgram|null>(null)
   const [programs,setPrograms]=useState<InventoryProgram[]>([])
@@ -1098,9 +1131,11 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
   const [customCategory,setCustomCategory]=useState<InventoryCategory>('cable')
   const [kitName,setKitName]=useState('')
   const [categories,setCategories]=useState<InventoryCategoryDef[]>(DEFAULT_CATEGORIES)
-  const [installationOpen,setInstallationOpen]=useState(false)
+  const [programView,setProgramView]=useState<'materials'|'installation'>('materials')
+  const [installationOpen,setInstallationOpen]=useState(true)
   const [installationNodeName,setInstallationNodeName]=useState('')
   const [installationStockId,setInstallationStockId]=useState('')
+  const [installationProvider,setInstallationProvider]=useState(DEFAULT_PROVIDER)
   const [linkFromNode,setLinkFromNode]=useState('')
   const [linkToNode,setLinkToNode]=useState('')
   const [linkFromPort,setLinkFromPort]=useState('')
@@ -1155,6 +1190,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
 
   const items=program?.items??[]
   const stockProviders=useMemo(()=>Array.from(new Set(stock.map(item=>normalizeProvider(item.provider)))).sort((a,b)=>a===DEFAULT_PROVIDER?-1:b===DEFAULT_PROVIDER?1:a.localeCompare(b,'fr')),[stock])
+  useEffect(()=>{if(stockProviders.length&&!stockProviders.includes(installationProvider))setInstallationProvider(stockProviders[0])},[stockProviders,installationProvider])
   const categoryOrder=useMemo(()=>Array.from(new Set([...categories.map(item=>item.id),...stock.map(item=>item.category),...items.map(item=>item.category)])),[categories,stock,items])
   const selectedItems=useMemo(()=>items.filter(item=>item.quantity>0),[items])
   const totalQuantity=useMemo(()=>selectedItems.reduce((sum,item)=>sum+item.quantity,0),[selectedItems])
@@ -1351,9 +1387,39 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     const stockItem=installationStockId?stock.find(item=>item.id===installationStockId):undefined
     const name=(stockItem?.name??installationNodeName).trim()
     if(!name){toast('Choisissez un matériel ou saisissez un nom.');return}
-    const node={id:crypto.randomUUID(),name,stockItemId:stockItem?.id}
+    const index=installation.nodes.length
+    const node={id:crypto.randomUUID(),name,stockItemId:stockItem?.id,x:40+(index%4)*210,y:40+Math.floor(index/4)*150,zone:'Scène'}
     void persist({installation:{...installation,nodes:[...installation.nodes,node]}})
     setInstallationNodeName('');setInstallationStockId('')
+  }
+  const updateInstallationNode=(id:string,patch:Partial<(typeof installation.nodes)[number]>)=>{
+    void persist({installation:{...installation,nodes:installation.nodes.map(node=>node.id===id?{...node,...patch}:node)}})
+  }
+  const setInstallationNodePosition=(id:string,x:number,y:number,commit=false)=>{
+    if(!program)return
+    const nextInstallation={...installation,nodes:installation.nodes.map(node=>node.id===id?{...node,x:Math.max(8,Math.round(x)),y:Math.max(8,Math.round(y))}:node)}
+    if(commit)void persist({installation:nextInstallation})
+    else setProgram({...program,installation:nextInstallation})
+  }
+  const addInstallationTemplate=(kind:'piano'|'drums'|'mr18')=>{
+    if(!program)return
+    const definitions=kind==='piano'
+      ?['Onduleur','Prise multiple','Alimentation piano','Piano','XLR-XLR','Table de mixage','XLR-XLR','Baffle','Sustain']
+      :kind==='drums'
+        ?['Batterie','Mic batterie','XLR batterie','Table de mixage']
+        :['Prise','Alimentation MR18','MR18','RJ45','Répéteur Wi-Fi','Prise répéteur','Alimentation répéteur']
+    const baseX=30,baseY=35
+    const nodes=definitions.map((name,index)=>{
+      const matched=stock.find(item=>normalizeProvider(item.provider)===installationProvider&&item.name.toLowerCase().includes(name.toLowerCase().replace('xlr-xlr','xlr')))
+      return {id:crypto.randomUUID(),name:matched?.name??name,stockItemId:matched?.id,x:baseX+(index%4)*210,y:baseY+Math.floor(index/4)*150,zone:index<4?'Scène':'Régie'}
+    })
+    const links:InstallationLink[]=[]
+    const connect=(a:number,b:number,linkKind:InstallationLink['kind']='unknown')=>{if(nodes[a]&&nodes[b])links.push({id:crypto.randomUUID(),fromNodeId:nodes[a].id,toNodeId:nodes[b].id,kind:linkKind})}
+    if(kind==='piano'){connect(0,1,'power');connect(1,2,'power');connect(2,3,'power');connect(3,4,'audio');connect(4,5,'audio');connect(5,6,'audio');connect(6,7,'audio');connect(8,3,'accessory')}
+    if(kind==='drums'){connect(0,1,'audio');connect(1,2,'audio');connect(2,3,'audio')}
+    if(kind==='mr18'){connect(0,1,'power');connect(1,2,'power');connect(2,3,'network');connect(3,4,'network');connect(5,6,'power');connect(6,4,'power')}
+    void persist({installation:{...installation,nodes:[...installation.nodes,...nodes],links:[...installation.links,...links],suggestions:[]}})
+    toast('Modèle '+(kind==='piano'?'Piano':kind==='drums'?'Batterie':'MR18 + réseau')+' ajouté.')
   }
   const removeInstallationNode=(id:string)=>{
     void persist({installation:{
@@ -1366,11 +1432,12 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
   const addInstallationLink=()=>{
     if(!program||!linkFromNode||!linkToNode||linkFromNode===linkToNode){toast('Choisissez deux équipements différents.');return}
     const length=Number(String(linkLengthMeters).replace(',','.'))
-    const link:InstallationLink={
+    const rawLink:InstallationLink={
       id:crypto.randomUUID(),fromNodeId:linkFromNode,toNodeId:linkToNode,
       fromPort:linkFromPort||undefined,toPort:linkToPort||undefined,
       lengthMeters:Number.isFinite(length)&&length>0?length:undefined
     }
+    const link:InstallationLink={...rawLink,kind:installationLinkKind(rawLink,program,stock)}
     const draftProgram={...program,installation:{...installation,links:[...installation.links,link],suggestions:[]}}
     const links=enrichInstallationLinks(draftProgram,stock)
     void persist({installation:{...installation,links,suggestions:[],aiSummary:'',analyzedAt:undefined,analysisMode:undefined}})
@@ -1443,7 +1510,10 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
   }
   const addInstallationSuggestion=async(suggestion:InstallationSuggestion)=>{
     if(!program)return
-    const source=suggestion.matchedStockItemId?stock.find(item=>item.id===suggestion.matchedStockItemId):undefined
+    const matched=suggestion.matchedStockItemId?stock.find(item=>item.id===suggestion.matchedStockItemId):undefined
+    const source=(matched&&normalizeProvider(matched.provider)===installationProvider)
+      ?matched
+      :stock.find(item=>normalizeProvider(item.provider)===installationProvider&&item.name.trim().toLowerCase()===suggestion.name.trim().toLowerCase())
     if(source){
       let next=[...items]
       const existing=next.find(item=>item.stockItemId===source.id)
@@ -1464,7 +1534,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
 
   if(!program)return <section className="panel inventory-empty"><span>Chargement du programme…</span></section>
 
-  return <>
+  return <div className={'inventory-program-page view-'+programView}>
     <section className="program-detail-head panel compact-program-head">
       <div className="program-title-block">
         <span className="eyebrow">Programme · événement</span>
@@ -1477,16 +1547,20 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
         </div>
       </div>
       <div className="program-head-actions">
-        <button className={'secondary '+(overviewOpen?'active':'')} onClick={()=>setOverviewOpen(value=>!value)}><Eye/>{overviewOpen?'Fermer la vue':'Vue globale'}</button>
-        <button className={'secondary '+(program.isPublic?'active':'')} onClick={()=>void persist({isPublic:!program.isPublic}).then(()=>toast(program.isPublic?'Inventaire repassé en mode personnel.':'Inventaire rendu public.'))}><Globe2/>{program.isPublic?'Public':'Rendre public'}</button>
-        <button className="secondary" onClick={onShare}><Share2/>Partager</button>
-        <button className="secondary" disabled={exporting} onClick={()=>{
+        <button className={'secondary mobile-icon-action '+(overviewOpen?'active':'')} aria-label="Voir" title="Voir" onClick={()=>setOverviewOpen(value=>!value)}><Eye/><span>{overviewOpen?'Fermer la vue':'Voir'}</span></button>
+        <button className={'secondary mobile-icon-action '+(program.isPublic?'active':'')} aria-label={program.isPublic?'Rendre personnel':'Rendre public'} title={program.isPublic?'Rendre personnel':'Rendre public'} onClick={()=>void persist({isPublic:!program.isPublic}).then(()=>toast(program.isPublic?'Inventaire repassé en mode personnel.':'Inventaire rendu public.'))}><Globe2/><span>{program.isPublic?'Public':'Rendre public'}</span></button>
+        <button className="secondary mobile-icon-action" aria-label="Partager" title="Partager" onClick={onShare}><Share2/><span>Partager</span></button>
+        <button className="secondary mobile-icon-action" aria-label="Exporter" title="Exporter" disabled={exporting} onClick={()=>{
           setExporting(true)
           void exportTechnicalSheetImage(program,stock).then(()=>toast('Fiche technique exportée en image.')).catch(error=>toast(error instanceof Error?error.message:'Export impossible.')).finally(()=>setExporting(false))
-        }}><ImageDown/>{exporting?'Export…':'Exporter'}</button>
+        }}><ImageDown/><span>{exporting?'Export…':'Exporter'}</span></button>
         <button className="bare-action danger-icon" aria-label="Supprimer le programme" onClick={()=>setConfirmDelete(true)}><Trash2/></button>
       </div>
     </section>
+    <div className="program-section-tabs panel">
+      <button className={programView==='materials'?'active':''} onClick={()=>setProgramView('materials')}><Boxes/><span>Matériels</span></button>
+      <button className={programView==='installation'?'active':''} onClick={()=>{setProgramView('installation');setInstallationOpen(true)}}><Network/><span>Installation avancée</span></button>
+    </div>
 
     {overviewOpen&&<section className="panel inventory-overview">
       <div className="inventory-overview-head">
@@ -1547,22 +1621,31 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
       {installationOpen&&<div className="installation-advanced-body">
         <div className="installation-builder">
           <div className="installation-builder-head"><Network/><span><b>1. Équipements</b><small>Ajoutez les éléments de l’installation depuis le stock ou librement.</small></span></div>
+          <div className="installation-template-bar">
+            <span><b>Modèles rapides</b><small>Insérez une chaîne puis adaptez-la à votre installation.</small></span>
+            <div><button className="secondary" onClick={()=>addInstallationTemplate('piano')}>Piano</button><button className="secondary" onClick={()=>addInstallationTemplate('drums')}>Batterie</button><button className="secondary" onClick={()=>addInstallationTemplate('mr18')}>MR18 + réseau</button></div>
+          </div>
           <div className="installation-node-add">
+            <select className="installation-provider-select" value={installationProvider} onChange={e=>{setInstallationProvider(e.target.value);setInstallationStockId('')}}>{stockProviders.map(provider=><option key={provider} value={provider}>{provider}</option>)}</select>
             <select value={installationStockId} onChange={e=>{setInstallationStockId(e.target.value);if(e.target.value)setInstallationNodeName('')}}>
               <option value="">Matériel du stock…</option>
-              {stock.filter(item=>item.quantity>0&&!item.deletedAt).map(item=><option value={item.id} key={item.id}>{item.name} · {normalizeProvider(item.provider)}</option>)}
+              {stock.filter(item=>item.quantity>0&&!item.deletedAt&&normalizeProvider(item.provider)===installationProvider).map(item=><option value={item.id} key={item.id}>{item.name} · {normalizeProvider(item.provider)}</option>)}
             </select>
             <input value={installationNodeName} onChange={e=>{setInstallationNodeName(e.target.value);if(e.target.value)setInstallationStockId('')}} placeholder="Ou équipement libre…"/>
             <button className="primary" disabled={!installationStockId&&!installationNodeName.trim()} onClick={addInstallationNode}><Plus/>Ajouter</button>
           </div>
-          <div className="installation-canvas">
+          <div className="installation-canvas installation-schematic">
+            {installation.nodes.length&&<svg className="installation-wire-layer" aria-hidden="true">{installation.links.map(link=>{const from=installation.nodes.find(n=>n.id===link.fromNodeId),to=installation.nodes.find(n=>n.id===link.toNodeId);if(!from||!to)return null;const fi=installation.nodes.indexOf(from),ti=installation.nodes.indexOf(to);const fx=(from.x??40+(fi%4)*210)+90,fy=(from.y??40+Math.floor(fi/4)*150)+54,tx=(to.x??40+(ti%4)*210)+90,ty=(to.y??40+Math.floor(ti/4)*150)+54;const kind=link.kind??installationLinkKind(link,program,stock);return <line key={link.id} className={'wire-'+kind} x1={fx} y1={fy} x2={tx} y2={ty}/>})}</svg>}
             {installation.nodes.length?installation.nodes.map((node,index)=>{
               const source=node.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
-              return <div className="installation-node" key={node.id}>
+              const x=node.x??40+(index%4)*210,y=node.y??40+Math.floor(index/4)*150
+              return <div className={'installation-node draggable role-'+(node.role??'processing')} key={node.id} style={{left:x,top:y}} onPointerDown={e=>{if((e.target as HTMLElement).closest('button,input,select'))return;e.currentTarget.setPointerCapture(e.pointerId)}} onPointerMove={e=>{if(!e.currentTarget.hasPointerCapture(e.pointerId))return;const rect=e.currentTarget.parentElement?.getBoundingClientRect();if(rect)setInstallationNodePosition(node.id,e.clientX-rect.left-90,e.clientY-rect.top-28,false)}} onPointerUp={e=>{const rect=e.currentTarget.parentElement?.getBoundingClientRect();if(rect)setInstallationNodePosition(node.id,e.clientX-rect.left-90,e.clientY-rect.top-28,true);try{e.currentTarget.releasePointerCapture(e.pointerId)}catch{}}}>
                 <span className="installation-node-index">{index+1}</span>
-                <span><b>{node.name}</b><small>{source?normalizeProvider(source.provider)+' · '+categoryLabel(source.category,categories):'Équipement libre'}</small></span>
+                <input className="installation-node-name" value={node.name} onChange={e=>updateInstallationNode(node.id,{name:e.target.value})}/>
+                <select className="installation-node-zone" value={node.zone??'Scène'} onChange={e=>updateInstallationNode(node.id,{zone:e.target.value})}><option>Scène</option><option>Scène gauche</option><option>Scène droite</option><option>Centre</option><option>Régie</option><option>Public</option><option>Backstage</option></select>
+                <small>{source?normalizeProvider(source.provider)+' · '+categoryLabel(source.category,categories):'Équipement libre'}</small>
                 {source&&((source.ports?.length??0)>0||source.characteristics?.length)&&<div className="installation-node-tech">
-                  {(source.ports??[]).slice(0,4).map(port=><em key={port.id}>{port.count}× {port.connector} · {port.direction==='input'?'IN':port.direction==='output'?'OUT':port.direction==='power'?'POWER':'I/O'}</em>)}
+                  {(source.ports??[]).slice(0,5).map(port=><em key={port.id}>{port.count}× {port.connector} · {port.direction==='input'?'IN':port.direction==='output'?'OUT':port.direction==='power'?'POWER':'I/O'}</em>)}
                 </div>}
                 <button className="bare-action danger-icon" onClick={()=>removeInstallationNode(node.id)}><Trash2/></button>
               </div>
@@ -1587,13 +1670,14 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
               const to=installation.nodes.find(node=>node.id===link.toNodeId)
               const fromPort=(stockByNode(link.fromNodeId)?.ports??[]).find(port=>port.id===link.fromPort)
               const toPort=(stockByNode(link.toNodeId)?.ports??[]).find(port=>port.id===link.toPort)
-              return <div className={'installation-link-row detailed compatibility-'+(link.compatibility??'ok')} key={link.id}>
+              const kind=link.kind??installationLinkKind(link,program,stock)
+              return <div className={'installation-link-row detailed compatibility-'+(link.compatibility??'ok')+' link-kind-'+kind} key={link.id}>
                 <span>{index+1}</span>
                 <div className="link-endpoint"><b>{from?.name??'?'}</b><small>{fromPort?.connector??'auto'}{fromPort?.signalLevel?' · '+fromPort.signalLevel:''}</small></div>
                 <em>→</em>
                 <div className="link-endpoint"><b>{to?.name??'?'}</b><small>{toPort?.connector??'auto'}{toPort?.signalLevel?' · '+toPort.signalLevel:''}</small></div>
                 <label className="link-length-edit"><input type="number" min="0" step="0.5" value={link.lengthMeters??''} onChange={e=>updateInstallationLink(link.id,{lengthMeters:Number(e.target.value)>0?Number(e.target.value):undefined})}/><span>m</span></label>
-                <span className="link-channel">{link.assignedChannel||'Canal auto'}</span>
+                <span className="link-channel">{kind==='power'?'Alimentation':kind==='network'?'Réseau':kind==='midi'?'MIDI':kind==='data'?'Données':kind==='accessory'?'Accessoire':kind==='audio'?'Audio':'Liaison'} · {link.assignedChannel||'canal auto'}</span>
                 <span className={'link-compat-badge '+(link.compatibility??'ok')}>{link.compatibility==='di'?'DI':link.compatibility==='phantom'?'48V':link.compatibility==='adapter'?'Adapt.':link.compatibility==='warning'?'À vérifier':'OK'}</span>
                 <button className="bare-action danger-icon" onClick={()=>removeInstallationLink(link.id)}><Trash2/></button>
                 {(link.compatibilityNotes?.length??0)>0&&<div className="link-compat-notes">{link.compatibilityNotes?.map((note,n)=><small key={n}>{note}</small>)}</div>}
@@ -1616,7 +1700,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
             {(installation.suggestions??[]).length?(installation.suggestions??[]).map(suggestion=><div className={'installation-suggestion kind-'+suggestion.kind} key={suggestion.id}>
               <span><b>{suggestion.name}</b><small>{suggestion.reason}</small>{(suggestion.lengthMeters||suggestion.channelAssignment)&&<small className="suggestion-tech-meta">{suggestion.lengthMeters?suggestion.lengthMeters+' m':''}{suggestion.lengthMeters&&suggestion.channelAssignment?' · ':''}{suggestion.channelAssignment??''}</small>}</span>
               <em>× {suggestion.quantity}</em>
-              {suggestion.matchedStockItemId&&<small className="suggestion-stock">En stock</small>}
+              {suggestion.matchedStockItemId&&<small className="suggestion-stock">Stockage : {installationProvider}</small>}
               {suggestion.kind!=='warning'&&<button className="secondary" onClick={()=>void addInstallationSuggestion(suggestion)}><Plus/>Ajouter</button>}
             </div>):<div className="installation-empty">Lancez une analyse après avoir défini les liaisons.</div>}
           </div>
