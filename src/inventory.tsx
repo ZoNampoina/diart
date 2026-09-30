@@ -704,6 +704,57 @@ function wrapCanvasText(ctx:CanvasRenderingContext2D,text:string,maxWidth:number
   return lines
 }
 
+
+function escapeSvgText(value:string):string{
+  return value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
+async function exportInstallationSchemaImage(program:InventoryProgram,stock:InventoryStockItem[]):Promise<void>{
+  const installation=program.installation??{nodes:[],links:[]}
+  if(!installation.nodes.length)throw new Error('Le schéma est vide.')
+  const width=1200,height=800
+  const sx=width/980,sy=height/650
+  const center=(node:(typeof installation.nodes)[number],index:number)=>{
+    const scale=node.scale??1
+    const w=node.width??110*scale,h=node.height??84*scale
+    const x=node.x??70+(index%4)*180,y=node.y??85+Math.floor(index/4)*135
+    return {x:(x+w/2)*sx,y:(y+h/2)*sy,w:w*sx,h:h*sy,left:x*sx,top:y*sy}
+  }
+  const layers=installation.layers??{materials:true,audio:true,power:true,connectivity:true}
+  const linkColor=(kind:InstallationLink['kind'])=>kind==='power'?'#d89a24':kind==='audio'?'#0d93a7':'#6b73d6'
+  const links=installation.links.map(link=>{
+    const from=installation.nodes.find(node=>node.id===link.fromNodeId),to=installation.nodes.find(node=>node.id===link.toNodeId)
+    if(!from||!to)return ''
+    const fi=installation.nodes.indexOf(from),ti=installation.nodes.indexOf(to)
+    const a=center(from,fi),b=center(to,ti)
+    const kind=link.kind??installationLinkKind(link,program,stock)
+    const layer=schemaLayerForLink(kind)
+    if(layers[layer]===false)return ''
+    const points=[{x:a.x,y:a.y},...(link.route??[]).map(point=>({x:point.x*sx,y:point.y*sy})),{x:b.x,y:b.y}]
+    return `<polyline points="${points.map(point=>point.x.toFixed(1)+','+point.y.toFixed(1)).join(' ')}" fill="none" stroke="${linkColor(kind)}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" ${kind==='power'?'stroke-dasharray="14 7"':layer==='connectivity'?'stroke-dasharray="7 7"':''}/>`
+  }).join('')
+  const nodes=layers.materials===false?'':installation.nodes.map((node,index)=>{
+    const source=node.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
+    const p=center(node,index),rotation=node.rotation??0
+    const fill=source?.representationIcon==='power'?'#fff8e8':source?.representationIcon==='network'?'#f1f1ff':'#ffffff'
+    return `<g transform="rotate(${rotation} ${p.x.toFixed(1)} ${p.y.toFixed(1)})"><rect x="${p.left.toFixed(1)}" y="${p.top.toFixed(1)}" width="${p.w.toFixed(1)}" height="${p.h.toFixed(1)}" rx="13" fill="${fill}" stroke="#7ea4a9" stroke-width="2"/><text x="${p.x.toFixed(1)}" y="${(p.y-3).toFixed(1)}" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="16" font-weight="700" fill="#17383d">${escapeSvgText(node.name)}</text><text x="${p.x.toFixed(1)}" y="${(p.y+19).toFixed(1)}" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="11" fill="#678287">${escapeSvgText(node.zone??'Scène')}</text></g>`
+  }).join('')
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#f5f9f9"/><rect x="42" y="58" width="${width-84}" height="${height-190}" rx="26" fill="#eef5f5" stroke="#b9d0d3" stroke-width="3"/><text x="${width/2}" y="35" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="16" font-weight="800" fill="#668187">FOND DE SCÈNE</text><text x="${width/2}" y="${height-112}" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="16" font-weight="800" fill="#668187">AVANT-SCÈNE</text><text x="${width/2}" y="${height-35}" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="16" font-weight="800" fill="#668187">PUBLIC / RÉGIE</text>${links}${nodes}<text x="45" y="${height-18}" font-family="system-ui,Segoe UI,sans-serif" font-size="13" fill="#668187">DI’ART · ${escapeSvgText(program.name)} · ${new Date().toLocaleDateString('fr-FR')}</text></svg>`
+  const blob=new Blob([svg],{type:'image/svg+xml;charset=utf-8'})
+  const url=URL.createObjectURL(blob)
+  try{
+    const image=new Image()
+    await new Promise<void>((resolve,reject)=>{image.onload=()=>resolve();image.onerror=()=>reject(new Error('Rendu du schéma impossible.'));image.src=url})
+    const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height
+    const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Export indisponible.')
+    ctx.drawImage(image,0,0,width,height)
+    const png=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error('Export PNG impossible.')),'image/png',1))
+    const pngUrl=URL.createObjectURL(png)
+    const a=document.createElement('a');a.href=pngUrl;a.download='schema-'+(program.name||'installation').replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'').toLowerCase()+'.png';a.click()
+    setTimeout(()=>URL.revokeObjectURL(pngUrl),1000)
+  }finally{URL.revokeObjectURL(url)}
+}
+
 export async function exportTechnicalSheetImage(program:InventoryProgram,stock:InventoryStockItem[]):Promise<void>{
   const normalized=normalizeProgram(program)
   const selected=normalized.items.filter(item=>item.quantity>0)
@@ -1223,7 +1274,11 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
   const [installationView,setInstallationView]=useState<'schema'|'list'|'patch'|'diagnostic'>('schema')
   const [activeSchemaLayer,setActiveSchemaLayer]=useState<'audio'|'power'|'connectivity'>('audio')
   const [selectedSchemaNode,setSelectedSchemaNode]=useState('')
+  const [selectedSchemaLink,setSelectedSchemaLink]=useState('')
   const schemaPointerRef=useRef<{id:string;startX:number;startY:number;moved:boolean}|null>(null)
+  const schemaResizeRef=useRef<{id:string;startX:number;startY:number;width:number;height:number}|null>(null)
+  const schemaRotateRef=useRef<{id:string;cx:number;cy:number}|null>(null)
+  const schemaRouteRef=useRef<{linkId:string;pointIndex:number}|null>(null)
   const [diagnosticNodeId,setDiagnosticNodeId]=useState('')
   const [snapshotName,setSnapshotName]=useState('')
   const [linkFromNode,setLinkFromNode]=useState('')
@@ -1549,6 +1604,30 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
   const updateInstallationNode=(id:string,patch:Partial<(typeof installation.nodes)[number]>)=>{
     void persist({installation:{...installation,nodes:installation.nodes.map(node=>node.id===id?{...node,...patch}:node)}})
   }
+  const setInstallationNodeGeometry=(id:string,patch:Partial<(typeof installation.nodes)[number]>,commit=false)=>{
+    if(!program)return
+    const nextInstallation={...installation,nodes:installation.nodes.map(node=>node.id===id?{...node,...patch}:node)}
+    if(commit)void persist({installation:nextInstallation})
+    else setProgram({...program,installation:nextInstallation})
+  }
+  const setInstallationLinkRoute=(id:string,route:Array<{x:number;y:number}>|undefined,commit=false)=>{
+    if(!program)return
+    const nextInstallation={...installation,links:installation.links.map(link=>link.id===id?{...link,route}:link)}
+    if(commit)void persist({installation:nextInstallation})
+    else setProgram({...program,installation:nextInstallation})
+  }
+  const installationNodeCenter=(node:(typeof installation.nodes)[number],index:number)=>{
+    const scale=node.scale??1,w=node.width??110*scale,h=node.height??84*scale
+    const x=node.x??70+(index%4)*180,y=node.y??85+Math.floor(index/4)*135
+    return {x:x+w/2,y:y+h/2,w,h,left:x,top:y}
+  }
+  const addCableBend=(link:InstallationLink,orthogonal=false)=>{
+    const from=installation.nodes.find(node=>node.id===link.fromNodeId),to=installation.nodes.find(node=>node.id===link.toNodeId)
+    if(!from||!to)return
+    const a=installationNodeCenter(from,installation.nodes.indexOf(from)),b=installationNodeCenter(to,installation.nodes.indexOf(to))
+    const route=orthogonal?[{x:(a.x+b.x)/2,y:a.y},{x:(a.x+b.x)/2,y:b.y}]:[...(link.route??[]),{x:(a.x+b.x)/2,y:(a.y+b.y)/2}]
+    updateInstallationLink(link.id,{route})
+  }
   const setInstallationNodePosition=(id:string,x:number,y:number,commit=false)=>{
     if(!program)return
     const nextInstallation={...installation,nodes:installation.nodes.map(node=>node.id===id?{...node,x:Math.max(8,Math.round(x)),y:Math.max(8,Math.round(y))}:node)}
@@ -1634,7 +1713,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     const links=enrichInstallationLinks({...program,installation:{...installation,links:rawLinks}},stock)
     void persist({installation:{...installation,links,suggestions:[],aiSummary:'',analyzedAt:undefined,analysisMode:undefined}})
   }
-  const removeInstallationLink=(id:string)=>void persist({installation:{...installation,links:installation.links.filter(link=>link.id!==id),suggestions:[],aiSummary:'',analyzedAt:undefined,analysisMode:undefined}})
+  const removeInstallationLink=(id:string)=>{if(selectedSchemaLink===id)setSelectedSchemaLink('');void persist({installation:{...installation,links:installation.links.filter(link=>link.id!==id),suggestions:[],aiSummary:'',analyzedAt:undefined,analysisMode:undefined}})}
   const autoAssignChannels=()=>{
     if(!program)return
     const links=enrichInstallationLinks(program,stock)
