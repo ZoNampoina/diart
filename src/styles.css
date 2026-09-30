@@ -11451,3 +11451,191 @@ button.song-info-value.key.active{
   .song-collapsible-actions .lyrics-history-button svg{color:var(--text)}
   .song-tools-section .song-collapsible-body{padding:8px}
 }
+
+
+/* DI'ART 3.3 — unified musician-tool console */
+.musician-tools-suite{
+  padding:12px;
+  display:grid;
+  gap:12px;
+  overflow:hidden;
+}
+.musician-tools-suite-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:2px 2px 0;
+}
+.musician-tools-suite-head>div:first-child b,
+.musician-tools-suite-head>div:first-child small{display:block}
+.musician-tools-suite-head>div:first-child b{font-size:16px}
+.musician-tools-suite-head>div:first-child small{margin-top:2px;color:var(--muted);font-size:11px}
+.musician-tools-switch{
+  display:none;
+  padding:4px;
+  gap:4px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:var(--surface2);
+}
+.musician-tools-switch button{
+  min-height:36px;
+  border:0;
+  border-radius:9px;
+  background:transparent;
+  color:var(--muted);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:0 10px;
+  font-weight:750;
+}
+.musician-tools-switch button svg{width:15px;height:15px}
+.musician-tools-switch button.active{
+  background:var(--surface);
+  color:var(--text);
+  box-shadow:0 2px 8px color-mix(in srgb,#000 9%,transparent),inset 0 0 0 1px var(--line);
+}
+.musician-tools-grid{
+  margin:0!important;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:12px;
+  align-items:stretch;
+}
+.musician-tool-slot{min-width:0}
+.musician-tool-card{
+  min-height:330px!important;
+  height:100%;
+  padding:14px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:var(--surface2);
+  box-shadow:none!important;
+  display:grid!important;
+  grid-template-rows:auto minmax(120px,1fr) auto auto;
+  gap:12px!important;
+}
+.musician-tool-heading{
+  display:grid;
+  grid-template-columns:38px minmax(0,1fr) auto;
+  gap:10px;
+  align-items:center;
+}
+.musician-tool-icon{
+  width:38px;height:38px;border-radius:12px;
+  display:grid;place-items:center;
+  background:color-mix(in srgb,var(--accent2) 10%,var(--surface));
+  color:var(--accent2);
+}
+.musician-tool-icon svg{width:19px;height:19px}
+.musician-tool-heading h3{margin:0;font-size:15px}
+.musician-tool-heading small{display:block;margin-top:2px;color:var(--muted);font-size:10px}
+.tool-status-dot{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:4px 7px;
+  border-radius:999px;
+  background:var(--surface);
+  border:1px solid var(--line);
+  color:var(--muted);
+  font-size:9px;
+  font-weight:800;
+}
+.tool-status-dot:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--muted)}
+.tool-status-dot.active{color:var(--accent2)}
+.tool-status-dot.active:before{background:var(--accent2);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent2) 12%,transparent)}
+.metronome-card.musician-tool-card .metro-display,
+.tuner-card.musician-tool-card .tuner-display{
+  min-height:138px!important;
+  border:1px solid var(--line);
+  border-radius:15px;
+  background:var(--surface);
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:4px;
+  padding:14px;
+}
+.metro-display>svg{display:none}
+.metro-beat-ring{
+  width:112px;height:112px;border-radius:50%;
+  display:grid;place-items:center;align-content:center;
+  background:radial-gradient(circle at 50% 50%,var(--surface) 62%,color-mix(in srgb,var(--accent2) 10%,var(--surface)) 63%);
+  border:2px solid color-mix(in srgb,var(--accent2) 45%,var(--line));
+  transition:transform .07s ease,border-color .07s ease;
+}
+.metro-display.pulse .metro-beat-ring{transform:scale(1.045);border-color:var(--accent2)}
+.metro-beat-ring strong{font-size:34px;line-height:1}
+.metro-beat-ring span{margin-top:3px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.08em}
+.metro-display>small{color:var(--muted);font-size:10px;font-weight:800}
+.metro-tempo-row{
+  display:grid;
+  grid-template-columns:38px minmax(0,1fr) 38px;
+  gap:8px;
+  align-items:center;
+}
+.metro-tempo-row input[type="range"]{width:100%;padding:0;border:0;background:transparent;min-height:auto}
+.metro-step{width:38px!important;min-width:38px!important;height:38px!important;padding:0!important}
+.metro-action-row{
+  display:grid;
+  grid-template-columns:minmax(72px,.7fr) minmax(120px,1.3fr);
+  gap:8px;
+}
+.metro-action-row button,.tool-main-action{min-height:42px}
+.tool-main-action{width:100%;justify-content:center}
+.tuner-display strong{font-size:56px!important;line-height:1}
+.tuner-display>span{font-size:11px}
+.tuner-cents{width:min(260px,86%)!important}
+.tuner-reference{
+  display:grid;
+  gap:7px;
+}
+.tuner-reference>span{color:var(--muted);font-size:9px;font-weight:750;text-transform:uppercase;letter-spacing:.06em}
+.tuner-note-grid{
+  margin:0!important;
+  grid-template-columns:repeat(6,minmax(0,1fr))!important;
+  gap:5px!important;
+}
+.tuner-note-grid button{
+  min-height:34px!important;
+  border-radius:9px;
+  padding:0!important;
+}
+.tuner-note-grid button b{font-size:11px}
+.tuner-note-grid button svg{display:none}
+.song-tools-section .musician-tools-suite{
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  padding:0!important;
+  box-shadow:none!important;
+}
+.song-tools-section .musician-tools-suite-head{padding:0 2px}
+.song-tools-section .musician-tool-card{background:var(--surface2)}
+@media(max-width:900px){
+  .musician-tools-suite-head{align-items:flex-end}
+  .musician-tools-grid{grid-template-columns:1fr 1fr!important}
+  .musician-tool-card{min-height:310px!important}
+}
+@media(max-width:680px){
+  .musician-tools-suite{padding:9px;gap:9px}
+  .musician-tools-suite-head{
+    align-items:stretch;
+    flex-direction:column;
+    gap:8px;
+  }
+  .musician-tools-suite-head>div:first-child small{display:none}
+  .musician-tools-switch{display:grid;grid-template-columns:1fr 1fr}
+  .musician-tools-grid{display:block!important}
+  .musician-tools-grid .musician-tool-slot{display:none}
+  .musician-tools-grid.active-metronome .metronome-slot,
+  .musician-tools-grid.active-tuner .tuner-slot{display:block}
+  .musician-tool-card{min-height:0!important;padding:12px}
+  .metronome-card.musician-tool-card .metro-display,
+  .tuner-card.musician-tool-card .tuner-display{min-height:128px!important}
+  .tuner-note-grid{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+}

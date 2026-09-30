@@ -23,7 +23,7 @@ import { createDirectShare, getOwnProfile, heartbeatCurrentDevice, prepareLocalA
 import { DIART_RELEASES } from './releases'
 import { DIART_LOGO_DAY, DIART_LOGO_NIGHT } from './brand'
 
-const APP_VERSION='3.2.1'
+const APP_VERSION='3.3.0'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -1936,7 +1936,20 @@ function SettingsPage({theme,setTheme,songs,refresh,toast,userEmail,profile,onPr
 
 
 function MusicianToolsPanel({initialBpm=96,signature='4/4'}:{initialBpm?:number;signature?:string}){
-  return <div className="musician-tools-suite"><div className="musician-tools-grid"><MetronomeCard initialBpm={initialBpm} signature={signature}/><TunerCard/></div></div>
+  const [activeTool,setActiveTool]=useState<'metronome'|'tuner'>('metronome')
+  return <section className="musician-tools-suite panel">
+    <div className="musician-tools-suite-head">
+      <div><span className="eyebrow">Outils musicaux</span><b>Métronome & Accordeur</b><small>Tempo, pulsation, détection et notes de référence.</small></div>
+      <div className="musician-tools-switch" role="tablist" aria-label="Choisir un outil">
+        <button type="button" role="tab" aria-selected={activeTool==='metronome'} className={activeTool==='metronome'?'active':''} onClick={()=>setActiveTool('metronome')}><Gauge/><span>Métronome</span></button>
+        <button type="button" role="tab" aria-selected={activeTool==='tuner'} className={activeTool==='tuner'?'active':''} onClick={()=>setActiveTool('tuner')}><Mic/><span>Accordeur</span></button>
+      </div>
+    </div>
+    <div className={'musician-tools-grid active-'+activeTool}>
+      <div className="musician-tool-slot metronome-slot"><MetronomeCard initialBpm={initialBpm} signature={signature}/></div>
+      <div className="musician-tool-slot tuner-slot"><TunerCard/></div>
+    </div>
+  </section>
 }
 
 function TunerCard(){
@@ -2012,7 +2025,7 @@ function TunerCard(){
     gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.98)
     osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+1)
   }
-  return <section className="panel tuner-card musician-tool-card"><div className="tuner-head"><div><span className="eyebrow">Outil musicien</span><h2>Accordeur · détection de note</h2><small>Fredonnez ou jouez une note devant le micro.</small></div><Mic/></div><div className={'tuner-display '+(listening?'listening':'')}><strong>{note}</strong><span>{frequency?frequency.toFixed(1)+' Hz':'Micro inactif'}</span><div className="tuner-cents"><i style={{transform:`translateX(${Math.max(-50,Math.min(50,cents))}%)`}}/><small>{frequency?(cents>0?'+':'')+cents+' cents':'—'}</small></div></div><div className="tuner-note-grid">{NOTES.map(n=><button type="button" className={note===n?'active':''} key={n} onClick={()=>void playNote(n)}><Volume2/><b>{n}</b></button>)}</div><button type="button" className={listening?'danger':'primary'} onClick={()=>void (listening?Promise.resolve(stopListening()):startListening())}>{listening?<><Square/>Arrêter le micro</>:<><Mic/>Détecter une note</>}</button></section>
+  return <section className="tuner-card musician-tool-card"><div className="musician-tool-heading"><span className="musician-tool-icon"><Mic/></span><div><h3>Accordeur</h3><small>Fredonnez, chantez ou jouez une note.</small></div><span className={'tool-status-dot '+(listening?'active':'')}>{listening?'Écoute':'Prêt'}</span></div><div className={'tuner-display '+(listening?'listening':'')}><strong>{note}</strong><span>{frequency?frequency.toFixed(1)+' Hz':'— Hz'}</span><div className="tuner-cents"><i style={{transform:`translateX(${Math.max(-50,Math.min(50,cents))}%)`}}/><small>{frequency?(cents>0?'+':'')+cents+' cents':'Justesse'}</small></div></div><div className="tuner-reference"><span>Notes de référence · 1 s</span><div className="tuner-note-grid">{NOTES.map(n=><button type="button" className={note===n?'active':''} key={n} onClick={()=>void playNote(n)} aria-label={'Jouer '+n}><b>{n}</b></button>)}</div></div><button type="button" className={'tool-main-action '+(listening?'danger':'primary')} onClick={()=>void (listening?Promise.resolve(stopListening()):startListening())}>{listening?<><Square/>Arrêter l’écoute</>:<><Mic/>Détecter une note</>}</button></section>
 }
 
 function MetronomeCard({initialBpm=96,signature='4/4'}:{initialBpm?:number;signature?:string}) {
@@ -2078,7 +2091,7 @@ function MetronomeCard({initialBpm=96,signature='4/4'}:{initialBpm?:number;signa
       if(diffs.length){const avg=diffs.reduce((a,b)=>a+b,0)/diffs.length;setBpm(Math.max(30,Math.min(240,Math.round(60000/avg))))}
     }
   }
-  return <section className="panel metronome-card musician-tool-card"><div><span className="eyebrow">Outil musicien</span><h2>Métronome & Tap Tempo</h2><small className="metro-hint">Scheduler audio haute précision · mesure {beatsPerBar} temps</small></div><div className={`metro-display ${pulse?'pulse':''}`}><Gauge/><strong>{bpm}</strong><span>BPM · {beat}/{beatsPerBar}</span></div><div className="metro-controls"><button className="secondary" onClick={()=>setBpm(v=>Math.max(30,v-1))}><Minus/></button><input aria-label="BPM" type="range" min="30" max="240" value={bpm} onChange={e=>setBpm(Number(e.target.value))}/><button className="secondary" onClick={()=>setBpm(v=>Math.min(240,v+1))}><Plus/></button><button className="secondary tap-btn" onClick={tap}>TAP</button><button className={running?'danger':'primary'} onClick={()=>void (running?Promise.resolve(stop()):start())}>{running?<><Square/>Stop</>:<><Play/>Start</>}</button></div></section>
+  return <section className="metronome-card musician-tool-card"><div className="musician-tool-heading"><span className="musician-tool-icon"><Gauge/></span><div><h3>Métronome</h3><small>{beatsPerBar} temps · Tap Tempo</small></div><span className={'tool-status-dot '+(running?'active':'')}>{running?'Lecture':'Prêt'}</span></div><div className={`metro-display ${pulse?'pulse':''}`}><div className="metro-beat-ring"><strong>{bpm}</strong><span>BPM</span></div><small>{beat}/{beatsPerBar}</small></div><div className="metro-tempo-row"><button className="secondary metro-step" aria-label="Diminuer le BPM" onClick={()=>setBpm(v=>Math.max(30,v-1))}><Minus/></button><input aria-label="BPM" type="range" min="30" max="240" value={bpm} onChange={e=>setBpm(Number(e.target.value))}/><button className="secondary metro-step" aria-label="Augmenter le BPM" onClick={()=>setBpm(v=>Math.min(240,v+1))}><Plus/></button></div><div className="metro-action-row"><button className="secondary tap-btn" onClick={tap}>TAP</button><button className={'tool-main-action '+(running?'danger':'primary')} onClick={()=>void (running?Promise.resolve(stop()):start())}>{running?<><Square/>Arrêter</>:<><Play/>Démarrer</>}</button></div></section>
 }
 
 function SetlistsPage({songs,setlists,refresh,refreshSongs,toast,onOpenDetail,onOpenSong}:{songs:Song[];setlists:Setlist[];refresh:()=>Promise<void>;refreshSongs:()=>Promise<void>;toast:(s:string,action?:Toast['action'])=>void;onOpenDetail:(id:string)=>void;onOpenSong:(s:Song,context?:{list:Setlist;mode:'rehearsal'|'live'})=>void}) {
