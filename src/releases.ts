@@ -8,6 +8,19 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'3.5.0',
+    date:'30 septembre 2026',
+    title:'Import intelligent de listes',
+    summary:'DI’ART transforme une liste texte en setlist exploitable en réutilisant la bibliothèque locale et en recherchant automatiquement les morceaux absents.',
+    highlights:[
+      'Analyse tolérante des listes WhatsApp, Messenger, Notes et SMS avec conservation stricte de l’ordre initial.',
+      'Rapprochement intelligent avec les morceaux DI’ART existants et confirmation limitée aux cas réellement ambigus.',
+      'Hiérarchie malgache DI’ART → AcousticGasy → Tononkira et internationale DI’ART → Ultimate Guitar, avec priorité aux versions avec accords.',
+      'Import express, création minimale si aucune source fiable n’est trouvée et complétion des morceaux existants sans doublon.',
+      'Import disponible depuis Setlists, une setlist ouverte et le menu de création des morceaux, avec restauration depuis l’historique.'
+    ]
+  },
+  {
     version:'3.4.5',
     date:'30 septembre 2026',
     title:'Synchronisation cloud et ergonomie scène/stock',
