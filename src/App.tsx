@@ -23,7 +23,7 @@ import { createDirectShare, getOwnProfile, heartbeatCurrentDevice, prepareLocalA
 import { DIART_RELEASES } from './releases'
 import { DIART_LOGO_DAY, DIART_LOGO_NIGHT } from './brand'
 
-const APP_VERSION='3.1.5'
+const APP_VERSION='3.1.6'
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -780,12 +780,12 @@ function App() {
     if(dx>=72&&dx>dy*1.35)setSidebar(true)
   }
 
-  if(!authReady)return <div className="diart-auth-loading"><div className="diart-auth-loading-logo"><img className="logo-night" src={DIART_LOGO_DAY} alt="DI’ART"/><img className="logo-day" src={DIART_LOGO_NIGHT} alt="DI’ART"/></div><span className="diart-loading-spinner" aria-hidden="true"/><span>DI’ART</span></div>
+  if(!authReady)return <div className="diart-auth-loading"><div className="diart-auth-loading-logo"><img className="logo-night" src={DIART_LOGO_NIGHT} alt="DI’ART"/><img className="logo-day" src={DIART_LOGO_DAY} alt="DI’ART"/></div><span className="diart-loading-spinner" aria-hidden="true"/><span>DI’ART</span></div>
   if(!userId)return <><DiartAuthGate onSignedIn={async()=>{setAccessNotice('');await loadIdentity()}}/>{accessNotice&&<div className="diart-access-notice">{accessNotice}</div>}</>
 
   return <div className="app-shell" onTouchStart={beginSidebarSwipe} onTouchMove={moveSidebarSwipe} onTouchEnd={endSidebarSwipe} onTouchCancel={()=>{sidebarSwipeRef.current=null}}>
     <aside className={`sidebar ${sidebar?'open':''}`}>
-      <div className="sidebar-head"><button className="brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><span className="brand-mark"><img className="brand-logo logo-night" src={DIART_LOGO_DAY} alt=""/><img className="brand-logo logo-day" src={DIART_LOGO_NIGHT} alt=""/></span><div><b>DI'ART</b><small>by ARIZONA <span className="brand-version">v{APP_VERSION}</span></small></div></button><button className="icon-btn sidebar-theme-toggle" title={theme==='system'?'Thème système actif':'Revenir au thème système'} aria-label={theme==='system'?'Thème système actif':'Revenir au thème système'} onClick={()=>setTheme(theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark'):'system')}>{theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?<Sun/>:<Moon/>):theme==='dark'?<Sun/>:<Moon/>}</button></div>
+      <div className="sidebar-head"><button className="brand" onClick={()=>go('dashboard')} aria-label="Accueil DI'ART"><span className="brand-mark"><img className="brand-logo logo-night" src={DIART_LOGO_NIGHT} alt=""/><img className="brand-logo logo-day" src={DIART_LOGO_DAY} alt=""/></span><div><b>DI'ART</b><small>by ARIZONA <span className="brand-version">v{APP_VERSION}</span></small></div></button><button className="icon-btn sidebar-theme-toggle" title={theme==='system'?'Thème système actif':'Revenir au thème système'} aria-label={theme==='system'?'Thème système actif':'Revenir au thème système'} onClick={()=>setTheme(theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark'):'system')}>{theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?<Sun/>:<Moon/>):theme==='dark'?<Sun/>:<Moon/>}</button></div>
       <nav className="grouped-nav">{navGroupDefs.map(group=><div className="nav-group" key={group.label}><span className="nav-group-label">{group.label}</span>{group.ids.map(id=>{if(id==='admin'&&profile?.role!=='admin')return null;const item=navItems.find(x=>x[0]===id)!;const [,label,Icon]=item;return <button key={id} className={page===id?'active':''} onClick={()=>go(id)}><Icon size={19}/>{label}</button>})}</div>)}</nav>
       <div className="sidebar-account"><UserRound/><span><b>{profile?.display_name||userEmail.split('@')[0]}</b><small>{profile?.role==='admin'?'Administrateur':'Compte personnel'}</small></span></div>
       <div className="sidebar-bottom">{online?<Wifi size={16}/>:<WifiOff size={16}/>} {online?'En ligne':'Hors connexion'}<small>{userEmail}</small></div>
@@ -793,7 +793,7 @@ function App() {
     {sidebar&&<div className="scrim" onClick={()=>setSidebar(false)}/>}
     <main className="main">
       <header className="topbar">
-        <div className="topbar-leading"><button className="icon-btn menu-btn logo-menu-btn" onClick={()=>setSidebar(v=>!v)} aria-label="Ouvrir le menu DI'ART" title="Menu"><img className="menu-logo logo-night" src={DIART_LOGO_DAY} alt=""/><img className="menu-logo logo-day" src={DIART_LOGO_NIGHT} alt=""/></button><button type="button" className={'app-section-title '+(sectionMeta.back?'can-back':'')} onClick={()=>sectionMeta.back?.()} aria-label={sectionMeta.back?'Revenir à '+sectionMeta.label:sectionMeta.label}>{sectionMeta.back&&<ChevronLeft/>}<span>{sectionMeta.label}</span></button></div>
+        <div className="topbar-leading"><button className="icon-btn menu-btn logo-menu-btn" onClick={()=>setSidebar(v=>!v)} aria-label="Ouvrir le menu DI'ART" title="Menu"><img className="menu-logo logo-night" src={DIART_LOGO_NIGHT} alt=""/><img className="menu-logo logo-day" src={DIART_LOGO_DAY} alt=""/></button><button type="button" className={'app-section-title '+(sectionMeta.back?'can-back':'')} onClick={()=>sectionMeta.back?.()} aria-label={sectionMeta.back?'Revenir à '+sectionMeta.label:sectionMeta.label}>{sectionMeta.back&&<ChevronLeft/>}<span>{sectionMeta.label}</span></button></div>
         <div className="top-actions"><div className="workspace-switch"><button className={page!=='community'?'active':''} onClick={()=>go('dashboard')}><UserRound/>Personnel</button><button className={page==='community'?'active':''} onClick={()=>go('community')}><Globe2/>Public</button></div><button className="primary global-create-btn" aria-label="Créer" title="Créer" onClick={()=>{setCreateMode('menu');setCreateName('')}}><Plus size={22}/></button></div>
       </header>
       <div className={`content page-transition-surface page-${page}`} key={page+':'+selectedArtist+':'+selectedAuthor+':'+selectedSetlistId+':'+(selected?.id??'')}>
