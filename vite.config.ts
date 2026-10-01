@@ -25,7 +25,7 @@ export default defineConfig({
       workbox: {
         navigateFallback: 'index.html',
         globPatterns: ['**/*.{js,css,html,svg,png,webp,ico,json,woff,woff2}'],
-        navigateFallbackDenylist: [/^\\/api\\//],
+        navigateFallbackDenylist: [/^\/api\//],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true
