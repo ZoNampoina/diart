@@ -24,7 +24,21 @@ import { DIART_RELEASES } from './releases'
 import { DIART_LOGO_DAY, DIART_LOGO_NIGHT } from './brand'
 import { SmartListImportModal, type SmartListImportMode } from './smart-list-import-ui'
 
-const APP_VERSION='3.5.1'
+const APP_VERSION='3.5.2'
+const OFFLINE_IDENTITY_KEY='diart-offline-identity-v1'
+type OfflineIdentity={id:string;email:string}
+function readOfflineIdentity():OfflineIdentity|null{
+  try{
+    const value=JSON.parse(localStorage.getItem(OFFLINE_IDENTITY_KEY)||'null') as Partial<OfflineIdentity>|null
+    return value?.id?{id:value.id,email:value.email??''}:null
+  }catch{return null}
+}
+function rememberOfflineIdentity(id:string,email:string){
+  try{localStorage.setItem(OFFLINE_IDENTITY_KEY,JSON.stringify({id,email}))}catch{}
+}
+function forgetOfflineIdentity(){
+  try{localStorage.removeItem(OFFLINE_IDENTITY_KEY)}catch{}
+}
 
 const navItems = [
   ['dashboard','Accueil',Home], ['library','Bibliothèque',Library], ['artists','Artistes',UsersRound],
@@ -404,29 +418,46 @@ function App() {
     void refreshSetlists()
   },[])
   const loadIdentity=async()=>{
-    const {data}=await supabase.auth.getSession()
-    const u=data.session?.user
-    if(!u){setUserId('');setUserEmail('');setProfile(null);setAuthReady(true);return}
+    const cached=readOfflineIdentity()
+    if(!navigator.onLine&&cached){
+      setUserId(cached.id);setUserEmail(cached.email);setProfile(null);setAuthReady(true);return
+    }
     try{
-      const local=await prepareLocalAccount(u.id)
-      if(local.needsPull&&navigator.onLine){
-        setSyncing(true)
-        try{
-          await pullCloudToLocal(u.id)
-          setLastSyncAt('')
-          await Promise.all([refresh(),refreshSetlists()])
-        }finally{setSyncing(false)}
+      const {data}=await supabase.auth.getSession()
+      const u=data.session?.user
+      if(!u){
+        if(!navigator.onLine&&cached){setUserId(cached.id);setUserEmail(cached.email)}
+        else{setUserId('');setUserEmail('');setProfile(null)}
+        setAuthReady(true);return
       }
-      const registered=await registerCurrentDevice()
-      setProfile(registered.profile)
-      if(registered.profile?.status==='banned'||registered.device?.revoked_at){
-        setAccessNotice(registered.profile?.status==='banned'?'Ce compte a été suspendu par l’administrateur.':'Cet appareil a été déconnecté par l’administrateur.')
-        await supabase.auth.signOut({scope:'local'})
-        setUserId('');setUserEmail('');setProfile(null);setAuthReady(true);return
+      rememberOfflineIdentity(u.id,u.email??'')
+      try{
+        const local=await prepareLocalAccount(u.id)
+        if(local.needsPull&&navigator.onLine){
+          setSyncing(true)
+          try{
+            await pullCloudToLocal(u.id)
+            setLastSyncAt('')
+            await Promise.all([refresh(),refreshSetlists()])
+          }finally{setSyncing(false)}
+        }
+        if(navigator.onLine){
+          const registered=await registerCurrentDevice()
+          setProfile(registered.profile)
+          if(registered.profile?.status==='banned'||registered.device?.revoked_at){
+            setAccessNotice(registered.profile?.status==='banned'?'Ce compte a été suspendu par l’administrateur.':'Cet appareil a été déconnecté par l’administrateur.')
+            forgetOfflineIdentity()
+            await supabase.auth.signOut({scope:'local'})
+            setUserId('');setUserEmail('');setProfile(null);setAuthReady(true);return
+          }
+        }
+        setUserId(u.id);setUserEmail(u.email??'')
+      }catch{
+        setUserId(u.id);setUserEmail(u.email??'')
       }
-      setUserId(u.id);setUserEmail(u.email??'')
     }catch{
-      setUserId(u.id);setUserEmail(u.email??'')
+      if(cached){setUserId(cached.id);setUserEmail(cached.email);setProfile(null)}
+      else{setUserId('');setUserEmail('');setProfile(null)}
     }
     setAuthReady(true)
   }
@@ -435,7 +466,12 @@ function App() {
     void loadIdentity()
     const {data}=supabase.auth.onAuthStateChange((_event,session)=>{
       const u=session?.user
-      if(!u){setUserId('');setUserEmail('');setProfile(null);setAuthReady(true);return}
+      if(!u){
+        const cached=readOfflineIdentity()
+        if(!navigator.onLine&&cached){setUserId(cached.id);setUserEmail(cached.email);setProfile(null);setAuthReady(true);return}
+        setUserId('');setUserEmail('');setProfile(null);setAuthReady(true);return
+      }
+      rememberOfflineIdentity(u.id,u.email??'')
       void (async()=>{
         try{
           const local=await prepareLocalAccount(u.id)
@@ -1949,7 +1985,7 @@ function SettingsPage({theme,setTheme,songs,refresh,toast,userEmail,profile,onPr
   const demos=songs.filter(s=>s.source==='demo')
   const remove=async()=>{await db.songs.bulkDelete(demos.map(x=>x.id));await refresh();toast(`${demos.length} démo(s) supprimée(s).`)}
   const auth=async(mode:'login'|'signup')=>{try{setAuthBusy(true);const r=mode==='login'?await signIn(email,password):await signUp(email,password);if(r.error)throw r.error;toast(mode==='login'?'Connexion réussie.':'Compte créé. Vérifiez votre e-mail si une confirmation est demandée.');await onSignedIn()}catch(e){toast(e instanceof Error?e.message:'Authentification impossible.')}finally{setAuthBusy(false)}}
-  const logout=async()=>{await signOut();toast('Déconnecté du cloud DI’ART.');location.reload()}
+  const logout=async()=>{forgetOfflineIdentity();await signOut();toast('Déconnecté du cloud DI’ART.');location.reload()}
   const saveDisplayName=async()=>{if(nameBusy||nameChangeUsed)return;setNameBusy(true);try{await updateOwnDisplayNameOnce(displayNameDraft);setNameChangeUsed(true);await onProfileChanged();toast('Nom modifié. Ce changement ne pourra plus être refait.')}catch(e){toast(e instanceof Error?e.message:'Modification du nom impossible.')}finally{setNameBusy(false)}}
   return <>
   <section className="panel cloud-panel"><div className="cloud-heading"><Cloud/><div><h2>Cloud DI’ART</h2><p>{userEmail?`Connecté : ${userEmail}`:'Connectez le même compte sur PC, tablette et Android pour retrouver automatiquement votre bibliothèque.'}</p></div></div>{userEmail?<><div className="cloud-stats"><div><span>Sur cet appareil</span><b>{localCount}</b><small>morceaux</small></div><div><span>Dans le cloud</span><b>{cloudStats?.songs??'—'}</b><small>morceaux</small></div><div><span>Setlists cloud</span><b>{cloudStats?.setlists??'—'}</b><small>listes</small></div><div><span>Programmes cloud</span><b>{cloudStats?.programs??'—'}</b><small>événements</small></div><div><span>Stock cloud</span><b>{cloudStats?.stock??'—'}</b><small>références</small></div></div><div className="cloud-help"><b>Synchronisation multi-appareils active.</b><span> Vérifiez que cette adresse e-mail est exactement la même sur le PC, la tablette et Android.</span>{lastSyncAt&&<small>Dernière synchro réussie : {new Date(lastSyncAt).toLocaleString('fr-FR')}</small>}</div><div className="cloud-actions"><button className="primary" disabled={syncing} onClick={onPull}><Download/>{syncing?'Récupération…':'Récupérer depuis le cloud'}</button><button className="secondary" disabled={syncing} onClick={onSync}>{syncing?'Synchronisation…':'Synchroniser maintenant'}</button><button className="secondary" onClick={()=>void logout()}><LogOut/>Déconnexion</button></div></>:<div className="cloud-auth"><input type="email" autoComplete="username" placeholder="Adresse e-mail" value={email} onChange={e=>setEmail(e.target.value)}/><input type="password" autoComplete="current-password" placeholder="Mot de passe" value={password} onChange={e=>setPassword(e.target.value)}/><button className="primary" disabled={authBusy||!email||password.length<6} onClick={()=>void auth('login')}><LogIn/>Connexion</button><button className="secondary" disabled={authBusy||!email||password.length<6} onClick={()=>void auth('signup')}>Créer un compte</button></div>}</section>
