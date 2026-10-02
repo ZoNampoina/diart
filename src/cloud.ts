@@ -169,7 +169,9 @@ export async function syncActivity(userId:string){
 }
 
 export async function syncAll(userId:string,since=''){
-  const [songs,setlists,programs,inventoryStock,activity]=await Promise.all([syncSongs(userId,since),syncSetlists(userId,since),syncPrograms(userId),syncInventoryStock(userId),syncActivity(userId)])
+  // Songs go first so a newly-added song already exists in cloud before a shared setlist references it.
+  const songs=await syncSongs(userId,since)
+  const [setlists,programs,inventoryStock,activity]=await Promise.all([syncSetlists(userId,since),syncPrograms(userId),syncInventoryStock(userId),syncActivity(userId)])
   return {songs,setlists,programs,inventoryStock,activity,conflicts:[...songs.conflicts,...setlists.conflicts],pulled:songs.pulled+setlists.pulled+programs.pulled+inventoryStock.pulled+activity.pulled,pushed:songs.pushed+setlists.pushed+programs.pushed+inventoryStock.pushed+activity.pushed}
 }
 

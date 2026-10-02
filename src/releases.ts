@@ -8,6 +8,19 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'3.5.6',
+    date:'2 octobre 2026',
+    title:'Setlists partagées en temps réel',
+    summary:'Les setlists publiques et partagées deviennent collaboratives : une modification synchronisée par un membre est répercutée aux autres comptes liés et reçue en direct quand ils sont connectés.',
+    highlights:[
+      'Propagation serveur des modifications de setlist vers le propriétaire et tous les destinataires liés.',
+      'Mise à jour bidirectionnelle : un destinataire d’un partage peut modifier la setlist et les autres membres reçoivent la nouvelle version.',
+      'Écoute Supabase Realtime des setlists personnelles pour actualiser l’interface sans réimport ni réouverture.',
+      'Actualisation en direct des setlists visibles dans le Mode public.',
+      'Les nouveaux morceaux ajoutés à une setlist partagée sont synchronisés avant la setlist afin d’éviter les références manquantes.'
+    ]
+  },
+  {
     version:'3.5.3',
     date:'2 octobre 2026',
     title:'Partage public et codes robustes',

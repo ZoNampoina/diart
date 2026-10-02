@@ -82,7 +82,23 @@ export function CommunityPage({profile,toast,onImported,onProfileChanged,onOpenS
     }catch(e){toast(e instanceof Error?e.message:'Chargement public impossible.')}
     finally{setBusy(false)}
   }
-  useEffect(()=>{void load()},[])
+  useEffect(()=>{
+    void load()
+    const channel=supabase.channel('diart-public-setlists-live')
+      .on('postgres_changes',{event:'*',schema:'public',table:'diart_public_setlists'},payload=>{
+        const row=(payload.eventType==='DELETE'?payload.old:payload.new) as Partial<PublicSetlistRecord>
+        setSetlists(current=>{
+          if(payload.eventType==='DELETE')return current.filter(item=>item.id!==String(row.id??''))
+          if(!row.id)return current
+          const next=current.filter(item=>item.id!==row.id)
+          next.push(row as PublicSetlistRecord)
+          next.sort((a,b)=>String(b.updated_at||'').localeCompare(String(a.updated_at||'')))
+          return next
+        })
+      })
+      .subscribe()
+    return()=>{void supabase.removeChannel(channel)}
+  },[])
   const filteredSongs=useMemo(()=>{
     const q=query.trim().toLowerCase()
     if(!q)return songs

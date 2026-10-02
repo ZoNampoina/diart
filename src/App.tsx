@@ -24,7 +24,7 @@ import { DIART_RELEASES } from './releases'
 import { DIART_LOGO_DAY, DIART_LOGO_NIGHT } from './brand'
 import { SmartListImportModal, type SmartListImportMode } from './smart-list-import-ui'
 
-const APP_VERSION='3.5.5'
+const APP_VERSION='3.5.6'
 const OFFLINE_IDENTITY_KEY='diart-offline-identity-v1'
 type OfflineIdentity={id:string;email:string}
 function readOfflineIdentity():OfflineIdentity|null{
@@ -336,6 +336,22 @@ function App() {
   const sidebarSwipeRef=useRef<{x:number;y:number;active:boolean}|null>(null)
 
   const refreshSetlists=async()=>setSetlists((await db.setlists.toArray()).filter(x=>!x.deletedAt))
+
+  useEffect(()=>{
+    if(!userId)return
+    const channel=supabase.channel(`diart-setlists-live-${userId}`)
+      .on('postgres_changes',{event:'*',schema:'public',table:'diart_setlists',filter:`user_id=eq.${userId}`},async payload=>{
+        const row=(payload.eventType==='DELETE'?payload.old:payload.new) as {id?:string;payload?:Setlist}
+        if(payload.eventType==='DELETE'){
+          if(row?.id)await db.setlists.delete(String(row.id))
+        }else if(row?.payload){
+          await db.setlists.put(row.payload)
+        }
+        setSetlists((await db.setlists.toArray()).filter(x=>!x.deletedAt))
+      })
+      .subscribe()
+    return()=>{void supabase.removeChannel(channel)}
+  },[userId])
 
   const toast=(text:string,action?:Toast['action'])=>{
     const id=Date.now()+Math.random()
