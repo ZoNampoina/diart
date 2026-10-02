@@ -8,6 +8,19 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'3.5.3',
+    date:'2 octobre 2026',
+    title:'Partage public et codes robustes',
+    summary:'Le partage entre comptes DI’ART devient directement exploitable : les setlists publiques peuvent être ouvertes par un autre utilisateur et les erreurs de code sont désormais explicites.',
+    highlights:[
+      'Ouverture d’une setlist publique avec import automatique de la setlist et de ses morceaux dans l’espace personnel.',
+      'Actualisation de la même copie lors d’un nouvel accès, sans création de doublons de setlist.',
+      'Codes de partage acceptés avec ou sans préfixe et avec une saisie tolérante aux espaces et variantes de tirets.',
+      'Distinction claire entre code de partage direct et code d’activation du catalogue public.',
+      'Affichage du vrai message renvoyé par l’Edge Function au lieu de l’erreur technique générique non-2xx.'
+    ]
+  },
+  {
     version:'3.5.1',
     date:'30 septembre 2026',
     title:'Playlist après import de liste',
