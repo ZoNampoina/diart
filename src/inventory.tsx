@@ -2148,20 +2148,56 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
           </div>
         </div>
         {installationView==='schema'&&<div className="installation-layer-toolbar">
-          <div className="installation-layer-title"><span><LayoutGrid/></span><div><b>Couches du plan</b><small>Superposez, masquez ou choisissez la couche de liaison active.</small></div><button className="secondary schema-export-button" disabled={!installation.nodes.length} onClick={()=>void exportInstallationSchemaImage(program,stock).then(()=>toast('Schéma exporté en PNG.')).catch(error=>toast(error instanceof Error?error.message:'Export impossible.'))}><ImageDown/><span>Exporter le schéma</span></button></div>
-          <div className="installation-layer-list">
-            <div className={'installation-layer-pill materials '+(installationLayers.materials?'visible':'hidden')}><button type="button" className="layer-main" onClick={()=>void 0}><Boxes/><span><b>Matos</b><small>{installation.nodes.length} élément(s)</small></span></button><button type="button" className="layer-eye" aria-label={installationLayers.materials?'Masquer Matos':'Afficher Matos'} onClick={()=>toggleInstallationLayer('materials')}>{installationLayers.materials?<Eye/>:<EyeOff/>}</button></div>
-            <div className={'installation-layer-pill audio '+(installationLayers.audio?'visible':'hidden')+' '+(activeSchemaLayer==='audio'?'active':'')}><button type="button" className="layer-main" onClick={()=>selectActiveSchemaLayer('audio')}><Link2/><span><b>Câblage</b><small>Audio · {installation.links.filter(link=>schemaLayerForLink(link.kind??installationLinkKind(link,program,stock))==='audio').length}</small></span></button><button type="button" className="layer-eye" aria-label={installationLayers.audio?'Masquer Câblage':'Afficher Câblage'} onClick={()=>toggleInstallationLayer('audio')}>{installationLayers.audio?<Eye/>:<EyeOff/>}</button></div>
-            <div className={'installation-layer-pill power '+(installationLayers.power?'visible':'hidden')+' '+(activeSchemaLayer==='power'?'active':'')}><button type="button" className="layer-main" onClick={()=>selectActiveSchemaLayer('power')}><Zap/><span><b>Électricité</b><small>Alimentation · {installation.links.filter(link=>schemaLayerForLink(link.kind??installationLinkKind(link,program,stock))==='power').length}</small></span></button><button type="button" className="layer-eye" aria-label={installationLayers.power?'Masquer Électricité':'Afficher Électricité'} onClick={()=>toggleInstallationLayer('power')}>{installationLayers.power?<Eye/>:<EyeOff/>}</button></div>
-            <div className={'installation-layer-pill connectivity '+(installationLayers.connectivity?'visible':'hidden')+' '+(activeSchemaLayer==='connectivity'?'active':'')}><button type="button" className="layer-main" onClick={()=>selectActiveSchemaLayer('connectivity')}><Network/><span><b>Connectique</b><small>Réseau / MIDI / data · {installation.links.filter(link=>schemaLayerForLink(link.kind??installationLinkKind(link,program,stock))==='connectivity').length}</small></span></button><button type="button" className="layer-eye" aria-label={installationLayers.connectivity?'Masquer Connectique':'Afficher Connectique'} onClick={()=>toggleInstallationLayer('connectivity')}>{installationLayers.connectivity?<Eye/>:<EyeOff/>}</button></div>
+          <div className="installation-layer-title">
+            <span><LayoutGrid/></span>
+            <div><b>Couches du plan</b><small>Affichage, ordre, type de liaison et export restent regroupés près du schéma.</small></div>
+            <button className={'secondary schema-export-button '+(exportLayersOpen?'active':'')} disabled={!installation.nodes.length||schemaExporting} onClick={openSchemaExport}><ImageDown/><span>{schemaExporting?'Export…':'Exporter'}</span></button>
           </div>
+          <div className="installation-layer-list">
+            {schemaLayerOrder.map((layerId,index)=>{
+              const visible=installationLayers[layerId]!==false
+              const isCustom=customSchemaLayers.some(layer=>layer.id===layerId)
+              const active=layerId!=='materials'&&activeSchemaLayer===layerId
+              const icon=layerId==='materials'?<Boxes/>:layerId==='audio'?<Link2/>:layerId==='power'?<Zap/>:layerId==='connectivity'?<Network/>:layerId==='accessories'?<PackagePlus/>:<LayoutGrid/>
+              return <div key={layerId} className={'installation-layer-pill layer-'+layerId+' '+(visible?'visible':'hidden')+' '+(active?'active':'')}>
+                <button type="button" className="layer-main" onClick={()=>selectActiveSchemaLayer(layerId)}>{icon}<span><b>{schemaLayerNames[layerId]??layerId}</b><small>{layerItemCount(layerId)} élément(s)</small></span></button>
+                <button type="button" className="layer-eye" aria-label={visible?'Masquer '+(schemaLayerNames[layerId]??layerId):'Afficher '+(schemaLayerNames[layerId]??layerId)} onClick={()=>toggleInstallationLayer(layerId)}>{visible?<Eye/>:<EyeOff/>}</button>
+                <div className="layer-order-actions">
+                  <button type="button" className="bare-action" disabled={index===0} aria-label="Monter la couche" onClick={()=>moveSchemaLayer(layerId,-1)}><ChevronUp/></button>
+                  <button type="button" className="bare-action" disabled={index===schemaLayerOrder.length-1} aria-label="Descendre la couche" onClick={()=>moveSchemaLayer(layerId,1)}><ChevronDown/></button>
+                  {isCustom&&<button type="button" className="bare-action danger-icon" aria-label="Supprimer la couche" onClick={()=>removeSchemaLayer(layerId)}><Trash2/></button>}
+                </div>
+              </div>
+            })}
+          </div>
+          <div className="installation-layer-create">
+            <input value={newSchemaLayerName} onChange={e=>setNewSchemaLayerName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addSchemaLayer()}} placeholder="Nouvelle couche…"/>
+            <button className="secondary" disabled={!newSchemaLayerName.trim()} onClick={addSchemaLayer}><Plus/>Ajouter une couche</button>
+          </div>
+          {exportLayersOpen&&<div className="schema-export-panel">
+            <div className="schema-export-panel-head"><span><b>Exporter le visuel du plan</b><small>Le rendu conserve les icônes, positions, tailles, rotations et styles visibles dans l’éditeur.</small></span><button className="bare-action" onClick={()=>setExportLayersOpen(false)}><X/></button></div>
+            <div className="schema-export-layer-grid">
+              {schemaLayerOrder.map(layerId=><label key={layerId} className={exportLayerSelection[layerId]?'checked':''}><input type="checkbox" checked={Boolean(exportLayerSelection[layerId])} onChange={e=>setExportLayerSelection(value=>({...value,[layerId]:e.target.checked}))}/><span>{schemaLayerNames[layerId]??layerId}</span></label>)}
+            </div>
+            <label className="schema-export-context"><input type="checkbox" checked={exportKeepMaterials} onChange={e=>setExportKeepMaterials(e.target.checked)}/><span>Pour les exports séparés, garder Matos comme contexte quand il est sélectionné</span></label>
+            <div className="schema-export-actions">
+              <button className="primary" disabled={schemaExporting||!schemaLayerOrder.some(layerId=>exportLayerSelection[layerId])} onClick={()=>void runSchemaExport('combined')}><ImageDown/>Image combinée</button>
+              <button className="secondary" disabled={schemaExporting||!schemaLayerOrder.some(layerId=>exportLayerSelection[layerId])} onClick={()=>void runSchemaExport('separate')}><LayoutGrid/>Une image par couche</button>
+            </div>
+          </div>}
           <div className="installation-stage-toolbar">
             <span><b>Scène</b><small>{installation.stageWidth??980} × {installation.stageHeight??650}</small></span>
             <div><button className="secondary" onClick={()=>resizeStage(-120,0)} title="Réduire la largeur"><Minus/>L</button><button className="secondary" onClick={()=>resizeStage(120,0)} title="Agrandir la largeur"><Plus/>L</button><button className="secondary" onClick={()=>resizeStage(0,-100)} title="Réduire la hauteur"><Minus/>H</button><button className="secondary" onClick={()=>resizeStage(0,100)} title="Agrandir la hauteur"><Plus/>H</button><button className="secondary" onClick={()=>void persist({installation:{...installation,stageWidth:1400,stageHeight:900}})}>Grande scène</button></div>
           </div>
+          {selectedSchemaLink&&installation.links.some(link=>link.id===selectedSchemaLink)&&(()=>{const link=installation.links.find(value=>value.id===selectedSchemaLink)!;const kind=link.kind??installationLinkKind(link,program,stock);return <div className="installation-quick-line-toolbar">
+            <span className="quick-line-title"><Link2/><b>Ligne sélectionnée</b></span>
+            <div className="schema-route-mode-switch"><button className={(link.routeMode??'straight')==='straight'?'active':''} onClick={()=>setLinkRouteMode(link,'straight')}>Droit</button><button className={link.routeMode==='zigzag'?'active':''} onClick={()=>setLinkRouteMode(link,'zigzag')}>90°</button><button className={link.routeMode==='curve'?'active':''} onClick={()=>setLinkRouteMode(link,'curve')}>Courbe</button></div>
+            <label><span>Type</span><select value={kind??'unknown'} onChange={e=>{const nextKind=e.target.value as InstallationLink['kind'];const nextLayer=schemaLayerForLink(nextKind);updateInstallationLink(link.id,{kind:nextKind,layerId:nextLayer});setActiveSchemaLayer(nextLayer)}}><option value="audio">Audio</option><option value="power">Alimentation</option><option value="network">Réseau</option><option value="midi">MIDI</option><option value="data">Données</option><option value="accessory">Accessoire</option><option value="unknown">Autre</option></select></label>
+            <label><span>Couche</span><select value={linkLayerId(link)} onChange={e=>updateInstallationLink(link.id,{layerId:e.target.value})}>{schemaLayerOrder.filter(id=>id!=='materials').map(layerId=><option value={layerId} key={layerId}>{schemaLayerNames[layerId]??layerId}</option>)}</select></label>
+          </div>})()}
           <div className={'schema-click-link-status '+(selectedSchemaNode?'armed':'')}>
-            <span className={'schema-link-kind '+activeSchemaLayer}>{activeSchemaLayer==='audio'?<Link2/>:activeSchemaLayer==='power'?<Zap/>:<Network/>}</span>
-            {selectedSchemaNode?<><b>{installation.nodes.find(node=>node.id===selectedSchemaNode)?.name}</b><span> sélectionné · cliquez maintenant sur l’équipement à relier.</span><button className="bare-action" onClick={()=>setSelectedSchemaNode('')}><X/></button></>:<span>Cliquez sur un équipement, puis sur un second pour créer une liaison <b>{activeSchemaLayer==='audio'?'audio':activeSchemaLayer==='power'?'électrique':'connectique'}</b>.</span>}
+            <span className={'schema-link-kind '+activeSchemaLayer}>{activeSchemaLayer==='audio'?<Link2/>:activeSchemaLayer==='power'?<Zap/>:activeSchemaLayer==='accessories'?<PackagePlus/>:activeSchemaLayer==='connectivity'?<Network/>:<LayoutGrid/>}</span>
+            {selectedSchemaNode?<><b>{installation.nodes.find(node=>node.id===selectedSchemaNode)?.name}</b><span> sélectionné · cliquez maintenant sur l’équipement à relier.</span><button className="bare-action" onClick={()=>setSelectedSchemaNode('')}><X/></button></>:<span>Cliquez sur un équipement, puis sur un second pour créer une liaison dans <b>{schemaLayerNames[activeSchemaLayer]??activeSchemaLayer}</b>.</span>}
           </div>
         </div>}
         <div className="installation-electrical-summary">
