@@ -2225,19 +2225,18 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
             <input value={installationNodeName} onChange={e=>{setInstallationNodeName(e.target.value);if(e.target.value)setInstallationStockId('')}} placeholder="Ou équipement libre…"/>
             <button className="primary" disabled={!installationStockId&&!installationNodeName.trim()} onClick={addInstallationNode}><Plus/>Ajouter</button>
           </div>
-          <div className="installation-canvas installation-schematic topview-stage" style={{'--stage-width':(installation.stageWidth??980)+'px','--stage-height':(installation.stageHeight??650)+'px'} as CSSProperties}>
+          <div ref={schemaCanvasRef} className="installation-canvas installation-schematic topview-stage" style={{'--stage-width':(installation.stageWidth??980)+'px','--stage-height':(installation.stageHeight??650)+'px'} as CSSProperties}>
             <div className="topview-stage-markers" aria-hidden="true"><span>FOND DE SCÈNE</span><span>AVANT-SCÈNE</span><span>PUBLIC / RÉGIE</span></div>
-            {installation.links.length>0&&<svg className="installation-wire-layer" aria-label="Câblage du schéma">{installation.links.map(link=>{
+            {installation.links.length>0&&<svg className="installation-wire-layer" aria-label="Câblage du schéma">{[...installation.links].sort((a,b)=>schemaLayerIndex(linkLayerId(a))-schemaLayerIndex(linkLayerId(b))).map(link=>{
               const from=installation.nodes.find(n=>n.id===link.fromNodeId),to=installation.nodes.find(n=>n.id===link.toNodeId)
               if(!from||!to)return null
               const a=installationNodeCenter(from,installation.nodes.indexOf(from)),b=installationNodeCenter(to,installation.nodes.indexOf(to))
-              const kind=link.kind??installationLinkKind(link,program,stock),layer=schemaLayerForLink(kind)
-              if(!installationLayers[layer])return null
+              const kind=link.kind??installationLinkKind(link,program,stock),layer=linkLayerId(link),visible=installationLayers[layer]!==false
               const points=[{x:a.x,y:a.y},...(link.route??[]),{x:b.x,y:b.y}]
               const routeMode=link.routeMode??((link.route?.length??0)>0?'zigzag':'straight')
               const path=svgCablePath(points,routeMode)
               const selected=selectedSchemaLink===link.id
-              return <g key={link.id} className={'schema-wire-group mode-'+routeMode+' '+(selected?'selected':'')}>
+              return <g key={link.id} data-schema-layer={layer} data-layer-hidden={visible?'false':'true'} style={visible?undefined:{display:'none'}} className={'schema-wire-group mode-'+routeMode+' '+(selected?'selected':'')}>
                 <path className="schema-wire-hit" d={path} onPointerDown={e=>{e.stopPropagation();setSelectedSchemaLink(link.id);setSelectedSchemaNode('')}}/>
                 <path className={'wire-'+kind+' schema-wire layer-'+layer} d={path}/>
                 {selected&&(link.route??[]).map((point,pointIndex)=><circle key={pointIndex} className="schema-route-handle" cx={point.x} cy={point.y} r="8"
@@ -2246,15 +2245,16 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
                   onPointerUp={e=>{const svg=e.currentTarget.ownerSVGElement,rect=svg?.getBoundingClientRect();if(rect){const route=[...(installation.links.find(value=>value.id===link.id)?.route??link.route??[])];route[pointIndex]={x:e.clientX-rect.left,y:e.clientY-rect.top};setInstallationLinkRoute(link.id,route,true)}schemaRouteRef.current=null;try{e.currentTarget.releasePointerCapture(e.pointerId)}catch{}}}/>)}
               </g>
             })}</svg>}
-            {installationLayers.materials&&installation.nodes.length?installation.nodes.map((node,index)=>{
+            {installation.nodes.length?installation.nodes.map((node,index)=>{
               const source=node.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
+              const layer=nodeLayerId(node),visible=installationLayers[layer]!==false
               const x=node.x??70+(index%4)*180,y=node.y??85+Math.floor(index/4)*135
               const scale=Math.max(.65,Math.min(1.65,node.scale??1))
               const width=Math.max(52,node.width??110*scale),height=Math.max(48,node.height??84*scale)
               const equipmentType=installationEquipmentType(node.name,source?.category)
-              const style={left:x,top:y,width,height,'--node-rotation':(node.rotation??0)+'deg'} as CSSProperties
+              const style={left:x,top:y,width,height,'--node-rotation':(node.rotation??0)+'deg',zIndex:3+schemaLayerIndex(layer),display:visible?undefined:'none'} as CSSProperties
               const selected=selectedSchemaNode===node.id
-              return <div className={'installation-topview-node type-'+equipmentType+(selected?' selected':'')} key={node.id} style={style}
+              return <div data-schema-layer={layer} data-layer-hidden={visible?'false':'true'} className={'installation-topview-node type-'+equipmentType+(selected?' selected':'')} key={node.id} style={style}
                 onPointerDown={e=>{if((e.target as HTMLElement).closest('button,input,select,.schema-resize-handle,.schema-rotate-handle'))return;schemaPointerRef.current={id:node.id,startX:e.clientX,startY:e.clientY,moved:false};e.currentTarget.setPointerCapture(e.pointerId)}}
                 onPointerMove={e=>{const state=schemaPointerRef.current;if(!state||state.id!==node.id||!e.currentTarget.hasPointerCapture(e.pointerId))return;const dx=e.clientX-state.startX,dy=e.clientY-state.startY;if(Math.hypot(dx,dy)>6)state.moved=true;if(state.moved){const rect=e.currentTarget.parentElement?.getBoundingClientRect();if(rect)setInstallationNodePosition(node.id,e.clientX-rect.left-width/2,e.clientY-rect.top-height/2,false)}}}
                 onPointerUp={e=>{const state=schemaPointerRef.current;const rect=e.currentTarget.parentElement?.getBoundingClientRect();if(state?.moved&&rect)setInstallationNodePosition(node.id,e.clientX-rect.left-width/2,e.clientY-rect.top-height/2,true);else{handleSchemaNodeClick(node.id);setSelectedSchemaLink('')}schemaPointerRef.current=null;try{e.currentTarget.releasePointerCapture(e.pointerId)}catch{}}}>
@@ -2278,6 +2278,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
             <div className="schema-node-inspector-grid">
               <label><span>Nom</span><input value={node.name} onChange={e=>updateInstallationNode(node.id,{name:e.target.value})}/></label>
               <label><span>Zone</span><select value={node.zone??'Scène'} onChange={e=>updateInstallationNode(node.id,{zone:e.target.value})}><option>Scène</option><option>Scène gauche</option><option>Scène droite</option><option>Centre</option><option>Régie</option><option>Public</option><option>Backstage</option></select></label>
+              <label><span>Couche</span><select value={nodeLayerId(node)} onChange={e=>updateInstallationNode(node.id,{layerId:e.target.value})}>{schemaLayerOrder.map(layerId=><option value={layerId} key={layerId}>{schemaLayerNames[layerId]??layerId}</option>)}</select></label>
               <label><span>Largeur</span><input type="number" min="52" max="500" value={Math.round(node.width??110*(node.scale??1))} onChange={e=>updateInstallationNode(node.id,{width:Math.max(52,Number(e.target.value)||52)})}/></label>
               <label><span>Hauteur</span><input type="number" min="48" max="400" value={Math.round(node.height??84*(node.scale??1))} onChange={e=>updateInstallationNode(node.id,{height:Math.max(48,Number(e.target.value)||48)})}/></label>
               <div className="schema-rotation-control"><span>Orientation</span><div><input type="range" min="0" max="359" value={node.rotation??0} onChange={e=>updateInstallationNode(node.id,{rotation:Number(e.target.value)})}/><b>{node.rotation??0}°</b></div></div>
@@ -2288,10 +2289,11 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
           {selectedSchemaLink&&installation.links.some(link=>link.id===selectedSchemaLink)&&(()=>{const link=installation.links.find(value=>value.id===selectedSchemaLink)!;const from=installation.nodes.find(node=>node.id===link.fromNodeId),to=installation.nodes.find(node=>node.id===link.toNodeId);const kind=link.kind??installationLinkKind(link,program,stock);return <div className="schema-link-inspector">
             <div className="schema-node-inspector-head"><span><b>Câble / liaison sélectionnée</b><small>{from?.name??'?'} → {to?.name??'?'}</small></span><button className="bare-action" onClick={()=>setSelectedSchemaLink('')}><X/></button></div>
             <div className="schema-link-inspector-actions">
-              <div className="schema-route-mode-switch"><button className={(link.routeMode??'straight')==='straight'?'active':''} onClick={()=>setLinkRouteMode(link,'straight')}>Droit</button><button className={link.routeMode==='zigzag'?'active':''} onClick={()=>setLinkRouteMode(link,'zigzag')}>Zigzag</button><button className={link.routeMode==='curve'?'active':''} onClick={()=>setLinkRouteMode(link,'curve')}>Courbe</button></div>
+              <div className="schema-route-mode-switch"><button className={(link.routeMode??'straight')==='straight'?'active':''} onClick={()=>setLinkRouteMode(link,'straight')}>Droit</button><button className={link.routeMode==='zigzag'?'active':''} onClick={()=>setLinkRouteMode(link,'zigzag')}>90°</button><button className={link.routeMode==='curve'?'active':''} onClick={()=>setLinkRouteMode(link,'curve')}>Courbe</button></div>
               <button className="secondary" onClick={()=>addCableBend(link,false)}><Plus/>Point de passage</button>
-              <button className="secondary" onClick={()=>addCableBend(link,true)}><LayoutGrid/>90°</button>
-              <label><span>Type</span><select value={kind??'unknown'} onChange={e=>updateInstallationLink(link.id,{kind:e.target.value as InstallationLink['kind']})}><option value="audio">Audio</option><option value="power">Alimentation</option><option value="network">Réseau</option><option value="midi">MIDI</option><option value="data">Données</option><option value="accessory">Accessoire</option><option value="unknown">Autre</option></select></label>
+              <button className="secondary" onClick={()=>addCableBend(link,true)}><LayoutGrid/>Coude 90°</button>
+              <label><span>Type</span><select value={kind??'unknown'} onChange={e=>{const nextKind=e.target.value as InstallationLink['kind'];updateInstallationLink(link.id,{kind:nextKind,layerId:schemaLayerForLink(nextKind)})}}><option value="audio">Audio</option><option value="power">Alimentation</option><option value="network">Réseau</option><option value="midi">MIDI</option><option value="data">Données</option><option value="accessory">Accessoire</option><option value="unknown">Autre</option></select></label>
+              <label><span>Couche</span><select value={linkLayerId(link)} onChange={e=>updateInstallationLink(link.id,{layerId:e.target.value})}>{schemaLayerOrder.filter(id=>id!=='materials').map(layerId=><option value={layerId} key={layerId}>{schemaLayerNames[layerId]??layerId}</option>)}</select></label>
               <label><span>Longueur</span><div className="schema-length-input"><input type="number" min="0" step=".5" value={link.lengthMeters??''} onChange={e=>updateInstallationLink(link.id,{lengthMeters:Number(e.target.value)>0?Number(e.target.value):undefined})}/><em>m</em></div></label>
             </div>
             {(link.route?.length??0)>0&&<div className="schema-route-points">{link.route?.map((point,index)=><span key={index}><b>Point {index+1}</b><small>X {Math.round(point.x)} · Y {Math.round(point.y)}</small><button className="bare-action danger-icon" onClick={()=>updateInstallationLink(link.id,{route:link.route?.filter((_,i)=>i!==index)})}><Trash2/></button></span>)}</div>}
