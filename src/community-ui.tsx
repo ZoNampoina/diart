@@ -9,7 +9,7 @@ import { DIART_RELEASES } from './releases'
 import { DIART_LOGO_DAY, DIART_LOGO_NIGHT } from './brand'
 import {
   banUser, fetchAdminOverview, fetchPublicInventory, fetchPublicSetlists, fetchPublicSongs,
-  generateImportCode, importPublicSongToPersonal, redeemPublicImportCode, restoreDevice,
+  generateImportCode, importPublicSetlistToPersonal, importPublicSongToPersonal, redeemPublicImportCode, restoreDevice,
   revokeDevice, revokeUserDevices, trustDevice, unbanUser,
   type AdminOverview, type DiartProfile, type PublicInventoryRecord, type PublicSetlistRecord, type PublicSongRecord
 } from './community'
@@ -21,6 +21,7 @@ export function DiartAuthGate({onSignedIn}:{onSignedIn:()=>Promise<void>}){
   const [displayName,setDisplayName]=useState('')
   const [showPassword,setShowPassword]=useState(false)
   const [busy,setBusy]=useState(false)
+  const [setlistBusyId,setSetlistBusyId]=useState('')
   const [busyLabel,setBusyLabel]=useState('')
   const [message,setMessage]=useState('')
   const submit=async()=>{
@@ -65,7 +66,7 @@ export function DiartAuthGate({onSignedIn}:{onSignedIn:()=>Promise<void>}){
   </div>
 }
 
-export function CommunityPage({profile,toast,onImported,onProfileChanged}:{profile:DiartProfile|null;toast:(s:string)=>void;onImported:()=>Promise<void>;onProfileChanged:()=>Promise<void>}){
+export function CommunityPage({profile,toast,onImported,onProfileChanged,onOpenSetlist}:{profile:DiartProfile|null;toast:(s:string)=>void;onImported:()=>Promise<void>;onProfileChanged:()=>Promise<void>;onOpenSetlist:(id:string)=>void}){
   const [songs,setSongs]=useState<PublicSongRecord[]>([])
   const [setlists,setSetlists]=useState<PublicSetlistRecord[]>([])
   const [inventory,setInventory]=useState<PublicInventoryRecord[]>([])
@@ -104,6 +105,17 @@ export function CommunityPage({profile,toast,onImported,onProfileChanged}:{profi
     try{await importPublicSongToPersonal(row);await onImported();toast(`« ${row.payload.title} » importé dans votre espace personnel.`)}
     catch(e){toast(e instanceof Error?e.message:'Import impossible.')}
   }
+  const openPublicSetlist=async(row:PublicSetlistRecord)=>{
+    if(setlistBusyId)return
+    setSetlistBusyId(row.id)
+    try{
+      const result=await importPublicSetlistToPersonal(row.id)
+      await onImported()
+      toast(result.updated_existing?`« ${result.label} » actualisée.`:`« ${result.label} » importée.`)
+      onOpenSetlist(result.target_id||row.id)
+    }catch(e){toast(e instanceof Error?e.message:'Ouverture de la setlist impossible.')}
+    finally{setSetlistBusyId('')}
+  }
   return <>
     <section className="community-hero panel">
       <div><span className="eyebrow">MODE PUBLIC</span><h1>Bibliothèque DI’ART partagée</h1><p>Morceaux communs, setlists et inventaires volontairement publiés. Les favoris, récents et données personnelles ne sont jamais affichés ici.</p></div>
@@ -130,7 +142,7 @@ export function CommunityPage({profile,toast,onImported,onProfileChanged}:{profi
       </section>
     </>}
     {tab==='setlists'&&<section className="community-grid">
-      {setlists.map(row=><article className="panel community-public-card" key={row.id}><ListMusic/><div><b>{row.payload.name}</b><small>Publié par {row.owner_label||'Utilisateur DI’ART'}</small><p>{row.payload.songIds?.length??0} morceau(x)</p></div></article>)}
+      {setlists.map(row=><article className="panel community-public-card" key={row.id}><ListMusic/><div><b>{row.payload.name}</b><small>Publié par {row.owner_label||'Utilisateur DI’ART'}</small><p>{row.payload.songIds?.length??0} morceau(x)</p></div><button className="secondary" title="Importer dans votre espace et ouvrir" disabled={Boolean(setlistBusyId)} onClick={()=>void openPublicSetlist(row)}>{setlistBusyId===row.id?<RefreshCw className="diart-auth-sync-icon"/>:<CloudDownload/>}<span>{setlistBusyId===row.id?'Ouverture…':'Ouvrir'}</span></button></article>)}
       {!setlists.length&&<section className="panel"><p className="muted-copy">Aucune setlist publique pour le moment.</p></section>}
     </section>}
     {tab==='inventory'&&<section className="community-grid">
