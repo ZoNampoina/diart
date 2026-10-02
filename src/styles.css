@@ -13382,8 +13382,6 @@ button.song-info-value.key.active{
   stroke:var(--accent2);
   stroke-dasharray:6 4;
 }
-.topview-stage[data-exporting="true"] [data-layer-hidden="true"]{display:block!important}
-.topview-stage[data-exporting="true"] svg [data-layer-hidden="true"]{display:inline!important}
 .topview-stage[data-exporting="true"] .schema-resize-handle,
 .topview-stage[data-exporting="true"] .schema-rotate-handle,
 .topview-stage[data-exporting="true"] .schema-route-handle,
