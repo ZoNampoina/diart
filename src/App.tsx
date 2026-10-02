@@ -24,7 +24,7 @@ import { DIART_RELEASES } from './releases'
 import { DIART_LOGO_DAY, DIART_LOGO_NIGHT } from './brand'
 import { SmartListImportModal, type SmartListImportMode } from './smart-list-import-ui'
 
-const APP_VERSION='3.5.3'
+const APP_VERSION='3.5.4'
 const OFFLINE_IDENTITY_KEY='diart-offline-identity-v1'
 type OfflineIdentity={id:string;email:string}
 function readOfflineIdentity():OfflineIdentity|null{
@@ -2398,7 +2398,15 @@ function SetlistStage({mode,list,songs,refresh,refreshSongs,toast,onClose,onOpen
 
   useEffect(()=>{
     if(!song)return
-    setView(hasGuide?'guide':effectiveLyrics?'lyrics':(effectiveChordLyrics.trim()||(effectiveLyrics&&effectiveChords))?'both':'guide')
+    setView(current=>{
+      const combinedAvailable=Boolean(effectiveChordLyrics.trim()||(effectiveLyrics&&effectiveChords))
+      if(current==='lyrics'&&effectiveLyrics)return 'lyrics'
+      if(current==='both'&&combinedAvailable)return 'both'
+      if(current==='guide'&&hasGuide)return 'guide'
+      if(current==='lyrics'&&combinedAvailable)return 'both'
+      if(current==='both'&&effectiveLyrics)return 'lyrics'
+      return hasGuide?'guide':effectiveLyrics?'lyrics':combinedAvailable?'both':'guide'
+    })
     setNoteDraft(localNotes[song.id]??'')
     setTranspose(setlistSongSavedTranspose({...list,songOverrides:localOverrides},song))
     setAutoScroll(false)
