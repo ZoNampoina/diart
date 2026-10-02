@@ -24,7 +24,7 @@ import { DIART_RELEASES } from './releases'
 import { DIART_LOGO_DAY, DIART_LOGO_NIGHT } from './brand'
 import { SmartListImportModal, type SmartListImportMode } from './smart-list-import-ui'
 
-const APP_VERSION='3.5.2'
+const APP_VERSION='3.5.3'
 const OFFLINE_IDENTITY_KEY='diart-offline-identity-v1'
 type OfflineIdentity={id:string;email:string}
 function readOfflineIdentity():OfflineIdentity|null{
@@ -864,7 +864,7 @@ function App() {
         {page==='author'&&selectedAuthor&&<AuthorDetailPage author={selectedAuthor} songs={songs.filter(s=>s.authorComposer.trim()===selectedAuthor)} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onBack={()=>go('authors')} onOpen={s=>openSong(s,{page:'author',label:selectedAuthor})} onFav={fav} onAdd={()=>startNewSong('',selectedAuthor)}/>} 
         {page==='favorites'&&<SimpleSongs title="Favoris" songs={favoriteSongs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={s=>openSong(s,{page:'favorites',label:'Favoris'})} onFav={fav}/>} 
         {page==='recent'&&<SimpleSongs title="Récents" songs={recentSongs} setlists={setlists} refreshSetlists={refreshSetlists} toast={toast} onOpen={s=>openSong(s,{page:'recent',label:'Récents'})} onFav={fav}/>} 
-        {page==='community'&&<CommunityPage profile={profile} toast={toast} onImported={async()=>{await doSync(false);await refresh()}} onProfileChanged={reloadProfile}/>} 
+        {page==='community'&&<CommunityPage profile={profile} toast={toast} onImported={async()=>{await doSync(false);await Promise.all([refresh(),refreshSetlists()])}} onProfileChanged={reloadProfile} onOpenSetlist={id=>{setSelectedSetlistId(id);setPage('setlist')}}/>} 
         {page==='admin'&&profile?.role==='admin'&&<AdminPage toast={toast}/>} 
         {page==='inventory'&&<InventoryPage onOpen={openProgram} onChanged={()=>scheduleSync(220)} toast={toast}/>} 
         {page==='program'&&selectedProgramId&&<InventoryProgramPage programId={selectedProgramId} onBack={()=>go('inventory')} onChanged={()=>scheduleSync(220)} toast={toast} onShare={()=>void startDirectShare({entity_type:'inventory',entity_id:selectedProgramId,label:'Inventaire'})}/>} 
