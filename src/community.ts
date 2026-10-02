@@ -1,3 +1,4 @@
+import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from './cloud'
 import { db } from './db'
 import type { InventoryProgram, Song, Setlist } from './types'
@@ -220,13 +221,50 @@ export async function importPublicSongToPersonal(record:PublicSongRecord){
   return song
 }
 
+async function edgeFunctionErrorMessage(error:unknown,fallback:string){
+  if(error instanceof FunctionsHttpError){
+    try{
+      const body=await error.context.clone().json() as {error?:unknown;message?:unknown}
+      const message=body?.error??body?.message
+      if(message)return String(message)
+    }catch{}
+  }
+  return error instanceof Error&&error.message?error.message:fallback
+}
+
+function normalizePublicImportCode(value:string){
+  const raw=value.trim().toUpperCase().replace(/[‐‑‒–—−]/g,'-')
+  const compact=raw.replace(/[^A-Z0-9]/g,'')
+  if(/^[A-Z0-9]{8}$/.test(compact))return `DIART-${compact.slice(0,4)}-${compact.slice(4)}`
+  if(/^DIART[A-Z0-9]{8}$/.test(compact)){
+    const body=compact.slice(5)
+    return `DIART-${body.slice(0,4)}-${body.slice(4)}`
+  }
+  return raw.replace(/\s+/g,'')
+}
+
+function normalizeDirectShareCode(value:string){
+  const raw=value.trim().toUpperCase().replace(/[‐‑‒–—−]/g,'-')
+  const compact=raw.replace(/[^A-Z0-9]/g,'')
+  if(/^[A-Z0-9]{8}$/.test(compact))return `DIART-SH-${compact.slice(0,4)}-${compact.slice(4)}`
+  if(/^DIARTSH[A-Z0-9]{8}$/.test(compact)){
+    const body=compact.slice(7)
+    return `DIART-SH-${body.slice(0,4)}-${body.slice(4)}`
+  }
+  return raw.replace(/\s+/g,'')
+}
+
 export async function communityAdminAction<T=Record<string,unknown>>(action:string,payload:Record<string,unknown>={}):Promise<T>{
   const {data,error}=await supabase.functions.invoke('diart-community-admin',{body:{action,...payload}})
-  if(error)throw error
+  if(error)throw new Error(await edgeFunctionErrorMessage(error,'Action DI’ART impossible.'))
   if(data?.error)throw new Error(String(data.error))
   return data as T
 }
-export async function redeemPublicImportCode(code:string){return communityAdminAction<{ok:boolean;imported:number}>('redeem_import',{code})}
+export async function redeemPublicImportCode(code:string){
+  const normalized=normalizePublicImportCode(code)
+  if(/^DIART-SH-/i.test(normalized))throw new Error('Ce code sert au partage direct. Utilisez « Importer par code » depuis le menu +.')
+  return communityAdminAction<{ok:boolean;imported:number}>('redeem_import',{code:normalized})
+}
 export async function fetchAdminOverview(){return communityAdminAction<AdminOverview>('overview')}
 export type ImportCodeDurationUnit='day'|'month'|'year'
 export async function generateImportCode(email:string,duration_value:number,duration_unit:ImportCodeDurationUnit){return communityAdminAction<{ok:boolean;code:string;expires_at:string;email:string}>('generate_code',{email,duration_value,duration_unit})}
@@ -242,7 +280,7 @@ export interface DirectShareCreated {ok:boolean;code:string;entity_type:DirectSh
 export interface DirectShareRedeemed {ok:boolean;entity_type:DirectShareEntityType;label:string;target_id:string;artist_name:string;imported_songs:number;updated_existing?:boolean}
 async function directShareAction<T>(action:string,payload:Record<string,unknown>={}):Promise<T>{
   const {data,error}=await supabase.functions.invoke('diart-direct-share',{body:{action,...payload}})
-  if(error)throw error
+  if(error)throw new Error(await edgeFunctionErrorMessage(error,'Partage DI’ART impossible.'))
   if(data?.error)throw new Error(String(data.error))
   return data as T
 }
@@ -250,7 +288,12 @@ export async function createDirectShare(entity_type:DirectShareEntityType,option
   return directShareAction<DirectShareCreated>('create_share',{entity_type,...options})
 }
 export async function redeemDirectShare(code:string){
-  return directShareAction<DirectShareRedeemed>('redeem_share',{code})
+  const normalized=normalizeDirectShareCode(code)
+  if(/^DIART-(?!SH-)[A-Z0-9]{4}-[A-Z0-9]{4}$/i.test(normalized))throw new Error('Ce code sert à activer le catalogue public. Saisissez-le dans Mode public.')
+  return directShareAction<DirectShareRedeemed>('redeem_share',{code:normalized})
+}
+export async function importPublicSetlistToPersonal(setlistId:string){
+  return directShareAction<DirectShareRedeemed>('import_public_setlist',{setlist_id:setlistId})
 }
 
 
