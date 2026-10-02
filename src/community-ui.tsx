@@ -21,7 +21,6 @@ export function DiartAuthGate({onSignedIn}:{onSignedIn:()=>Promise<void>}){
   const [displayName,setDisplayName]=useState('')
   const [showPassword,setShowPassword]=useState(false)
   const [busy,setBusy]=useState(false)
-  const [setlistBusyId,setSetlistBusyId]=useState('')
   const [busyLabel,setBusyLabel]=useState('')
   const [message,setMessage]=useState('')
   const submit=async()=>{
@@ -74,6 +73,7 @@ export function CommunityPage({profile,toast,onImported,onProfileChanged,onOpenS
   const [query,setQuery]=useState('')
   const [code,setCode]=useState('')
   const [busy,setBusy]=useState(false)
+  const [setlistBusyId,setSetlistBusyId]=useState('')
   const load=async()=>{
     setBusy(true)
     try{
