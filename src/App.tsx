@@ -24,7 +24,7 @@ import { DIART_RELEASES } from './releases'
 import { DIART_LOGO_DAY, DIART_LOGO_NIGHT } from './brand'
 import { SmartListImportModal, type SmartListImportMode } from './smart-list-import-ui'
 
-const APP_VERSION='3.5.4'
+const APP_VERSION='3.5.5'
 const OFFLINE_IDENTITY_KEY='diart-offline-identity-v1'
 type OfflineIdentity={id:string;email:string}
 function readOfflineIdentity():OfflineIdentity|null{
@@ -2020,37 +2020,62 @@ function TunerCard(){
   const audioRef=useRef<AudioContext|null>(null)
   const streamRef=useRef<MediaStream|null>(null)
   const rafRef=useRef<number|null>(null)
+  const pitchHistory=useRef<number[]>([])
+  const silenceFrames=useRef(0)
   const NOTES=['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B']
+  const resetPitch=()=>{pitchHistory.current=[];silenceFrames.current=0;setNote('—');setCents(0);setFrequency(0)}
   const stopListening=()=>{
     if(rafRef.current!==null)cancelAnimationFrame(rafRef.current)
     rafRef.current=null
     streamRef.current?.getTracks().forEach(track=>track.stop())
     streamRef.current=null
+    resetPitch()
     setListening(false)
   }
   const detectPitch=(buffer:Float32Array,sampleRate:number)=>{
-    let rms=0
-    for(const x of buffer)rms+=x*x
-    rms=Math.sqrt(rms/buffer.length)
-    if(rms<.015)return 0
-    let bestOffset=-1,best=0
-    const minOffset=Math.floor(sampleRate/1000),maxOffset=Math.min(buffer.length-1,Math.floor(sampleRate/65))
-    for(let offset=minOffset;offset<=maxOffset;offset++){
-      let corr=0
-      for(let i=0;i<buffer.length-offset;i++)corr+=buffer[i]*buffer[i+offset]
-      if(corr>best){best=corr;bestOffset=offset}
+    let rms=0,mean=0
+    for(const x of buffer){rms+=x*x;mean+=x}
+    rms=Math.sqrt(rms/buffer.length);mean/=buffer.length
+    if(rms<.008)return 0
+    const size=buffer.length
+    const minLag=Math.max(2,Math.floor(sampleRate/1200))
+    const maxLag=Math.min(size-3,Math.ceil(sampleRate/55))
+    let bestLag=0,bestScore=0
+    for(let lag=minLag;lag<=maxLag;lag++){
+      let sumXY=0,sumX=0,sumY=0
+      const count=size-lag
+      for(let i=0;i<count;i++){
+        const x=buffer[i]-mean,y=buffer[i+lag]-mean
+        sumXY+=x*y;sumX+=x*x;sumY+=y*y
+      }
+      const score=sumXY/Math.sqrt(Math.max(1e-12,sumX*sumY))
+      if(score>bestScore){bestScore=score;bestLag=lag}
     }
-    return bestOffset>0?sampleRate/bestOffset:0
+    if(bestScore<.72||bestLag<=0)return 0
+    const correlation=(lag:number)=>{
+      if(lag<minLag||lag>maxLag)return 0
+      let xy=0,xx=0,yy=0
+      for(let i=0;i<size-lag;i++){const x=buffer[i]-mean,y=buffer[i+lag]-mean;xy+=x*y;xx+=x*x;yy+=y*y}
+      return xy/Math.sqrt(Math.max(1e-12,xx*yy))
+    }
+    const left=correlation(bestLag-1),center=bestScore,right=correlation(bestLag+1)
+    const denom=left-2*center+right
+    const refined=bestLag+(Math.abs(denom)>1e-9?.5*(left-right)/denom:0)
+    const hz=sampleRate/refined
+    return Number.isFinite(hz)&&hz>=55&&hz<=1200?hz:0
   }
   const startListening=async()=>{
     try{
-      const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}})
+      stopListening()
+      const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:1}})
       streamRef.current=stream
       const ctx=new AudioContext({latencyHint:'interactive'})
       audioRef.current=ctx
+      if(ctx.state==='suspended')await ctx.resume()
       const source=ctx.createMediaStreamSource(stream)
       const analyser=ctx.createAnalyser()
-      analyser.fftSize=4096
+      analyser.fftSize=8192
+      analyser.smoothingTimeConstant=0
       source.connect(analyser)
       const buffer=new Float32Array(analyser.fftSize)
       setListening(true)
@@ -2058,31 +2083,32 @@ function TunerCard(){
         analyser.getFloatTimeDomainData(buffer)
         const hz=detectPitch(buffer,ctx.sampleRate)
         if(hz>0){
-          const midi=Math.round(69+12*Math.log2(hz/440))
-          const exact=69+12*Math.log2(hz/440)
+          silenceFrames.current=0
+          const history=pitchHistory.current
+          history.push(hz);if(history.length>7)history.shift()
+          const sorted=[...history].sort((a,b)=>a-b)
+          const stableHz=sorted[Math.floor(sorted.length/2)]
+          const exact=69+12*Math.log2(stableHz/440),midi=Math.round(exact)
           setNote(NOTES[(midi%12+12)%12])
-          setCents(Math.round((exact-midi)*100))
-          setFrequency(hz)
+          setCents(Math.max(-50,Math.min(50,Math.round((exact-midi)*100))))
+          setFrequency(stableHz)
+        }else if(++silenceFrames.current>12){
+          pitchHistory.current=[]
+          setNote('—');setCents(0);setFrequency(0)
         }
         rafRef.current=requestAnimationFrame(loop)
       }
       loop()
-    }catch{setListening(false)}
+    }catch{stopListening()}
   }
-  useEffect(()=>()=>{stopListening();void audioRef.current?.close()},[])
+  useEffect(()=>()=>{if(rafRef.current!==null)cancelAnimationFrame(rafRef.current);streamRef.current?.getTracks().forEach(track=>track.stop());void audioRef.current?.close()},[])
   const playNote=async(name:string)=>{
-    const index=NOTES.indexOf(name)
-    if(index<0)return
-    const ctx=audioRef.current??new AudioContext({latencyHint:'interactive'})
-    audioRef.current=ctx
+    const index=NOTES.indexOf(name);if(index<0)return
+    const ctx=audioRef.current??new AudioContext({latencyHint:'interactive'});audioRef.current=ctx
     if(ctx.state==='suspended')await ctx.resume()
-    const midi=60+index
-    const hz=440*Math.pow(2,(midi-69)/12)
-    const osc=ctx.createOscillator(),gain=ctx.createGain()
-    osc.type='sine';osc.frequency.value=hz
-    gain.gain.setValueAtTime(.0001,ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(.2,ctx.currentTime+.02)
-    gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.98)
+    const midi=60+index,hz=440*Math.pow(2,(midi-69)/12)
+    const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sine';osc.frequency.value=hz
+    gain.gain.setValueAtTime(.0001,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(.2,ctx.currentTime+.02);gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.98)
     osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+1)
   }
   return <section className="tuner-card musician-tool-card"><div className="musician-tool-heading"><span className="musician-tool-icon"><Mic/></span><div><h3>Accordeur</h3><small>Fredonnez, chantez ou jouez une note.</small></div><span className={'tool-status-dot '+(listening?'active':'')}>{listening?'Écoute':'Prêt'}</span></div><div className={'tuner-display '+(listening?'listening':'')}><strong>{note}</strong><span>{frequency?frequency.toFixed(1)+' Hz':'— Hz'}</span><div className="tuner-cents"><i style={{transform:`translateX(${Math.max(-50,Math.min(50,cents))}%)`}}/><small>{frequency?(cents>0?'+':'')+cents+' cents':'Justesse'}</small></div></div><div className="tuner-reference"><span>Notes de référence · 1 s</span><div className="tuner-note-grid">{NOTES.map(n=><button type="button" className={note===n?'active':''} key={n} onClick={()=>void playNote(n)} aria-label={'Jouer '+n}><b>{n}</b></button>)}</div></div><button type="button" className={'tool-main-action '+(listening?'danger':'primary')} onClick={()=>void (listening?Promise.resolve(stopListening()):startListening())}>{listening?<><Square/>Arrêter l’écoute</>:<><Mic/>Détecter une note</>}</button></section>
@@ -2094,64 +2120,47 @@ function MetronomeCard({initialBpm=96,signature='4/4'}:{initialBpm?:number;signa
   const [taps,setTaps]=useState<number[]>([])
   const [pulse,setPulse]=useState(false)
   const [beat,setBeat]=useState(1)
-  const scheduler=useRef<number|null>(null)
-  const audio=useRef<AudioContext|null>(null)
-  const nextNoteTime=useRef(0)
-  const beatIndex=useRef(0)
-  const runningRef=useRef(false)
-  const bpmRef=useRef(bpm)
+  const scheduler=useRef<number|null>(null),audio=useRef<AudioContext|null>(null)
+  const nextNoteTime=useRef(0),beatIndex=useRef(0),runningRef=useRef(false),bpmRef=useRef(bpm)
+  const visualTimers=useRef<number[]>([])
   const beatsPerBar=Math.max(1,Math.min(12,Number.parseInt(signature?.split('/')[0]||'4',10)||4))
-
-  useEffect(()=>{bpmRef.current=bpm},[bpm])
+  const clearVisuals=()=>{visualTimers.current.forEach(id=>window.clearTimeout(id));visualTimers.current=[]}
   const stopScheduler=()=>{if(scheduler.current!==null){window.clearInterval(scheduler.current);scheduler.current=null}}
+  const applyBpm=(value:number)=>{const next=Math.max(30,Math.min(240,Math.round(value)));bpmRef.current=next;setBpm(next);const ctx=audio.current;if(runningRef.current&&ctx)nextNoteTime.current=Math.min(nextNoteTime.current,ctx.currentTime+60/next)}
+  useEffect(()=>{bpmRef.current=bpm},[bpm])
   const scheduleClick=(time:number,index:number)=>{
-    const ctx=audio.current
-    if(!ctx)return
-    const accent=index%beatsPerBar===0
-    const osc=ctx.createOscillator(),gain=ctx.createGain()
-    osc.type='square'
-    osc.frequency.setValueAtTime(accent?1500:950,time)
-    gain.gain.setValueAtTime(accent ? .19 : .12,time)
-    gain.gain.exponentialRampToValueAtTime(.001,time+.05)
-    osc.connect(gain);gain.connect(ctx.destination);osc.start(time);osc.stop(time+.055)
-    const delay=Math.max(0,(time-ctx.currentTime)*1000)
-    window.setTimeout(()=>{if(!runningRef.current)return;setBeat(index%beatsPerBar+1);setPulse(true);window.setTimeout(()=>setPulse(false),65)},delay)
+    const ctx=audio.current;if(!ctx)return
+    const accent=index%beatsPerBar===0,osc=ctx.createOscillator(),gain=ctx.createGain()
+    osc.type='square';osc.frequency.setValueAtTime(accent?1500:950,time)
+    gain.gain.setValueAtTime(.0001,Math.max(ctx.currentTime,time-.003));gain.gain.exponentialRampToValueAtTime(accent?.22:.13,time+.002);gain.gain.exponentialRampToValueAtTime(.0001,time+.045)
+    osc.connect(gain);gain.connect(ctx.destination);osc.start(time);osc.stop(time+.05)
+    const id=window.setTimeout(()=>{if(!runningRef.current)return;setBeat(index%beatsPerBar+1);setPulse(true);const off=window.setTimeout(()=>setPulse(false),55);visualTimers.current.push(off)},Math.max(0,(time-ctx.currentTime)*1000))
+    visualTimers.current.push(id)
   }
   const tick=()=>{
-    const ctx=audio.current
-    if(!ctx||!runningRef.current)return
-    while(nextNoteTime.current<ctx.currentTime+.12){
-      scheduleClick(nextNoteTime.current,beatIndex.current)
-      nextNoteTime.current+=60/bpmRef.current
-      beatIndex.current=(beatIndex.current+1)%beatsPerBar
-    }
+    const ctx=audio.current;if(!ctx||!runningRef.current)return
+    if(nextNoteTime.current<ctx.currentTime-.1)nextNoteTime.current=ctx.currentTime+.02
+    while(nextNoteTime.current<ctx.currentTime+.1){scheduleClick(nextNoteTime.current,beatIndex.current);nextNoteTime.current+=60/bpmRef.current;beatIndex.current=(beatIndex.current+1)%beatsPerBar}
   }
   const start=async()=>{
     try{
       audio.current??=new AudioContext({latencyHint:'interactive'})
-      if(audio.current.state==='suspended')await audio.current.resume()
-      runningRef.current=true
-      setRunning(true)
-      beatIndex.current=0
-      nextNoteTime.current=audio.current.currentTime+.04
-      stopScheduler()
-      tick()
-      scheduler.current=window.setInterval(tick,25)
+      const ctx=audio.current;if(ctx.state==='suspended')await ctx.resume()
+      clearVisuals();runningRef.current=true;setRunning(true);beatIndex.current=0;setBeat(1);nextNoteTime.current=ctx.currentTime+.03
+      stopScheduler();tick();scheduler.current=window.setInterval(tick,20)
     }catch{runningRef.current=false;setRunning(false)}
   }
-  const stop=()=>{runningRef.current=false;setRunning(false);stopScheduler();setBeat(1);setPulse(false)}
-  useEffect(()=>()=>{runningRef.current=false;stopScheduler();void audio.current?.close()},[])
+  const stop=()=>{runningRef.current=false;setRunning(false);stopScheduler();clearVisuals();setBeat(1);setPulse(false)}
+  useEffect(()=>{
+    const resume=()=>{const ctx=audio.current;if(document.visibilityState==='visible'&&runningRef.current&&ctx){void ctx.resume();nextNoteTime.current=ctx.currentTime+.03;beatIndex.current=0;tick()}}
+    document.addEventListener('visibilitychange',resume)
+    return()=>{document.removeEventListener('visibilitychange',resume);runningRef.current=false;stopScheduler();clearVisuals();void audio.current?.close()}
+  },[])
   const tap=()=>{
-    const now=performance.now()
-    const recent=taps.length&&now-taps[taps.length-1]>2200?[]:taps
-    const next=[...recent,now].slice(-7)
-    setTaps(next)
-    if(next.length>1){
-      const diffs=next.slice(1).map((t,i)=>t-next[i]).filter(v=>v>180&&v<2000)
-      if(diffs.length){const avg=diffs.reduce((a,b)=>a+b,0)/diffs.length;setBpm(Math.max(30,Math.min(240,Math.round(60000/avg))))}
-    }
+    const now=performance.now(),recent=taps.length&&now-taps[taps.length-1]>2200?[]:taps,next=[...recent,now].slice(-7);setTaps(next)
+    if(next.length>1){const diffs=next.slice(1).map((t,i)=>t-next[i]).filter(v=>v>180&&v<2000);if(diffs.length){const sorted=[...diffs].sort((a,b)=>a-b),median=sorted[Math.floor(sorted.length/2)];applyBpm(60000/median)}}
   }
-  return <section className="metronome-card musician-tool-card"><div className="musician-tool-heading"><span className="musician-tool-icon"><Gauge/></span><div><h3>Métronome</h3><small>{beatsPerBar} temps · Tap Tempo</small></div><span className={'tool-status-dot '+(running?'active':'')}>{running?'Lecture':'Prêt'}</span></div><div className={`metro-display ${pulse?'pulse':''}`}><div className="metro-beat-ring"><strong>{bpm}</strong><span>BPM</span></div><small>{beat}/{beatsPerBar}</small></div><div className="metro-tempo-row"><button className="secondary metro-step" aria-label="Diminuer le BPM" onClick={()=>setBpm(v=>Math.max(30,v-1))}><Minus/></button><input aria-label="BPM" type="range" min="30" max="240" value={bpm} onChange={e=>setBpm(Number(e.target.value))}/><button className="secondary metro-step" aria-label="Augmenter le BPM" onClick={()=>setBpm(v=>Math.min(240,v+1))}><Plus/></button></div><div className="metro-action-row"><button className="secondary tap-btn" onClick={tap}>TAP</button><button className={'tool-main-action '+(running?'danger':'primary')} onClick={()=>void (running?Promise.resolve(stop()):start())}>{running?<><Square/>Arrêter</>:<><Play/>Démarrer</>}</button></div></section>
+  return <section className="metronome-card musician-tool-card"><div className="musician-tool-heading"><span className="musician-tool-icon"><Gauge/></span><div><h3>Métronome</h3><small>{beatsPerBar} temps · Tap Tempo</small></div><span className={'tool-status-dot '+(running?'active':'')}>{running?'Lecture':'Prêt'}</span></div><div className={`metro-display ${pulse?'pulse':''}`}><div className="metro-beat-ring"><strong>{bpm}</strong><span>BPM</span></div><small>{beat}/{beatsPerBar}</small></div><div className="metro-tempo-row"><button className="secondary metro-step" aria-label="Diminuer le BPM" onClick={()=>applyBpm(bpmRef.current-1)}><Minus/></button><input aria-label="BPM" type="range" min="30" max="240" value={bpm} onChange={e=>applyBpm(Number(e.target.value))}/><button className="secondary metro-step" aria-label="Augmenter le BPM" onClick={()=>applyBpm(bpmRef.current+1)}><Plus/></button></div><div className="metro-action-row"><button className="secondary tap-btn" onClick={tap}>TAP</button><button className={'tool-main-action '+(running?'danger':'primary')} onClick={()=>void (running?Promise.resolve(stop()):start())}>{running?<><Square/>Arrêter</>:<><Play/>Démarrer</>}</button></div></section>
 }
 
 function SetlistsPage({songs,setlists,refresh,refreshSongs,toast,onOpenDetail,onOpenSong}:{songs:Song[];setlists:Setlist[];refresh:()=>Promise<void>;refreshSongs:()=>Promise<void>;toast:(s:string,action?:Toast['action'])=>void;onOpenDetail:(id:string)=>void;onOpenSong:(s:Song,context?:{list:Setlist;mode:'rehearsal'|'live'})=>void}) {
