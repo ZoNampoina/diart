@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { toPng } from 'html-to-image'
 import {
   AlertTriangle, Archive, Boxes, BrainCircuit, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp,
   ClipboardCheck, Eye, EyeOff, History, ImageDown, LayoutGrid, Link2, Minus, Network, PackageCheck, PackagePlus,
@@ -36,6 +37,14 @@ const STOCK_STATUS_LABELS:Record<InventoryStockStatus,string>={
   unavailable:'Indisponible'
 }
 const BLOCKING_STOCK_STATUSES:InventoryStockStatus[]=['reserved','in_use','repair','maintenance','unavailable']
+const BUILTIN_SCHEMA_LAYER_ORDER=['materials','audio','power','connectivity','accessories'] as const
+const BUILTIN_SCHEMA_LAYER_LABELS:Record<string,string>={
+  materials:'Matos',
+  audio:'Câblage',
+  power:'Électricité',
+  connectivity:'Connectique',
+  accessories:'Accessoires'
+}
 
 const DEFAULT_CATALOG: Record<string,string[]> = {
   cable:[
@@ -313,7 +322,9 @@ function normalizeProgram(program:InventoryProgram):InventoryProgram{
       analyzedAt:program.installation?.analyzedAt,
       analysisMode:program.installation?.analysisMode,
       snapshots:program.installation?.snapshots??[],
-      layers:program.installation?.layers??{materials:true,audio:true,power:true,connectivity:true}
+      layers:program.installation?.layers??{materials:true,audio:true,power:true,connectivity:true,accessories:true},
+      layerOrder:program.installation?.layerOrder??[...BUILTIN_SCHEMA_LAYER_ORDER],
+      customLayers:program.installation?.customLayers??[]
     }
   }
 }
@@ -537,10 +548,16 @@ function svgCablePath(points:Array<{x:number;y:number}>,mode:InstallationLink['r
   return path
 }
 
-function schemaLayerForLink(kind:InstallationLink['kind']):'audio'|'power'|'connectivity'{
+function schemaLayerForLink(kind:InstallationLink['kind']):string{
   if(kind==='power')return 'power'
   if(kind==='audio')return 'audio'
+  if(kind==='accessory')return 'accessories'
   return 'connectivity'
+}
+function schemaLayerForNode(node:{layerId?:string;role?:string},category?:string):string{
+  if(node.layerId)return node.layerId
+  if(node.role==='accessory'||category==='accessoire')return 'accessories'
+  return 'materials'
 }
 function installationLinkKind(link:InstallationLink,program:InventoryProgram,stock:InventoryStockItem[]):InstallationLink['kind']{
   const installation=program.installation??{nodes:[],links:[]}
@@ -812,52 +829,53 @@ function escapeSvgText(value:string):string{
   return value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 }
 
-async function exportInstallationSchemaImage(program:InventoryProgram,stock:InventoryStockItem[]):Promise<void>{
-  const installation=program.installation??{nodes:[],links:[]}
-  if(!installation.nodes.length)throw new Error('Le schéma est vide.')
-  const width=1200,height=800
-  const stageWidth=installation.stageWidth??980,stageHeight=installation.stageHeight??650
-  const sx=width/stageWidth,sy=height/stageHeight
-  const center=(node:(typeof installation.nodes)[number],index:number)=>{
-    const scale=node.scale??1
-    const w=node.width??110*scale,h=node.height??84*scale
-    const x=node.x??70+(index%4)*180,y=node.y??85+Math.floor(index/4)*135
-    return {x:(x+w/2)*sx,y:(y+h/2)*sy,w:w*sx,h:h*sy,left:x*sx,top:y*sy}
+async function exportInstallationSchemaImage(
+  stage:HTMLElement,
+  program:InventoryProgram,
+  selectedLayers:string[],
+  mode:'combined'|'separate',
+  layerNames:Record<string,string>,
+  keepMaterialsContext:boolean
+):Promise<number>{
+  if(!selectedLayers.length)throw new Error('Choisissez au moins une couche à exporter.')
+  const safeBase=sanitizeFilename(program.name||'installation').toLowerCase().replace(/\s+/g,'-')
+  const hiddenClasses=new Set(['schema-resize-handle','schema-rotate-handle','schema-route-handle','schema-wire-hit'])
+  const render=async(layerIds:Set<string>,suffix:string)=>{
+    const dataUrl=await toPng(stage,{
+      cacheBust:true,
+      pixelRatio:2,
+      backgroundColor:'#f8fbfb',
+      width:stage.scrollWidth,
+      height:stage.scrollHeight,
+      filter:node=>{
+        const el=node as HTMLElement
+        if(el?.classList&&Array.from(hiddenClasses).some(className=>el.classList.contains(className)))return false
+        const layer=el?.getAttribute?.('data-schema-layer')
+        return !layer||layerIds.has(layer)
+      }
+    })
+    const a=document.createElement('a')
+    a.href=dataUrl
+    a.download='schema-'+safeBase+'-'+suffix+'.png'
+    a.click()
   }
-  const layers=installation.layers??{materials:true,audio:true,power:true,connectivity:true}
-  const linkColor=(kind:InstallationLink['kind'])=>kind==='power'?'#d89a24':kind==='audio'?'#0d93a7':'#6b73d6'
-  const links=installation.links.map(link=>{
-    const from=installation.nodes.find(node=>node.id===link.fromNodeId),to=installation.nodes.find(node=>node.id===link.toNodeId)
-    if(!from||!to)return ''
-    const fi=installation.nodes.indexOf(from),ti=installation.nodes.indexOf(to)
-    const a=center(from,fi),b=center(to,ti)
-    const kind=link.kind??installationLinkKind(link,program,stock)
-    const layer=schemaLayerForLink(kind)
-    if(layers[layer]===false)return ''
-    const points=[{x:a.x,y:a.y},...(link.route??[]).map(point=>({x:point.x*sx,y:point.y*sy})),{x:b.x,y:b.y}]
-    const d=svgCablePath(points,link.routeMode??((link.route?.length??0)>0?'zigzag':'straight'))
-    return `<path d="${d}" fill="none" stroke="${linkColor(kind)}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" ${kind==='power'?'stroke-dasharray="14 7"':layer==='connectivity'?'stroke-dasharray="7 7"':''}/>`
-  }).join('')
-  const nodes=layers.materials===false?'':installation.nodes.map((node,index)=>{
-    const source=node.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
-    const p=center(node,index),rotation=node.rotation??0
-    const fill=source?.representationIcon==='power'?'#fff8e8':source?.representationIcon==='network'?'#f1f1ff':'#ffffff'
-    return `<g transform="rotate(${rotation} ${p.x.toFixed(1)} ${p.y.toFixed(1)})"><rect x="${p.left.toFixed(1)}" y="${p.top.toFixed(1)}" width="${p.w.toFixed(1)}" height="${p.h.toFixed(1)}" rx="13" fill="${fill}" stroke="#7ea4a9" stroke-width="2"/><text x="${p.x.toFixed(1)}" y="${(p.y-3).toFixed(1)}" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="16" font-weight="700" fill="#17383d">${escapeSvgText(node.name)}</text><text x="${p.x.toFixed(1)}" y="${(p.y+19).toFixed(1)}" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="11" fill="#678287">${escapeSvgText(node.zone??'Scène')}</text></g>`
-  }).join('')
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#f5f9f9"/><rect x="42" y="58" width="${width-84}" height="${height-190}" rx="26" fill="#eef5f5" stroke="#b9d0d3" stroke-width="3"/><text x="${width/2}" y="35" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="16" font-weight="800" fill="#668187">FOND DE SCÈNE</text><text x="${width/2}" y="${height-112}" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="16" font-weight="800" fill="#668187">AVANT-SCÈNE</text><text x="${width/2}" y="${height-35}" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="16" font-weight="800" fill="#668187">PUBLIC / RÉGIE</text>${links}${nodes}<text x="45" y="${height-18}" font-family="system-ui,Segoe UI,sans-serif" font-size="13" fill="#668187">DI’ART · ${escapeSvgText(program.name)} · ${new Date().toLocaleDateString('fr-FR')}</text></svg>`
-  const blob=new Blob([svg],{type:'image/svg+xml;charset=utf-8'})
-  const url=URL.createObjectURL(blob)
+  stage.dataset.exporting='true'
   try{
-    const image=new Image()
-    await new Promise<void>((resolve,reject)=>{image.onload=()=>resolve();image.onerror=()=>reject(new Error('Rendu du schéma impossible.'));image.src=url})
-    const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height
-    const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Export indisponible.')
-    ctx.drawImage(image,0,0,width,height)
-    const png=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error('Export PNG impossible.')),'image/png',1))
-    const pngUrl=URL.createObjectURL(png)
-    const a=document.createElement('a');a.href=pngUrl;a.download='schema-'+(program.name||'installation').replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'').toLowerCase()+'.png';a.click()
-    setTimeout(()=>URL.revokeObjectURL(pngUrl),1000)
-  }finally{URL.revokeObjectURL(url)}
+    if(mode==='combined'){
+      await render(new Set(selectedLayers),'combine')
+      return 1
+    }
+    let exported=0
+    for(const layerId of selectedLayers){
+      const allowed=new Set<string>([layerId])
+      if(keepMaterialsContext&&layerId!=='materials'&&selectedLayers.includes('materials'))allowed.add('materials')
+      await render(allowed,sanitizeFilename(layerNames[layerId]??layerId).toLowerCase().replace(/\s+/g,'-'))
+      exported++
+    }
+    return exported
+  }finally{
+    delete stage.dataset.exporting
+  }
 }
 
 export async function exportTechnicalSheetImage(program:InventoryProgram,stock:InventoryStockItem[]):Promise<void>{
@@ -1382,9 +1400,15 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
   const [installationStockId,setInstallationStockId]=useState('')
   const [installationProvider,setInstallationProvider]=useState(DEFAULT_PROVIDER)
   const [installationView,setInstallationView]=useState<'schema'|'list'|'patch'|'diagnostic'>('schema')
-  const [activeSchemaLayer,setActiveSchemaLayer]=useState<'audio'|'power'|'connectivity'>('audio')
+  const [activeSchemaLayer,setActiveSchemaLayer]=useState<string>('audio')
+  const [newSchemaLayerName,setNewSchemaLayerName]=useState('')
+  const [exportLayersOpen,setExportLayersOpen]=useState(false)
+  const [exportLayerSelection,setExportLayerSelection]=useState<Record<string,boolean>>({})
+  const [exportKeepMaterials,setExportKeepMaterials]=useState(true)
+  const [schemaExporting,setSchemaExporting]=useState(false)
   const [selectedSchemaNode,setSelectedSchemaNode]=useState('')
   const [selectedSchemaLink,setSelectedSchemaLink]=useState('')
+  const schemaCanvasRef=useRef<HTMLDivElement|null>(null)
   const schemaPointerRef=useRef<{id:string;startX:number;startY:number;moved:boolean}|null>(null)
   const schemaResizeRef=useRef<{id:string;startX:number;startY:number;width:number;height:number;x:number;y:number;handle:'n'|'ne'|'e'|'se'|'s'|'sw'|'w'|'nw'}|null>(null)
   const schemaRotateRef=useRef<{id:string;cx:number;cy:number}|null>(null)
@@ -1637,13 +1661,25 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     void persist({date,weekday})
   }
 
-  const installation=program?.installation??{nodes:[],links:[],suggestions:[],aiSummary:'',analysisMode:undefined,analyzedAt:undefined,snapshots:[],layers:{materials:true,audio:true,power:true,connectivity:true}}
-  const installationLayers={
-    materials:installation.layers?.materials!==false,
-    audio:installation.layers?.audio!==false,
-    power:installation.layers?.power!==false,
-    connectivity:installation.layers?.connectivity!==false
+  const installation=program?.installation??{nodes:[],links:[],suggestions:[],aiSummary:'',analysisMode:undefined,analyzedAt:undefined,snapshots:[],layers:{materials:true,audio:true,power:true,connectivity:true,accessories:true},layerOrder:[...BUILTIN_SCHEMA_LAYER_ORDER],customLayers:[]}
+  const customSchemaLayers=installation.customLayers??[]
+  const schemaLayerOrder=Array.from(new Set([
+    ...(installation.layerOrder??[]),
+    ...BUILTIN_SCHEMA_LAYER_ORDER,
+    ...customSchemaLayers.map(layer=>layer.id)
+  ])).filter(layerId=>BUILTIN_SCHEMA_LAYER_ORDER.includes(layerId as typeof BUILTIN_SCHEMA_LAYER_ORDER[number])||customSchemaLayers.some(layer=>layer.id===layerId))
+  const installationLayers:Record<string,boolean>=Object.fromEntries(schemaLayerOrder.map(layerId=>[layerId,installation.layers?.[layerId]!==false]))
+  const schemaLayerNames:Record<string,string>={
+    ...BUILTIN_SCHEMA_LAYER_LABELS,
+    ...Object.fromEntries(customSchemaLayers.map(layer=>[layer.id,layer.name]))
   }
+  const schemaLayerIndex=(layerId:string)=>Math.max(0,schemaLayerOrder.indexOf(layerId))
+  const linkLayerId=(link:InstallationLink)=>link.layerId??schemaLayerForLink(link.kind??installationLinkKind(link,program as InventoryProgram,stock))
+  const nodeLayerId=(node:(typeof installation.nodes)[number])=>{
+    const source=node.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
+    return schemaLayerForNode(node,source?.category)
+  }
+  const layerItemCount=(layerId:string)=>installation.nodes.filter(node=>nodeLayerId(node)===layerId).length+installation.links.filter(link=>linkLayerId(link)===layerId).length
   const installationNeeds=useMemo(()=>{
     const counts=new Map<string,number>()
     for(const node of installation.nodes)if(node.stockItemId)counts.set(node.stockItemId,(counts.get(node.stockItemId)??0)+1)
@@ -1682,23 +1718,70 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     const node=installation.nodes.find(item=>item.id===nodeId)
     return node?.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
   }
-  const toggleInstallationLayer=(layer:keyof typeof installationLayers)=>{
-    void persist({installation:{...installation,layers:{...installationLayers,[layer]:!installationLayers[layer]}}})
+  const toggleInstallationLayer=(layer:string)=>{
+    void persist({installation:{...installation,layers:{...(installation.layers??{}),[layer]:!installationLayers[layer]}}})
   }
-  const selectActiveSchemaLayer=(layer:'audio'|'power'|'connectivity')=>{
+  const selectActiveSchemaLayer=(layer:string)=>{
+    if(layer==='materials')return
     setActiveSchemaLayer(layer)
-    if(!installationLayers[layer])void persist({installation:{...installation,layers:{...installationLayers,[layer]:true}}})
+    if(!installationLayers[layer])void persist({installation:{...installation,layers:{...(installation.layers??{}),[layer]:true}}})
+  }
+  const addSchemaLayer=()=>{
+    const name=newSchemaLayerName.trim()
+    if(!name)return
+    const layerId='custom-'+crypto.randomUUID().slice(0,8)
+    const customLayers=[...customSchemaLayers,{id:layerId,name,visible:true}]
+    const layerOrder=[...schemaLayerOrder,layerId]
+    void persist({installation:{...installation,customLayers,layerOrder,layers:{...(installation.layers??{}),[layerId]:true}}})
+    setNewSchemaLayerName('')
+    setActiveSchemaLayer(layerId)
+  }
+  const renameSchemaLayer=(layerId:string,name:string)=>{
+    const value=name.trim()
+    if(!value)return
+    void persist({installation:{...installation,customLayers:customSchemaLayers.map(layer=>layer.id===layerId?{...layer,name:value}:layer)}})
+  }
+  const moveSchemaLayer=(layerId:string,direction:-1|1)=>{
+    const order=[...schemaLayerOrder]
+    const index=order.indexOf(layerId),target=index+direction
+    if(index<0||target<0||target>=order.length)return
+    ;[order[index],order[target]]=[order[target],order[index]]
+    void persist({installation:{...installation,layerOrder:order}})
+  }
+  const removeSchemaLayer=(layerId:string)=>{
+    if(!customSchemaLayers.some(layer=>layer.id===layerId))return
+    const nodes=installation.nodes.map(node=>node.layerId===layerId?{...node,layerId:'materials'}:node)
+    const links=installation.links.map(link=>link.layerId===layerId?{...link,layerId:schemaLayerForLink(link.kind)}:link)
+    const layers={...(installation.layers??{})};delete layers[layerId]
+    void persist({installation:{...installation,nodes,links,customLayers:customSchemaLayers.filter(layer=>layer.id!==layerId),layerOrder:schemaLayerOrder.filter(id=>id!==layerId),layers}})
+    if(activeSchemaLayer===layerId)setActiveSchemaLayer('audio')
+  }
+  const openSchemaExport=()=>{
+    setExportLayerSelection(Object.fromEntries(schemaLayerOrder.map(layerId=>[layerId,installationLayers[layerId]!==false])))
+    setExportLayersOpen(value=>!value)
+  }
+  const runSchemaExport=async(mode:'combined'|'separate')=>{
+    if(!program||!schemaCanvasRef.current)return
+    const selected=schemaLayerOrder.filter(layerId=>exportLayerSelection[layerId])
+    if(!selected.length){toast('Choisissez au moins une couche.');return}
+    setSchemaExporting(true)
+    try{
+      const count=await exportInstallationSchemaImage(schemaCanvasRef.current,program,selected,mode,schemaLayerNames,exportKeepMaterials)
+      toast(count>1?count+' images exportées.':'Schéma exporté en PNG.')
+      setExportLayersOpen(false)
+    }catch(error){toast(error instanceof Error?error.message:'Export impossible.')}
+    finally{setSchemaExporting(false)}
   }
   const connectSchemaNodes=(fromNodeId:string,toNodeId:string)=>{
     if(!program||fromNodeId===toNodeId)return
-    const kind:InstallationLink['kind']=activeSchemaLayer==='audio'?'audio':activeSchemaLayer==='power'?'power':'network'
-    const rawLink:InstallationLink={id:crypto.randomUUID(),fromNodeId,toNodeId,kind}
+    const kind:InstallationLink['kind']=activeSchemaLayer==='audio'?'audio':activeSchemaLayer==='power'?'power':activeSchemaLayer==='accessories'?'accessory':activeSchemaLayer==='connectivity'?'network':'unknown'
+    const rawLink:InstallationLink={id:crypto.randomUUID(),fromNodeId,toNodeId,kind,layerId:activeSchemaLayer}
     const draftProgram={...program,installation:{...installation,links:[...installation.links,rawLink],suggestions:[]}}
     const links=enrichInstallationLinks(draftProgram,stock)
     void persist({installation:{...installation,links,suggestions:[],aiSummary:'',analyzedAt:undefined,analysisMode:undefined}})
     const from=installation.nodes.find(node=>node.id===fromNodeId)?.name??'Équipement'
     const to=installation.nodes.find(node=>node.id===toNodeId)?.name??'équipement'
-    toast(from+' → '+to+' · '+(activeSchemaLayer==='audio'?'Audio':activeSchemaLayer==='power'?'Électricité':'Connectique'))
+    toast(from+' → '+to+' · '+(schemaLayerNames[activeSchemaLayer]??'Liaison'))
   }
   const handleSchemaNodeClick=(nodeId:string)=>{
     if(!selectedSchemaNode){setSelectedSchemaNode(nodeId);return}
@@ -1712,7 +1795,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     const name=(stockItem?.name??installationNodeName).trim()
     if(!name){toast('Choisissez un matériel ou saisissez un nom.');return}
     const index=installation.nodes.length
-    const node={id:crypto.randomUUID(),name,stockItemId:stockItem?.id,x:70+(index%4)*180,y:85+Math.floor(index/4)*135,zone:'Scène',scale:1,rotation:0}
+    const node={id:crypto.randomUUID(),name,stockItemId:stockItem?.id,x:70+(index%4)*180,y:85+Math.floor(index/4)*135,zone:'Scène',scale:1,rotation:0,layerId:stockItem?.category==='accessoire'?'accessories':'materials'}
     void persist({installation:{...installation,nodes:[...installation.nodes,node]}})
     setInstallationNodeName('');setInstallationStockId('')
   }
