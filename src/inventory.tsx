@@ -1857,10 +1857,10 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     const baseX=30,baseY=35
     const nodes=definitions.map((name,index)=>{
       const matched=stock.find(item=>normalizeProvider(item.provider)===installationProvider&&item.name.toLowerCase().includes(name.toLowerCase().replace('xlr-xlr','xlr')))
-      return {id:crypto.randomUUID(),name:matched?.name??name,stockItemId:matched?.id,x:baseX+(index%4)*180,y:baseY+Math.floor(index/4)*135,zone:index<4?'Scène':'Régie',scale:1,rotation:0}
+      return {id:crypto.randomUUID(),name:matched?.name??name,stockItemId:matched?.id,x:baseX+(index%4)*180,y:baseY+Math.floor(index/4)*135,zone:index<4?'Scène':'Régie',scale:1,rotation:0,layerId:matched?.category==='accessoire'||/sustain|pied|support|stand/i.test(name)?'accessories':'materials'}
     })
     const links:InstallationLink[]=[]
-    const connect=(a:number,b:number,linkKind:InstallationLink['kind']='unknown')=>{if(nodes[a]&&nodes[b])links.push({id:crypto.randomUUID(),fromNodeId:nodes[a].id,toNodeId:nodes[b].id,kind:linkKind})}
+    const connect=(a:number,b:number,linkKind:InstallationLink['kind']='unknown')=>{if(nodes[a]&&nodes[b])links.push({id:crypto.randomUUID(),fromNodeId:nodes[a].id,toNodeId:nodes[b].id,kind:linkKind,layerId:schemaLayerForLink(linkKind)})}
     if(kind==='piano'){connect(0,1,'power');connect(1,2,'power');connect(2,3,'power');connect(3,4,'audio');connect(4,5,'audio');connect(5,6,'audio');connect(6,7,'audio');connect(8,3,'accessory')}
     if(kind==='drums'){connect(0,1,'audio');connect(1,2,'audio');connect(2,3,'audio')}
     if(kind==='mr18'){connect(0,1,'power');connect(1,2,'power');connect(2,3,'network');connect(3,4,'network');connect(5,6,'power');connect(6,4,'power')}
@@ -1913,7 +1913,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     if(!program)return
     const stamp=now()
     const name=snapshotName.trim()||'Plan '+((installation.snapshots?.length??0)+1)
-    const snapshot={id:crypto.randomUUID(),name,nodes:installation.nodes.map(node=>({...node})),links:installation.links.map(link=>({...link,compatibilityNotes:[...(link.compatibilityNotes??[])]})),createdAt:stamp}
+    const snapshot={id:crypto.randomUUID(),name,nodes:installation.nodes.map(node=>({...node})),links:installation.links.map(link=>({...link,compatibilityNotes:[...(link.compatibilityNotes??[])]})),layers:{...(installation.layers??{})},layerOrder:[...schemaLayerOrder],customLayers:customSchemaLayers.map(layer=>({...layer})),createdAt:stamp}
     await persist({installation:{...installation,snapshots:[...(installation.snapshots??[]),snapshot]}})
     setSnapshotName('')
     await logActivity('update','Version installation enregistrée',name,{source:'inventory',inventoryProgramId:program.id})
@@ -1922,7 +1922,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
   const restoreInstallationSnapshot=async(id:string)=>{
     const snapshot=(installation.snapshots??[]).find(value=>value.id===id)
     if(!snapshot)return
-    await persist({installation:{...installation,nodes:snapshot.nodes.map(node=>({...node})),links:snapshot.links.map(link=>({...link,compatibilityNotes:[...(link.compatibilityNotes??[])]})),suggestions:[],aiSummary:'',analysisMode:undefined,analyzedAt:undefined}})
+    await persist({installation:{...installation,nodes:snapshot.nodes.map(node=>({...node})),links:snapshot.links.map(link=>({...link,compatibilityNotes:[...(link.compatibilityNotes??[])]})),layers:snapshot.layers??installation.layers,layerOrder:snapshot.layerOrder??installation.layerOrder,customLayers:snapshot.customLayers??installation.customLayers,suggestions:[],aiSummary:'',analysisMode:undefined,analyzedAt:undefined}})
     toast('Version « '+snapshot.name+' » restaurée.')
   }
   const deleteInstallationSnapshot=(id:string)=>void persist({installation:{...installation,snapshots:(installation.snapshots??[]).filter(value=>value.id!==id)}})
