@@ -840,13 +840,28 @@ async function exportInstallationSchemaImage(
   if(!selectedLayers.length)throw new Error('Choisissez au moins une couche à exporter.')
   const safeBase=sanitizeFilename(program.name||'installation').toLowerCase().replace(/\s+/g,'-')
   const hiddenClasses=new Set(['schema-resize-handle','schema-rotate-handle','schema-route-handle','schema-wire-hit'])
+  const stageWidth=Math.max(1,Math.round(stage.getBoundingClientRect().width))
+  const stageHeight=Math.max(1,Math.round(stage.getBoundingClientRect().height))
   const render=async(layerIds:Set<string>,suffix:string)=>{
+    stage.dataset.exportLayers=Array.from(layerIds).join(',')
+    await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())))
     const dataUrl=await toPng(stage,{
       cacheBust:true,
-      pixelRatio:2,
+      pixelRatio:3,
       backgroundColor:'#f8fbfb',
-      width:stage.scrollWidth,
-      height:stage.scrollHeight,
+      width:stageWidth,
+      height:stageHeight,
+      canvasWidth:stageWidth*3,
+      canvasHeight:stageHeight*3,
+      style:{
+        width:stageWidth+'px',
+        height:stageHeight+'px',
+        minWidth:stageWidth+'px',
+        minHeight:stageHeight+'px',
+        maxWidth:stageWidth+'px',
+        maxHeight:stageHeight+'px',
+        overflow:'hidden'
+      },
       filter:node=>{
         const el=node as HTMLElement
         if(el?.classList&&Array.from(hiddenClasses).some(className=>el.classList.contains(className)))return false
@@ -875,6 +890,7 @@ async function exportInstallationSchemaImage(
     return exported
   }finally{
     delete stage.dataset.exporting
+    delete stage.dataset.exportLayers
   }
 }
 
