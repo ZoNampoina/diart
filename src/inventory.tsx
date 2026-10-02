@@ -840,6 +840,25 @@ async function exportInstallationSchemaImage(
   if(!selectedLayers.length)throw new Error('Choisissez au moins une couche à exporter.')
   const safeBase=sanitizeFilename(program.name||'installation').toLowerCase().replace(/\s+/g,'-')
   const hiddenClasses=new Set(['schema-resize-handle','schema-rotate-handle','schema-route-handle','schema-wire-hit'])
+  const exportCss=document.createElement('style')
+  exportCss.dataset.diartSchemaExport='true'
+  exportCss.textContent=`
+    .topview-stage[data-exporting="true"] .installation-wire-layer path.schema-wire{
+      fill:none !important;
+      vector-effect:non-scaling-stroke;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
+    .topview-stage[data-exporting="true"] .installation-wire-layer .wire-audio{stroke:#0d93a7 !important}
+    .topview-stage[data-exporting="true"] .installation-wire-layer .wire-power{stroke:#d89a24 !important;stroke-dasharray:10 5}
+    .topview-stage[data-exporting="true"] .installation-wire-layer .wire-network{stroke:#6b73d6 !important;stroke-dasharray:8 5}
+    .topview-stage[data-exporting="true"] .installation-wire-layer .wire-midi{stroke:#9f6bc2 !important;stroke-dasharray:5 4}
+    .topview-stage[data-exporting="true"] .installation-wire-layer .wire-data{stroke:#4a84c6 !important;stroke-dasharray:4 4}
+    .topview-stage[data-exporting="true"] .installation-wire-layer .wire-accessory{stroke:#7d8b92 !important;stroke-dasharray:3 5}
+    .topview-stage[data-exporting="true"] .installation-wire-layer .schema-wire{stroke-width:3.5 !important}
+    .topview-stage[data-exporting="true"] .schema-wire-group.selected .schema-wire{filter:none !important;stroke-width:3.5 !important}
+  `
+  document.head.appendChild(exportCss)
   const stageWidth=Math.max(1,Math.round(stage.getBoundingClientRect().width))
   const stageHeight=Math.max(1,Math.round(stage.getBoundingClientRect().height))
   const render=async(layerIds:Set<string>,suffix:string)=>{
@@ -891,6 +910,7 @@ async function exportInstallationSchemaImage(
   }finally{
     delete stage.dataset.exporting
     delete stage.dataset.exportLayers
+    exportCss.remove()
   }
 }
 
