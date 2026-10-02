@@ -199,6 +199,7 @@ export interface InstallationNode {
   rotation?: number
   width?: number
   height?: number
+  layerId?: string
 }
 
 export interface InstallationLink {
@@ -215,6 +216,7 @@ export interface InstallationLink {
   kind?: 'audio'|'power'|'network'|'midi'|'data'|'accessory'|'unknown'
   route?: Array<{x:number;y:number}>
   routeMode?: 'straight'|'zigzag'|'curve'
+  layerId?: string
 }
 
 export interface InstallationSuggestion {
@@ -229,11 +231,20 @@ export interface InstallationSuggestion {
   channelAssignment?: string
 }
 
+export interface InstallationLayer {
+  id: string
+  name: string
+  visible?: boolean
+}
+
 export interface InstallationSnapshot {
   id: string
   name: string
   nodes: InstallationNode[]
   links: InstallationLink[]
+  layers?: Record<string,boolean|undefined>
+  layerOrder?: string[]
+  customLayers?: InstallationLayer[]
   createdAt: string
 }
 
@@ -250,11 +261,15 @@ export interface InventoryInstallation {
   stageWidth?: number
   stageHeight?: number
   layers?: {
+    [layerId:string]: boolean|undefined
     materials?: boolean
     audio?: boolean
     power?: boolean
     connectivity?: boolean
+    accessories?: boolean
   }
+  layerOrder?: string[]
+  customLayers?: InstallationLayer[]
 }
 
 export type InventoryFrequency = 'once'|'weekly'|'monthly'
