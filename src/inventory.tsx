@@ -1479,6 +1479,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
   const [exportLayerSelection,setExportLayerSelection]=useState<Record<string,boolean>>({})
   const [exportKeepMaterials,setExportKeepMaterials]=useState(true)
   const [schemaExporting,setSchemaExporting]=useState(false)
+  const [stageMetricDraft,setStageMetricDraft]=useState({width:12,depth:8,scale:80})
   const [selectedSchemaNode,setSelectedSchemaNode]=useState('')
   const [selectedSchemaLink,setSelectedSchemaLink]=useState('')
   const schemaCanvasRef=useRef<HTMLDivElement|null>(null)
@@ -1735,6 +1736,12 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
   }
 
   const installation=program?.installation??{nodes:[],links:[],suggestions:[],aiSummary:'',analysisMode:undefined,analyzedAt:undefined,snapshots:[],layers:{materials:true,audio:true,power:true,connectivity:true,accessories:true},layerOrder:[...BUILTIN_SCHEMA_LAYER_ORDER],customLayers:[]}
+  useEffect(()=>{
+    if(!program?.id)return
+    const width=installation.stageWidthMeters??12,depth=installation.stageDepthMeters??8
+    const autoScale=Math.max(20,Math.min(250,Math.min((installation.stageWidth??980)/Math.max(1,width),(installation.stageHeight??650)/Math.max(1,depth))))
+    setStageMetricDraft({width,depth,scale:installation.stagePixelsPerMeter??Math.round(autoScale)})
+  },[program?.id])
   const customSchemaLayers=installation.customLayers??[]
   const schemaLayerOrder=Array.from(new Set([
     ...(installation.layerOrder??[]),
@@ -1964,9 +1971,31 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     updateInstallationLink(link.id,{routeMode:'curve',route})
   }
   const resizeStage=(dw:number,dh:number)=>{
-    const width=Math.max(760,Math.min(2200,(installation.stageWidth??980)+dw))
-    const height=Math.max(560,Math.min(1600,(installation.stageHeight??650)+dh))
+    const width=Math.max(360,Math.min(2600,(installation.stageWidth??980)+dw))
+    const height=Math.max(300,Math.min(2000,(installation.stageHeight??650)+dh))
     void persist({installation:{...installation,stageWidth:width,stageHeight:height}})
+  }
+  const applyStageMetrics=(adaptPlan:boolean)=>{
+    const widthMeters=Math.max(1,Math.min(100,Number(stageMetricDraft.width)||12))
+    const depthMeters=Math.max(1,Math.min(100,Number(stageMetricDraft.depth)||8))
+    const pixelsPerMeter=Math.max(20,Math.min(250,Number(stageMetricDraft.scale)||80))
+    const oldWidth=installation.stageWidth??980,oldHeight=installation.stageHeight??650
+    if(!adaptPlan){
+      void persist({installation:{...installation,stageWidthMeters:widthMeters,stageDepthMeters:depthMeters,stagePixelsPerMeter:pixelsPerMeter}})
+      toast('Mesure mise à jour sans déplacer le plan.')
+      return
+    }
+    const targetWidth=Math.max(360,Math.min(2600,Math.round(widthMeters*pixelsPerMeter)))
+    const targetHeight=Math.max(300,Math.min(2000,Math.round(depthMeters*pixelsPerMeter)))
+    const sx=targetWidth/oldWidth,sy=targetHeight/oldHeight,uniform=Math.min(sx,sy)
+    const nodes=installation.nodes.map((node,index)=>{
+      const defaultX=70+(index%4)*180,defaultY=85+Math.floor(index/4)*135
+      const baseW=node.width??110*(node.scale??1),baseH=node.height??84*(node.scale??1)
+      return {...node,x:Math.round((node.x??defaultX)*sx),y:Math.round((node.y??defaultY)*sy),width:Math.max(36,Math.round(baseW*uniform)),height:Math.max(32,Math.round(baseH*uniform))}
+    })
+    const links=installation.links.map(link=>({...link,route:link.route?.map(point=>({x:Math.round(point.x*sx),y:Math.round(point.y*sy)}))}))
+    void persist({installation:{...installation,stageWidthMeters:widthMeters,stageDepthMeters:depthMeters,stagePixelsPerMeter:pixelsPerMeter,stageWidth:targetWidth,stageHeight:targetHeight,nodes,links}})
+    toast('Échelle appliquée au plan actuel.')
   }
   const reserveInstallation=async()=>{
     if(!program)return
@@ -2259,12 +2288,14 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
             </div>
           </div>}
           <div className="installation-stage-toolbar">
-            <span><b>Scène métrique</b><small>{(installation.stageWidthMeters??12).toFixed(1)} m × {(installation.stageDepthMeters??8).toFixed(1)} m · {installation.stageWidth??980} × {installation.stageHeight??650}px</small></span>
+            <span><b>Scène métrique</b><small>{(installation.stageWidthMeters??12).toFixed(1)} × {(installation.stageDepthMeters??8).toFixed(1)} m · 1 m = {Math.round(installation.stagePixelsPerMeter??Math.min((installation.stageWidth??980)/Math.max(1,installation.stageWidthMeters??12),(installation.stageHeight??650)/Math.max(1,installation.stageDepthMeters??8)))} px</small></span>
             <div className="stage-metric-fields">
-              <label><span>Largeur</span><div><input type="number" min="1" max="100" step="0.5" value={installation.stageWidthMeters??12} onChange={e=>void persist({installation:{...installation,stageWidthMeters:Math.max(1,Number(e.target.value)||12)}})}/><em>m</em></div></label>
-              <label><span>Profondeur</span><div><input type="number" min="1" max="100" step="0.5" value={installation.stageDepthMeters??8} onChange={e=>void persist({installation:{...installation,stageDepthMeters:Math.max(1,Number(e.target.value)||8)}})}/><em>m</em></div></label>
+              <label><span>Largeur</span><div><input type="number" min="1" max="100" step="0.5" value={stageMetricDraft.width} onChange={e=>setStageMetricDraft(value=>({...value,width:Number(e.target.value)}))}/><em>m</em></div></label>
+              <label><span>Profondeur</span><div><input type="number" min="1" max="100" step="0.5" value={stageMetricDraft.depth} onChange={e=>setStageMetricDraft(value=>({...value,depth:Number(e.target.value)}))}/><em>m</em></div></label>
+              <label><span>Échelle</span><div><input type="number" min="20" max="250" step="5" value={stageMetricDraft.scale} onChange={e=>setStageMetricDraft(value=>({...value,scale:Number(e.target.value)}))}/><em>px/m</em></div></label>
             </div>
-            <div><button className="secondary" onClick={()=>resizeStage(-120,0)} title="Réduire la largeur"><Minus/>L</button><button className="secondary" onClick={()=>resizeStage(120,0)} title="Agrandir la largeur"><Plus/>L</button><button className="secondary" onClick={()=>resizeStage(0,-100)} title="Réduire la hauteur"><Minus/>H</button><button className="secondary" onClick={()=>resizeStage(0,100)} title="Agrandir la hauteur"><Plus/>H</button><button className="secondary" onClick={()=>void persist({installation:{...installation,stageWidth:1400,stageHeight:900}})}>Grande scène</button></div>
+            <div className="stage-scale-actions"><button className="primary" onClick={()=>applyStageMetrics(true)}>Adapter le plan actuel</button><button className="secondary" onClick={()=>applyStageMetrics(false)}>Changer seulement la mesure</button></div>
+            <div><button className="secondary" onClick={()=>resizeStage(-120,0)} title="Réduire la largeur"><Minus/>L</button><button className="secondary" onClick={()=>resizeStage(120,0)} title="Agrandir la largeur"><Plus/>L</button><button className="secondary" onClick={()=>resizeStage(0,-100)} title="Réduire la hauteur"><Minus/>H</button><button className="secondary" onClick={()=>resizeStage(0,100)} title="Agrandir la hauteur"><Plus/>H</button></div>
           </div>
           {selectedSchemaLink&&installation.links.some(link=>link.id===selectedSchemaLink)&&(()=>{const link=installation.links.find(value=>value.id===selectedSchemaLink)!;const kind=link.kind??installationLinkKind(link,program,stock);return <div className="installation-quick-line-toolbar">
             <span className="quick-line-title"><Link2/><b>Ligne sélectionnée</b></span>
@@ -2302,10 +2333,11 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
             <input value={installationNodeName} onChange={e=>{setInstallationNodeName(e.target.value);if(e.target.value)setInstallationStockId('')}} placeholder="Ou équipement libre…"/>
             <button className="primary" disabled={!installationStockId&&!installationNodeName.trim()} onClick={addInstallationNode}><Plus/>Ajouter</button>
           </div>
-          <div ref={schemaCanvasRef} className="installation-canvas installation-schematic topview-stage" style={{'--stage-width':(installation.stageWidth??980)+'px','--stage-height':(installation.stageHeight??650)+'px','--meter-x':((installation.stageWidth??980)/Math.max(1,installation.stageWidthMeters??12))+'px','--meter-y':((installation.stageHeight??650)/Math.max(1,installation.stageDepthMeters??8))+'px'} as CSSProperties}>
+          <div ref={schemaCanvasRef} className="installation-canvas installation-schematic topview-stage" style={{'--stage-width':(installation.stageWidth??980)+'px','--stage-height':(installation.stageHeight??650)+'px','--meter-size':(installation.stagePixelsPerMeter??Math.max(20,Math.min(250,Math.min((installation.stageWidth??980)/Math.max(1,installation.stageWidthMeters??12),(installation.stageHeight??650)/Math.max(1,installation.stageDepthMeters??8)))))+'px','--metric-width':((installation.stageWidthMeters??12)*(installation.stagePixelsPerMeter??Math.max(20,Math.min(250,Math.min((installation.stageWidth??980)/Math.max(1,installation.stageWidthMeters??12),(installation.stageHeight??650)/Math.max(1,installation.stageDepthMeters??8))))))+'px','--metric-height':((installation.stageDepthMeters??8)*(installation.stagePixelsPerMeter??Math.max(20,Math.min(250,Math.min((installation.stageWidth??980)/Math.max(1,installation.stageWidthMeters??12),(installation.stageHeight??650)/Math.max(1,installation.stageDepthMeters??8))))))+'px'} as CSSProperties}>
             <div className="stage-metric-grid" aria-hidden="true">
-              {Array.from({length:Math.floor(installation.stageWidthMeters??12)+1},(_,i)=><span className="stage-meter-label x" style={{left:`calc(${i} * var(--meter-x))`}} key={'mx-'+i}>{i} m</span>)}
-              {Array.from({length:Math.floor(installation.stageDepthMeters??8)+1},(_,i)=><span className="stage-meter-label y" style={{top:`calc(${i} * var(--meter-y))`}} key={'my-'+i}>{i} m</span>)}
+              {Array.from({length:Math.floor((installation.stageWidth??980)/(installation.stagePixelsPerMeter??Math.max(20,Math.min(250,Math.min((installation.stageWidth??980)/Math.max(1,installation.stageWidthMeters??12),(installation.stageHeight??650)/Math.max(1,installation.stageDepthMeters??8))))))+1},(_,i)=><span className="stage-meter-label x" style={{left:`calc(${i} * var(--meter-size))`}} key={'mx-'+i}>{i} m</span>)}
+              {Array.from({length:Math.floor((installation.stageHeight??650)/(installation.stagePixelsPerMeter??Math.max(20,Math.min(250,Math.min((installation.stageWidth??980)/Math.max(1,installation.stageWidthMeters??12),(installation.stageHeight??650)/Math.max(1,installation.stageDepthMeters??8))))))+1},(_,i)=><span className="stage-meter-label y" style={{top:`calc(${i} * var(--meter-size))`}} key={'my-'+i}>{i} m</span>)}
+              <span className="stage-metric-boundary"><b>{installation.stageWidthMeters??12} × {installation.stageDepthMeters??8} m</b></span>
               <span className="stage-meter-scale"><b>1 m</b></span>
             </div>
             <div className="topview-stage-markers" aria-hidden="true"><span>FOND DE SCÈNE</span><span>AVANT-SCÈNE</span><span>PUBLIC / RÉGIE</span></div>
