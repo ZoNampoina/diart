@@ -2222,7 +2222,11 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
             </div>
           </div>}
           <div className="installation-stage-toolbar">
-            <span><b>Scène</b><small>{installation.stageWidth??980} × {installation.stageHeight??650}</small></span>
+            <span><b>Scène métrique</b><small>{(installation.stageWidthMeters??12).toFixed(1)} m × {(installation.stageDepthMeters??8).toFixed(1)} m · {installation.stageWidth??980} × {installation.stageHeight??650}px</small></span>
+            <div className="stage-metric-fields">
+              <label><span>Largeur</span><div><input type="number" min="1" max="100" step="0.5" value={installation.stageWidthMeters??12} onChange={e=>void persist({installation:{...installation,stageWidthMeters:Math.max(1,Number(e.target.value)||12)}})}/><em>m</em></div></label>
+              <label><span>Profondeur</span><div><input type="number" min="1" max="100" step="0.5" value={installation.stageDepthMeters??8} onChange={e=>void persist({installation:{...installation,stageDepthMeters:Math.max(1,Number(e.target.value)||8)}})}/><em>m</em></div></label>
+            </div>
             <div><button className="secondary" onClick={()=>resizeStage(-120,0)} title="Réduire la largeur"><Minus/>L</button><button className="secondary" onClick={()=>resizeStage(120,0)} title="Agrandir la largeur"><Plus/>L</button><button className="secondary" onClick={()=>resizeStage(0,-100)} title="Réduire la hauteur"><Minus/>H</button><button className="secondary" onClick={()=>resizeStage(0,100)} title="Agrandir la hauteur"><Plus/>H</button><button className="secondary" onClick={()=>void persist({installation:{...installation,stageWidth:1400,stageHeight:900}})}>Grande scène</button></div>
           </div>
           {selectedSchemaLink&&installation.links.some(link=>link.id===selectedSchemaLink)&&(()=>{const link=installation.links.find(value=>value.id===selectedSchemaLink)!;const kind=link.kind??installationLinkKind(link,program,stock);return <div className="installation-quick-line-toolbar">
@@ -2261,7 +2265,12 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
             <input value={installationNodeName} onChange={e=>{setInstallationNodeName(e.target.value);if(e.target.value)setInstallationStockId('')}} placeholder="Ou équipement libre…"/>
             <button className="primary" disabled={!installationStockId&&!installationNodeName.trim()} onClick={addInstallationNode}><Plus/>Ajouter</button>
           </div>
-          <div ref={schemaCanvasRef} className="installation-canvas installation-schematic topview-stage" style={{'--stage-width':(installation.stageWidth??980)+'px','--stage-height':(installation.stageHeight??650)+'px'} as CSSProperties}>
+          <div ref={schemaCanvasRef} className="installation-canvas installation-schematic topview-stage" style={{'--stage-width':(installation.stageWidth??980)+'px','--stage-height':(installation.stageHeight??650)+'px','--meter-x':((installation.stageWidth??980)/Math.max(1,installation.stageWidthMeters??12))+'px','--meter-y':((installation.stageHeight??650)/Math.max(1,installation.stageDepthMeters??8))+'px'} as CSSProperties}>
+            <div className="stage-metric-grid" aria-hidden="true">
+              {Array.from({length:Math.floor(installation.stageWidthMeters??12)+1},(_,i)=><span className="stage-meter-label x" style={{left:`calc(${i} * var(--meter-x))`}} key={'mx-'+i}>{i} m</span>)}
+              {Array.from({length:Math.floor(installation.stageDepthMeters??8)+1},(_,i)=><span className="stage-meter-label y" style={{top:`calc(${i} * var(--meter-y))`}} key={'my-'+i}>{i} m</span>)}
+              <span className="stage-meter-scale"><b>1 m</b></span>
+            </div>
             <div className="topview-stage-markers" aria-hidden="true"><span>FOND DE SCÈNE</span><span>AVANT-SCÈNE</span><span>PUBLIC / RÉGIE</span></div>
             {installation.links.length>0&&<svg className="installation-wire-layer" aria-label="Câblage du schéma">{[...installation.links].sort((a,b)=>schemaLayerIndex(linkLayerId(a))-schemaLayerIndex(linkLayerId(b))).map(link=>{
               const from=installation.nodes.find(n=>n.id===link.fromNodeId),to=installation.nodes.find(n=>n.id===link.toNodeId)
@@ -2274,7 +2283,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
               const selected=selectedSchemaLink===link.id
               return <g key={link.id} data-schema-layer={layer} data-layer-hidden={visible?'false':'true'} style={visible?undefined:{display:'none'}} className={'schema-wire-group mode-'+routeMode+' '+(selected?'selected':'')}>
                 <path className="schema-wire-hit" d={path} onPointerDown={e=>{e.stopPropagation();setSelectedSchemaLink(link.id);setSelectedSchemaNode('')}}/>
-                <path className={'wire-'+kind+' schema-wire layer-'+layer} d={path}/>
+                <path className={'wire-'+kind+' schema-wire layer-'+layer} d={path} fill="none" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>
                 {selected&&(link.route??[]).map((point,pointIndex)=><circle key={pointIndex} className="schema-route-handle" cx={point.x} cy={point.y} r="8"
                   onPointerDown={e=>{e.stopPropagation();schemaRouteRef.current={linkId:link.id,pointIndex};e.currentTarget.setPointerCapture(e.pointerId)}}
                   onPointerMove={e=>{const state=schemaRouteRef.current;if(!state||state.linkId!==link.id||state.pointIndex!==pointIndex||!e.currentTarget.hasPointerCapture(e.pointerId))return;const svg=e.currentTarget.ownerSVGElement,rect=svg?.getBoundingClientRect();if(!rect)return;const route=[...(link.route??[])];route[pointIndex]={x:e.clientX-rect.left,y:e.clientY-rect.top};setInstallationLinkRoute(link.id,route,false)}}
