@@ -8,7 +8,7 @@ import {
 import { db, logActivity } from './db'
 import { analyzeInventoryInstallationWithAI } from './cloud'
 import type {
-  ActivityEntry, InstallationLink, InstallationSuggestion, InventoryCategory, InventoryCharacteristic, InventoryFrequency,
+  ActivityEntry, InstallationLink, InstallationNode, InstallationSuggestion, InventoryCategory, InventoryCharacteristic, InventoryFrequency,
   InventoryKit, InventoryMaterial, InventoryPhantomMode, InventoryPort, InventoryPortDirection,
   InventoryProgram, InventorySignalLevel, InventoryStockItem, InventoryStockStatus, InventoryTechnicalIcon
 } from './types'
