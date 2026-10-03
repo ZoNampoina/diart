@@ -260,6 +260,8 @@ export interface InventoryInstallation {
   snapshots?: InstallationSnapshot[]
   stageWidth?: number
   stageHeight?: number
+  stageWidthMeters?: number
+  stageDepthMeters?: number
   layers?: {
     [layerId:string]: boolean|undefined
     materials?: boolean
