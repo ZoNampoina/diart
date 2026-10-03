@@ -8,6 +8,21 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'3.6.0',
+    date:'3 octobre 2026',
+    title:'Éditeur de plan de scène',
+    summary:'Le mode Installation devient un espace de conception centré sur le plan, avec outils latéraux, propriétés contextuelles et travail en plein écran.',
+    highlights:[
+      'Annuler / rétablir sur 80 actions, sélection multiple, copier-coller, duplication, alignement et distribution.',
+      'Zoom et déplacement de la vue, mesures, magnétisme métrique, rotation et redimensionnement avec poignées.',
+      'Calques réordonnables et verrouillables, isolation, annotations et zones.',
+      'Câbles droits, à 90° ou courbes, points et segments manipulables, distances calculées et marge de longueur.',
+      'Versions complètes du plan et modèles réutilisables pour créer des événements indépendants sans modifier le stock physique.',
+      'Export PNG avec aperçu exact, calques combinés ou séparés, grille et légende ; câbles rasterisés sans surfaces noires.',
+      'Installations antérieures conservées, sauvegarde après les gestes et panneaux rétractables sur tablette et mobile.'
+    ]
+  },
+  {
     version:'3.5.6',
     date:'2 octobre 2026',
     title:'Setlists partagées en temps réel',

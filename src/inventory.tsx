@@ -6,6 +6,7 @@ import {
   PackageSearch, Plus, Repeat2, RotateCcw, Save, Settings2, Trash2, Wifi, WifiOff, X, Globe2, Share2, Zap, Copy
 } from 'lucide-react'
 import { db, logActivity } from './db'
+import { StageEditor } from './stage/StageEditor'
 import { analyzeInventoryInstallationWithAI } from './cloud'
 import type {
   ActivityEntry, InstallationLink, InstallationNode, InstallationSuggestion, InventoryCategory, InventoryCharacteristic, InventoryFrequency,
@@ -372,6 +373,7 @@ function dateKey(date:Date):string{
 }
 
 function programsOverlap(a:InventoryProgram,b:InventoryProgram):boolean{
+  if(a.isTemplate||b.isTemplate)return false
   if(a.id===b.id||a.deletedAt||b.deletedAt||!timeRangesOverlap(a,b))return false
   const fa=a.frequency??'once',fb=b.frequency??'once'
   if(fa==='once'&&fb==='once')return Boolean(a.date&&b.date&&a.date===b.date)
@@ -1161,7 +1163,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
       db.activity.orderBy('createdAt').reverse().limit(180).toArray(),
       loadInventoryCategories()
     ])
-    setPrograms(p.filter(item=>!item.deletedAt).map(normalizeProgram).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)))
+    setPrograms(p.filter(item=>!item.deletedAt&&!item.isTemplate).map(normalizeProgram).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)))
     setStock(s.filter(item=>!item.deletedAt).map(normalizeStockItem).sort((a,b)=>a.name.localeCompare(b.name,'fr')))
     setHistory(h.filter(item=>item.source==='inventory'))
     setCategories(defs)
@@ -1448,7 +1450,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   </>
 }
 
-export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:{programId:string;onBack:()=>void;onChanged:()=>void;toast:(text:string)=>void;onShare:()=>void}){
+export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,onOpen}:{programId:string;onBack:()=>void;onChanged:()=>void;toast:(text:string)=>void;onShare:()=>void;onOpen:(id:string)=>void}){
   const [program,setProgram]=useState<InventoryProgram|null>(null)
   const [programs,setPrograms]=useState<InventoryProgram[]>([])
   const [stock,setStock]=useState<InventoryStockItem[]>([])
@@ -1513,7 +1515,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     const normalizedProgram=p?normalizeProgram(p):null
     const normalizedStock=s.filter(item=>!item.deletedAt).map(normalizeStockItem).sort((a,b)=>a.name.localeCompare(b.name,'fr'))
     setProgram(normalizedProgram)
-    setPrograms(allPrograms.filter(item=>!item.deletedAt).map(normalizeProgram))
+    setPrograms(allPrograms.filter(item=>!item.deletedAt&&!item.isTemplate).map(normalizeProgram))
     setStock(normalizedStock)
     setKits(savedKits)
     setCategories(defs)
@@ -1535,8 +1537,8 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
     if(!program)return
     const updatedAt=now()
     const next=normalizeProgram({...program,...patch,updatedAt})
-    setProgram(next)
-    setPrograms(list=>list.map(item=>item.id===program.id?next:item))
+    setProgram(current=>current?normalizeProgram({...current,...patch,updatedAt}):next)
+    setPrograms(list=>list.map(item=>item.id===program.id?normalizeProgram({...item,...patch,updatedAt}):item))
     await db.programs.update(program.id,{...patch,updatedAt})
     onChanged()
   }
@@ -1546,7 +1548,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
   useEffect(()=>{if(stockProviders.length&&!stockProviders.includes(installationProvider))setInstallationProvider(stockProviders[0])},[stockProviders,installationProvider])
   useEffect(()=>{
     const media=window.matchMedia('(min-width:700px)')
-    const update=()=>{setAdvancedInstallationAvailable(media.matches);if(!media.matches)setProgramView('materials')}
+    const update=()=>setAdvancedInstallationAvailable(true)
     update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update)
   },[])
   const categoryOrder=useMemo(()=>Array.from(new Set([...categories.map(item=>item.id),...stock.map(item=>item.category),...items.map(item=>item.category)])),[categories,stock,items])
@@ -2249,74 +2251,11 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
             <button className="primary" disabled={!installation.nodes.length||installationShortages.length>0} onClick={()=>void reserveInstallation()}><PackageCheck/><span>Réserver</span></button>
           </div>
         </div>
-        {installationView==='schema'&&<div className="installation-layer-toolbar">
-          <div className="installation-layer-title">
-            <span><LayoutGrid/></span>
-            <div><b>Couches du plan</b><small>Affichage, ordre, type de liaison et export restent regroupés près du schéma.</small></div>
-            <button className={'secondary schema-export-button '+(exportLayersOpen?'active':'')} disabled={!installation.nodes.length||schemaExporting} onClick={openSchemaExport}><ImageDown/><span>{schemaExporting?'Export…':'Exporter'}</span></button>
-          </div>
-          <div className="installation-layer-list">
-            {schemaLayerOrder.map((layerId,index)=>{
-              const visible=installationLayers[layerId]!==false
-              const isCustom=customSchemaLayers.some(layer=>layer.id===layerId)
-              const active=layerId!=='materials'&&activeSchemaLayer===layerId
-              const icon=layerId==='materials'?<Boxes/>:layerId==='audio'?<Link2/>:layerId==='power'?<Zap/>:layerId==='connectivity'?<Network/>:layerId==='accessories'?<PackagePlus/>:<LayoutGrid/>
-              return <div key={layerId} className={'installation-layer-pill layer-'+layerId+' '+(visible?'visible':'hidden')+' '+(active?'active':'')}>
-                <button type="button" className="layer-main" onClick={()=>selectActiveSchemaLayer(layerId)}>{icon}<span><b>{schemaLayerNames[layerId]??layerId}</b><small>{layerItemCount(layerId)} élément(s)</small></span></button>
-                <button type="button" className="layer-eye" aria-label={visible?'Masquer '+(schemaLayerNames[layerId]??layerId):'Afficher '+(schemaLayerNames[layerId]??layerId)} onClick={()=>toggleInstallationLayer(layerId)}>{visible?<Eye/>:<EyeOff/>}</button>
-                <div className="layer-order-actions">
-                  <button type="button" className="bare-action" disabled={index===0} aria-label="Monter la couche" onClick={()=>moveSchemaLayer(layerId,-1)}><ChevronUp/></button>
-                  <button type="button" className="bare-action" disabled={index===schemaLayerOrder.length-1} aria-label="Descendre la couche" onClick={()=>moveSchemaLayer(layerId,1)}><ChevronDown/></button>
-                  {isCustom&&<button type="button" className="bare-action danger-icon" aria-label="Supprimer la couche" onClick={()=>removeSchemaLayer(layerId)}><Trash2/></button>}
-                </div>
-              </div>
-            })}
-          </div>
-          <div className="installation-layer-create">
-            <input value={newSchemaLayerName} onChange={e=>setNewSchemaLayerName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addSchemaLayer()}} placeholder="Nouvelle couche…"/>
-            <button className="secondary" disabled={!newSchemaLayerName.trim()} onClick={addSchemaLayer}><Plus/>Ajouter une couche</button>
-          </div>
-          {exportLayersOpen&&<div className="schema-export-panel">
-            <div className="schema-export-panel-head"><span><b>Exporter le visuel du plan</b><small>Le rendu conserve les icônes, positions, tailles, rotations et styles visibles dans l’éditeur.</small></span><button className="bare-action" onClick={()=>setExportLayersOpen(false)}><X/></button></div>
-            <div className="schema-export-layer-grid">
-              {schemaLayerOrder.map(layerId=><label key={layerId} className={exportLayerSelection[layerId]?'checked':''}><input type="checkbox" checked={Boolean(exportLayerSelection[layerId])} onChange={e=>setExportLayerSelection(value=>({...value,[layerId]:e.target.checked}))}/><span>{schemaLayerNames[layerId]??layerId}</span></label>)}
-            </div>
-            <label className="schema-export-context"><input type="checkbox" checked={exportKeepMaterials} onChange={e=>setExportKeepMaterials(e.target.checked)}/><span>Pour les exports séparés, garder Matos comme contexte quand il est sélectionné</span></label>
-            <div className="schema-export-actions">
-              <button className="primary" disabled={schemaExporting||!schemaLayerOrder.some(layerId=>exportLayerSelection[layerId])} onClick={()=>void runSchemaExport('combined')}><ImageDown/>Image combinée</button>
-              <button className="secondary" disabled={schemaExporting||!schemaLayerOrder.some(layerId=>exportLayerSelection[layerId])} onClick={()=>void runSchemaExport('separate')}><LayoutGrid/>Une image par couche</button>
-            </div>
-          </div>}
-          <div className="installation-stage-toolbar">
-            <span><b>Scène métrique</b><small>{(installation.stageWidthMeters??12).toFixed(1)} × {(installation.stageDepthMeters??8).toFixed(1)} m · 1 m = {Math.round(installation.stagePixelsPerMeter??Math.min((installation.stageWidth??980)/Math.max(1,installation.stageWidthMeters??12),(installation.stageHeight??650)/Math.max(1,installation.stageDepthMeters??8)))} px</small></span>
-            <div className="stage-metric-fields">
-              <label><span>Largeur</span><div><input type="number" min="1" max="100" step="0.5" value={stageMetricDraft.width} onChange={e=>setStageMetricDraft(value=>({...value,width:Number(e.target.value)}))}/><em>m</em></div></label>
-              <label><span>Profondeur</span><div><input type="number" min="1" max="100" step="0.5" value={stageMetricDraft.depth} onChange={e=>setStageMetricDraft(value=>({...value,depth:Number(e.target.value)}))}/><em>m</em></div></label>
-              <label><span>Échelle</span><div><input type="number" min="20" max="250" step="5" value={stageMetricDraft.scale} onChange={e=>setStageMetricDraft(value=>({...value,scale:Number(e.target.value)}))}/><em>px/m</em></div></label>
-            </div>
-            <div className="stage-scale-actions"><button className="primary" onClick={()=>applyStageMetrics(true)}>Adapter le plan actuel</button><button className="secondary" onClick={()=>applyStageMetrics(false)}>Changer seulement la mesure</button></div>
-            <div><button className="secondary" onClick={()=>resizeStage(-120,0)} title="Réduire la largeur"><Minus/>L</button><button className="secondary" onClick={()=>resizeStage(120,0)} title="Agrandir la largeur"><Plus/>L</button><button className="secondary" onClick={()=>resizeStage(0,-100)} title="Réduire la hauteur"><Minus/>H</button><button className="secondary" onClick={()=>resizeStage(0,100)} title="Agrandir la hauteur"><Plus/>H</button></div>
-          </div>
-          {selectedSchemaLink&&installation.links.some(link=>link.id===selectedSchemaLink)&&(()=>{const link=installation.links.find(value=>value.id===selectedSchemaLink)!;const kind=link.kind??installationLinkKind(link,program,stock);return <div className="installation-quick-line-toolbar">
-            <span className="quick-line-title"><Link2/><b>Ligne sélectionnée</b></span>
-            <div className="schema-route-mode-switch"><button className={(link.routeMode??'straight')==='straight'?'active':''} onClick={()=>setLinkRouteMode(link,'straight')}>Droit</button><button className={link.routeMode==='zigzag'?'active':''} onClick={()=>setLinkRouteMode(link,'zigzag')}>90°</button><button className={link.routeMode==='curve'?'active':''} onClick={()=>setLinkRouteMode(link,'curve')}>Courbe</button></div>
-            <label><span>Type</span><select value={kind??'unknown'} onChange={e=>{const nextKind=e.target.value as InstallationLink['kind'];const nextLayer=schemaLayerForLink(nextKind);updateInstallationLink(link.id,{kind:nextKind,layerId:nextLayer});setActiveSchemaLayer(nextLayer)}}><option value="audio">Audio</option><option value="power">Alimentation</option><option value="network">Réseau</option><option value="midi">MIDI</option><option value="data">Données</option><option value="accessory">Accessoire</option><option value="unknown">Autre</option></select></label>
-            <label><span>Couche</span><select value={linkLayerId(link)} onChange={e=>updateInstallationLink(link.id,{layerId:e.target.value})}>{schemaLayerOrder.filter(id=>id!=='materials').map(layerId=><option value={layerId} key={layerId}>{schemaLayerNames[layerId]??layerId}</option>)}</select></label>
-          </div>})()}
-          <div className={'schema-click-link-status '+(selectedSchemaNode?'armed':'')}>
-            <span className={'schema-link-kind '+activeSchemaLayer}>{activeSchemaLayer==='audio'?<Link2/>:activeSchemaLayer==='power'?<Zap/>:activeSchemaLayer==='accessories'?<PackagePlus/>:activeSchemaLayer==='connectivity'?<Network/>:<LayoutGrid/>}</span>
-            {selectedSchemaNode?<><b>{installation.nodes.find(node=>node.id===selectedSchemaNode)?.name}</b><span> sélectionné · cliquez maintenant sur l’équipement à relier.</span><button className="bare-action" onClick={()=>setSelectedSchemaNode('')}><X/></button></>:<span>Cliquez sur un équipement, puis sur un second pour créer une liaison dans <b>{schemaLayerNames[activeSchemaLayer]??activeSchemaLayer}</b>.</span>}
-          </div>
-        </div>}
-        <div className="installation-electrical-summary">
-          <div><b>{electricalSummary.powered}</b><span>appareils alimentés</span></div>
-          <div><b>{electricalSummary.outlets}</b><span>prises / départs à prévoir</span></div>
-          <div><b>{electricalSummary.knownWatts?electricalSummary.knownWatts+' W':'—'}</b><span>puissance connue ({electricalSummary.knownDevices})</span></div>
-          <div><b>{installation.links.filter(link=>(link.kind??installationLinkKind(link,program,stock))==='network').length}</b><span>liaisons réseau</span></div>
-        </div>
+        {installationView==='schema'&&<StageEditor key={program.id} program={program} stock={stock} onSave={installation=>persist({installation})} onDraftChange={installation=>setProgram(current=>current?{...current,installation}:current)} onCreated={onOpen} onChanged={onChanged} toast={toast} renderIcon={(node,source)=><TechnicalIcon icon={source?.representationIcon} text={node.name+' '+(source?.category??node.category??'')}/>}/>}
         {installationView==='list'&&<div className="installation-list-view">{installation.nodes.length?installation.nodes.map((node,index)=>{const source=stockByNode(node.id);const need=node.stockItemId?installationNeeds.find(value=>value.stockItemId===node.stockItemId):undefined;return <article key={node.id}><span>{index+1}</span><div><b>{node.name}</b><small>{node.zone??'Scène'} · {source?normalizeProvider(source.provider)+' · '+categoryLabel(source.category,categories):'Équipement libre'}</small></div>{need&&<em className={need.shortage?'warning':'ok'}>{need.shortage?'manque '+need.shortage:'dispo '+need.available}</em>}</article>}):<div className="installation-empty">Aucun équipement.</div>}</div>}
         {installationView==='patch'&&<div className="installation-patch-view">{installation.links.length?installation.links.map((link,index)=>{const from=installation.nodes.find(node=>node.id===link.fromNodeId),to=installation.nodes.find(node=>node.id===link.toNodeId);const kind=link.kind??installationLinkKind(link,program,stock);return <article key={link.id}><span>{index+1}</span><b>{link.assignedChannel||'Auto'}</b><div>{from?.name??'?'} <em>→</em> {to?.name??'?'}</div><small>{kind}{link.lengthMeters?' · '+link.lengthMeters+' m':''}</small></article>}):<div className="installation-empty">Aucune liaison dans le patch.</div>}</div>}
         {installationView==='diagnostic'&&<div className="installation-diagnostic-view"><div className="installation-diagnostic-picker"><label>Équipement à diagnostiquer<select value={diagnosticNodeId} onChange={e=>setDiagnosticNodeId(e.target.value)}><option value="">Choisir…</option>{installation.nodes.map(node=><option value={node.id} key={node.id}>{node.name}</option>)}</select></label></div>{diagnosticNodeId&&<><div className="diagnostic-chain">{diagnosticChain.map((id,index)=>{const node=installation.nodes.find(value=>value.id===id);return <span key={id}><b>{node?.name??'?'}</b>{index<diagnosticChain.length-1&&<ChevronRight/>}</span>})}</div><div className="diagnostic-findings">{installation.links.filter(link=>diagnosticChain.includes(link.fromNodeId)&&diagnosticChain.includes(link.toNodeId)&&(link.compatibility==='warning'||(link.compatibilityNotes?.length??0)>0)).map(link=><div key={link.id}><AlertTriangle/><span>{link.compatibilityNotes?.join(' · ')||'Liaison à vérifier'}</span></div>)}{!installation.links.some(link=>diagnosticChain.includes(link.fromNodeId)&&diagnosticChain.includes(link.toNodeId)&&link.compatibility==='warning')&&<div className="diagnostic-ok"><Check/>Aucune incompatibilité bloquante détectée sur cette chaîne.</div>}</div></>}</div>}
+        {installationView!=='schema'&&<>
         <div className="installation-version-manager"><div><b>Versions du plan</b><small>Enregistrez Plan A, Plan B, répétition, concert… puis restaurez-les à tout moment.</small></div><div className="installation-version-create"><input value={snapshotName} onChange={e=>setSnapshotName(e.target.value)} placeholder={'Plan '+((installation.snapshots?.length??0)+1)}/><button className="secondary" disabled={!installation.nodes.length} onClick={()=>void saveInstallationSnapshot()}><Save/>Enregistrer version</button></div>{(installation.snapshots??[]).length>0&&<div className="installation-version-list">{(installation.snapshots??[]).map(snapshot=><span key={snapshot.id}><button className="bare-action" onClick={()=>void restoreInstallationSnapshot(snapshot.id)}><RotateCcw/>{snapshot.name}</button><small>{new Date(snapshot.createdAt).toLocaleString('fr-FR')}</small><button className="bare-action danger-icon" onClick={()=>deleteInstallationSnapshot(snapshot.id)}><Trash2/></button></span>)}</div>}</div>
         <div className="installation-builder">
           <div className="installation-builder-head"><Network/><span><b>1. Équipements</b><small>Ajoutez les éléments de l’installation depuis le stock ou librement.</small></span></div>
@@ -2474,6 +2413,8 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
           </div>
         </div>
 
+        </>}
+        <details className="stage-analysis-details"><summary>Analyse technique, affectation des canaux et suggestions</summary>
         <div className="installation-analysis">
           <div className="installation-analysis-head">
             <span><b>3. Analyse et proposition</b><small>L’analyse locale utilise les connectiques. L’IA en ligne peut aussi interpréter la chaîne complète et les besoins annexes.</small></span>
@@ -2493,6 +2434,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare}:
             </div>):<div className="installation-empty">Lancez une analyse après avoir défini les liaisons.</div>}
           </div>
         </div>
+        </details>
       </div>}
     </section>
 

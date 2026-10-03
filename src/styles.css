@@ -12311,8 +12311,7 @@ button.song-info-value.key.active{
 .musician-tools-suite .musician-tool-card{align-self:start!important;margin:0!important}
 @media(max-width:820px){.musician-tools-switch.premium-switch{width:100%;margin-top:0}}
 @media(max-width:699px){
-  .program-section-tabs button:nth-child(2),
-  .installation-advanced-panel{display:none!important}
+  .inventory-program-page.view-materials .installation-advanced-panel{display:none!important}
 }
 
 

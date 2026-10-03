@@ -200,6 +200,10 @@ export interface InstallationNode {
   width?: number
   height?: number
   layerId?: string
+  locked?: boolean
+  kind?: 'equipment'|'text'|'zone'
+  category?: string
+  color?: string
 }
 
 export interface InstallationLink {
@@ -217,6 +221,11 @@ export interface InstallationLink {
   route?: Array<{x:number;y:number}>
   routeMode?: 'straight'|'zigzag'|'curve'
   layerId?: string
+  locked?: boolean
+  color?: string
+  opacity?: number
+  showLabel?: boolean
+  marginPercent?: number
 }
 
 export interface InstallationSuggestion {
@@ -246,6 +255,8 @@ export interface InstallationSnapshot {
   layerOrder?: string[]
   customLayers?: InstallationLayer[]
   createdAt: string
+  author?: string
+  plan?: Omit<InventoryInstallation,'snapshots'>
 }
 
 export interface InventoryInstallation {
@@ -258,6 +269,14 @@ export interface InventoryInstallation {
   versionName?: string
   zones?: string[]
   snapshots?: InstallationSnapshot[]
+  gridVisible?: boolean
+  gridStep?: number
+  snapStep?: number
+  layerLocks?: Record<string,boolean>
+  layerNames?: Record<string,string>
+  audience?: 'bottom'|'top'
+  background?: string
+  cableLabels?: boolean
   stageWidth?: number
   stageHeight?: number
   stageWidthMeters?: number
@@ -288,6 +307,8 @@ export interface InventoryProgram {
   location: string
   notes: string
   items: InventoryMaterial[]
+  isTemplate?: boolean
+  templateFavorite?: boolean
   installation?: InventoryInstallation
   isPublic?: boolean
   createdAt: string
