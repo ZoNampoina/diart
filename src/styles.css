@@ -12343,7 +12343,7 @@ button.song-info-value.key.active{
   background-image:
     linear-gradient(to right,color-mix(in srgb,var(--accent2) 18%,transparent) 1px,transparent 1px),
     linear-gradient(to bottom,color-mix(in srgb,var(--accent2) 18%,transparent) 1px,transparent 1px);
-  background-size:var(--meter-x,80px) var(--meter-y,80px);
+  background-size:var(--meter-size,80px) var(--meter-size,80px);
 }
 .stage-meter-label{
   position:absolute;z-index:1;font-size:7px;font-weight:850;line-height:1;
@@ -12354,7 +12354,7 @@ button.song-info-value.key.active{
 .stage-meter-label.x{top:4px;transform:translateX(-50%)}
 .stage-meter-label.y{left:4px;transform:translateY(-50%)}
 .stage-meter-scale{
-  position:absolute;left:16px;bottom:18px;width:var(--meter-x,80px);height:14px;
+  position:absolute;left:16px;bottom:18px;width:var(--meter-size,80px);height:14px;
   border-top:2px solid var(--accent2)
 }
 .stage-meter-scale:before,.stage-meter-scale:after{
@@ -12365,6 +12365,17 @@ button.song-info-value.key.active{
   position:absolute;left:50%;top:-17px;transform:translateX(-50%);
   font-size:8px;color:var(--accent2);background:var(--surface);padding:1px 4px;border-radius:4px
 }
+.stage-metric-boundary{
+  position:absolute;left:0;top:0;width:var(--metric-width,100%);height:var(--metric-height,100%);
+  max-width:100%;max-height:100%;box-sizing:border-box;border:2px solid color-mix(in srgb,var(--accent2) 45%,transparent);
+  border-radius:8px;pointer-events:none
+}
+.stage-metric-boundary>b{
+  position:absolute;right:6px;top:6px;font-size:8px;color:var(--accent2);
+  background:color-mix(in srgb,var(--surface) 88%,transparent);padding:2px 5px;border-radius:5px
+}
+.stage-scale-actions{display:flex;gap:6px;flex-wrap:wrap}
+.stage-scale-actions .primary,.stage-scale-actions .secondary{min-height:31px!important}
 .topview-stage[data-exporting="true"] .stage-meter-label{background:#f8fbfb}
 .schema-wire-hit,.schema-wire{fill:none}
 .schema-wire-group.mode-curve .schema-wire{stroke-linecap:round;stroke-linejoin:round}
