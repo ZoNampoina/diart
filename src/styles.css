@@ -12332,6 +12332,40 @@ button.song-info-value.key.active{
 .installation-stage-toolbar>span small{font-size:8px;color:var(--muted)}
 .installation-stage-toolbar>div{display:flex;gap:5px;flex-wrap:wrap}
 .installation-stage-toolbar button{min-height:31px;padding:0 8px;font-size:8px}
+.stage-metric-fields{display:flex;gap:6px;align-items:end;flex-wrap:wrap}
+.stage-metric-fields label{display:grid;gap:3px}
+.stage-metric-fields label>span{font-size:8px;color:var(--muted);font-weight:800}
+.stage-metric-fields label>div{display:flex;align-items:center;gap:4px}
+.stage-metric-fields input{width:72px;min-height:30px;padding:0 7px;font-size:9px}
+.stage-metric-fields em{font-style:normal;font-size:9px;color:var(--muted);font-weight:800}
+.stage-metric-grid{
+  position:absolute;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    linear-gradient(to right,color-mix(in srgb,var(--accent2) 18%,transparent) 1px,transparent 1px),
+    linear-gradient(to bottom,color-mix(in srgb,var(--accent2) 18%,transparent) 1px,transparent 1px);
+  background-size:var(--meter-x,80px) var(--meter-y,80px);
+}
+.stage-meter-label{
+  position:absolute;z-index:1;font-size:7px;font-weight:850;line-height:1;
+  color:color-mix(in srgb,var(--text) 62%,var(--accent2));
+  background:color-mix(in srgb,var(--surface) 84%,transparent);
+  padding:2px 3px;border-radius:4px;white-space:nowrap
+}
+.stage-meter-label.x{top:4px;transform:translateX(-50%)}
+.stage-meter-label.y{left:4px;transform:translateY(-50%)}
+.stage-meter-scale{
+  position:absolute;left:16px;bottom:18px;width:var(--meter-x,80px);height:14px;
+  border-top:2px solid var(--accent2)
+}
+.stage-meter-scale:before,.stage-meter-scale:after{
+  content:"";position:absolute;top:-5px;width:2px;height:8px;background:var(--accent2)
+}
+.stage-meter-scale:before{left:0}.stage-meter-scale:after{right:0}
+.stage-meter-scale b{
+  position:absolute;left:50%;top:-17px;transform:translateX(-50%);
+  font-size:8px;color:var(--accent2);background:var(--surface);padding:1px 4px;border-radius:4px
+}
+.topview-stage[data-exporting="true"] .stage-meter-label{background:#f8fbfb}
 .schema-wire-hit,.schema-wire{fill:none}
 .schema-wire-group.mode-curve .schema-wire{stroke-linecap:round;stroke-linejoin:round}
 .schema-resize-handle.axis-both{right:-12px;bottom:-12px}
