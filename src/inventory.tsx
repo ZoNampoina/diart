@@ -839,79 +839,116 @@ async function exportInstallationSchemaImage(
 ):Promise<number>{
   if(!selectedLayers.length)throw new Error('Choisissez au moins une couche à exporter.')
   const safeBase=sanitizeFilename(program.name||'installation').toLowerCase().replace(/\s+/g,'-')
-  const hiddenClasses=new Set(['schema-resize-handle','schema-rotate-handle','schema-route-handle','schema-wire-hit'])
-  const exportCss=document.createElement('style')
-  exportCss.dataset.diartSchemaExport='true'
-  exportCss.textContent=`
-    .topview-stage[data-exporting="true"] .installation-wire-layer path.schema-wire{
-      fill:none !important;
-      vector-effect:non-scaling-stroke;
-      stroke-linecap:round;
-      stroke-linejoin:round;
-    }
-    .topview-stage[data-exporting="true"] .installation-wire-layer .wire-audio{stroke:#0d93a7 !important}
-    .topview-stage[data-exporting="true"] .installation-wire-layer .wire-power{stroke:#d89a24 !important;stroke-dasharray:10 5}
-    .topview-stage[data-exporting="true"] .installation-wire-layer .wire-network{stroke:#6b73d6 !important;stroke-dasharray:8 5}
-    .topview-stage[data-exporting="true"] .installation-wire-layer .wire-midi{stroke:#9f6bc2 !important;stroke-dasharray:5 4}
-    .topview-stage[data-exporting="true"] .installation-wire-layer .wire-data{stroke:#4a84c6 !important;stroke-dasharray:4 4}
-    .topview-stage[data-exporting="true"] .installation-wire-layer .wire-accessory{stroke:#7d8b92 !important;stroke-dasharray:3 5}
-    .topview-stage[data-exporting="true"] .installation-wire-layer .schema-wire{stroke-width:3.5 !important}
-    .topview-stage[data-exporting="true"] .schema-wire-group.selected .schema-wire{filter:none !important;stroke-width:3.5 !important}
-  `
-  document.head.appendChild(exportCss)
   const stageWidth=Math.max(1,Math.round(stage.getBoundingClientRect().width))
   const stageHeight=Math.max(1,Math.round(stage.getBoundingClientRect().height))
+  const pixelRatio=3
+  const installation=program.installation??{nodes:[],links:[]}
+  const nodeCenter=(node:InstallationNode,index:number)=>{
+    const scale=node.scale??1
+    const width=node.width??110*scale,height=node.height??84*scale
+    const x=node.x??70+(index%4)*180,y=node.y??85+Math.floor(index/4)*135
+    return {x:x+width/2,y:y+height/2}
+  }
+  const layerForLink=(link:InstallationLink)=>{
+    if(link.layerId)return link.layerId
+    if(link.kind==='power')return 'power'
+    if(link.kind==='audio')return 'audio'
+    if(link.kind==='accessory')return 'accessories'
+    return 'connectivity'
+  }
+  const cableStyle=(kind:InstallationLink['kind'])=>{
+    if(kind==='power')return {stroke:'#d89a24',dash:[10,5]}
+    if(kind==='network')return {stroke:'#6b73d6',dash:[8,5]}
+    if(kind==='midi')return {stroke:'#9f6bc2',dash:[5,4]}
+    if(kind==='data')return {stroke:'#4a84c6',dash:[4,4]}
+    if(kind==='accessory')return {stroke:'#7d8b92',dash:[3,5]}
+    return {stroke:'#0d93a7',dash:[] as number[]}
+  }
   const render=async(layerIds:Set<string>,suffix:string)=>{
-    stage.dataset.exportLayers=Array.from(layerIds).join(',')
-    await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())))
-    const dataUrl=await toPng(stage,{
-      cacheBust:true,
-      pixelRatio:3,
-      backgroundColor:'#f8fbfb',
-      width:stageWidth,
-      height:stageHeight,
-      canvasWidth:stageWidth*3,
-      canvasHeight:stageHeight*3,
-      style:{
-        width:stageWidth+'px',
-        height:stageHeight+'px',
-        minWidth:stageWidth+'px',
-        minHeight:stageHeight+'px',
-        maxWidth:stageWidth+'px',
-        maxHeight:stageHeight+'px',
-        overflow:'hidden'
-      },
-      filter:node=>{
-        const el=node as HTMLElement
-        if(el?.classList&&Array.from(hiddenClasses).some(className=>el.classList.contains(className)))return false
-        const layer=el?.getAttribute?.('data-schema-layer')
-        return !layer||layerIds.has(layer)
-      }
+    const clone=stage.cloneNode(true) as HTMLElement
+    clone.dataset.exporting='true'
+    clone.style.position='fixed'
+    clone.style.left='-20000px'
+    clone.style.top='0'
+    clone.style.width=stageWidth+'px'
+    clone.style.height=stageHeight+'px'
+    clone.style.minWidth=stageWidth+'px'
+    clone.style.minHeight=stageHeight+'px'
+    clone.style.maxWidth=stageWidth+'px'
+    clone.style.maxHeight=stageHeight+'px'
+    clone.style.overflow='hidden'
+    clone.style.zIndex='-9999'
+    clone.querySelectorAll<HTMLElement>('.schema-resize-handle,.schema-rotate-handle,.schema-route-handle,.schema-wire-hit').forEach(el=>el.remove())
+    clone.querySelectorAll<HTMLElement>('[data-schema-layer]').forEach(el=>{
+      const layer=el.getAttribute('data-schema-layer')
+      if(layer&&!layerIds.has(layer)){el.remove();return}
+      if(layer&&layerIds.has(layer)){el.style.removeProperty('display');el.removeAttribute('data-layer-hidden')}
     })
-    const a=document.createElement('a')
-    a.href=dataUrl
-    a.download='schema-'+safeBase+'-'+suffix+'.png'
-    a.click()
-  }
-  stage.dataset.exporting='true'
-  try{
-    if(mode==='combined'){
-      await render(new Set(selectedLayers),'combine')
-      return 1
+    const oldWire=clone.querySelector<SVGSVGElement>('.installation-wire-layer')
+    if(oldWire){
+      const wireCanvas=document.createElement('canvas')
+      wireCanvas.className='installation-wire-layer'
+      wireCanvas.width=stageWidth*pixelRatio
+      wireCanvas.height=stageHeight*pixelRatio
+      wireCanvas.style.position='absolute'
+      wireCanvas.style.inset='0'
+      wireCanvas.style.width=stageWidth+'px'
+      wireCanvas.style.height=stageHeight+'px'
+      wireCanvas.style.pointerEvents='none'
+      wireCanvas.style.zIndex='1'
+      const ctx=wireCanvas.getContext('2d')
+      if(ctx){
+        ctx.scale(pixelRatio,pixelRatio)
+        ctx.lineWidth=3.5
+        ctx.lineCap='round'
+        ctx.lineJoin='round'
+        for(const link of installation.links){
+          if(!layerIds.has(layerForLink(link)))continue
+          const from=installation.nodes.find(n=>n.id===link.fromNodeId),to=installation.nodes.find(n=>n.id===link.toNodeId)
+          if(!from||!to)continue
+          const a=nodeCenter(from,installation.nodes.indexOf(from)),b=nodeCenter(to,installation.nodes.indexOf(to))
+          const points=[a,...(link.route??[]),b]
+          const path=new Path2D(svgCablePath(points,link.routeMode??((link.route?.length??0)>0?'zigzag':'straight')))
+          const style=cableStyle(link.kind)
+          ctx.strokeStyle=style.stroke
+          ctx.setLineDash(style.dash)
+          ctx.stroke(path)
+        }
+      }
+      oldWire.replaceWith(wireCanvas)
     }
-    let exported=0
-    for(const layerId of selectedLayers){
-      const allowed=new Set<string>([layerId])
-      if(keepMaterialsContext&&layerId!=='materials'&&selectedLayers.includes('materials'))allowed.add('materials')
-      await render(allowed,sanitizeFilename(layerNames[layerId]??layerId).toLowerCase().replace(/\s+/g,'-'))
-      exported++
+    document.body.appendChild(clone)
+    try{
+      await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())))
+      const dataUrl=await toPng(clone,{
+        cacheBust:true,
+        pixelRatio,
+        backgroundColor:'#f8fbfb',
+        width:stageWidth,
+        height:stageHeight,
+        canvasWidth:stageWidth*pixelRatio,
+        canvasHeight:stageHeight*pixelRatio
+      })
+      const a=document.createElement('a')
+      a.href=dataUrl
+      a.download='schema-'+safeBase+'-'+suffix+'.png'
+      a.click()
+    }finally{
+      clone.remove()
     }
-    return exported
-  }finally{
-    delete stage.dataset.exporting
-    delete stage.dataset.exportLayers
-    exportCss.remove()
   }
+  if(mode==='combined'){
+    await render(new Set(selectedLayers),'combine')
+    return 1
+  }
+  let exported=0
+  for(const layerId of selectedLayers){
+    const allowed=new Set<string>([layerId])
+    if(keepMaterialsContext&&layerId!=='materials'&&selectedLayers.includes('materials'))allowed.add('materials')
+    await render(allowed,sanitizeFilename(layerNames[layerId]??layerId).toLowerCase().replace(/\s+/g,'-'))
+    exported++
+  }
+  return exported
 }
 
 export async function exportTechnicalSheetImage(program:InventoryProgram,stock:InventoryStockItem[]):Promise<void>{
