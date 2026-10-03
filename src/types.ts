@@ -262,6 +262,7 @@ export interface InventoryInstallation {
   stageHeight?: number
   stageWidthMeters?: number
   stageDepthMeters?: number
+  stagePixelsPerMeter?: number
   layers?: {
     [layerId:string]: boolean|undefined
     materials?: boolean
