@@ -187,6 +187,48 @@ export interface InventoryKit {
   updatedAt: string
 }
 
+export type StageViewMode = 'technical'|'client'|'hybrid'
+export interface StageAppearance {
+  illustration?: string
+  imageId?: string
+  color?: string
+  stroke?: string
+  opacity?: number
+  labelMode?: 'auto'|'none'|'short'|'full'|'material'|'role'|'custom'
+  shortLabel?: string
+  roleLabel?: string
+  customLabel?: string
+  labelHorizontal?: boolean
+  labelSize?: number
+  lockAspect?: boolean
+  shadow?: boolean
+}
+export interface StageImage {
+  id: string
+  name: string
+  dataUrl: string
+  width: number
+  height: number
+}
+export interface StageGroup { id:string; name:string; nodeIds:string[]; locked?:boolean }
+export interface StageBackground {
+  imageId:string
+  x:number
+  y:number
+  width:number
+  height:number
+  opacity:number
+  locked:boolean
+}
+export interface StagePresentation {
+  title?:string
+  client?:string
+  date?:string
+  location?:string
+  version?:string
+  logoId?:string
+}
+
 export interface InstallationNode {
   id: string
   name: string
@@ -201,9 +243,13 @@ export interface InstallationNode {
   height?: number
   layerId?: string
   locked?: boolean
-  kind?: 'equipment'|'text'|'zone'
+  kind?: 'equipment'|'text'|'zone'|'visual'|'shape'
   category?: string
   color?: string
+  // Stock identity and the visual representation are deliberately independent.
+  visualOnly?: boolean
+  quantity?: number
+  appearance?: StageAppearance
 }
 
 export interface InstallationLink {
@@ -292,6 +338,13 @@ export interface InventoryInstallation {
   }
   layerOrder?: string[]
   customLayers?: InstallationLayer[]
+  groups?: StageGroup[]
+  assets?: Record<string,StageImage>
+  viewMode?: StageViewMode
+  clientCables?: 'hidden'|'muted'|'visible'
+  clientGrid?: boolean
+  backgroundImage?: StageBackground
+  presentation?: StagePresentation
 }
 
 export type InventoryFrequency = 'once'|'weekly'|'monthly'
@@ -309,6 +362,8 @@ export interface InventoryProgram {
   items: InventoryMaterial[]
   isTemplate?: boolean
   templateFavorite?: boolean
+  templateKind?: 'installation'|'object'|'block'
+  libraryCategory?: string
   installation?: InventoryInstallation
   isPublic?: boolean
   createdAt: string

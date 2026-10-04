@@ -2,7 +2,7 @@ import type { InstallationLink, InstallationNode, InstallationSnapshot, Inventor
 
 export type Point = {x:number;y:number}
 export type Plan = InventoryInstallation
-export const BUILTIN_LAYERS:Record<string,string> = {materials:'Matos',audio:'Audio',power:'Électricité',connectivity:'Réseau / connectique',accessories:'Accessoires',annotations:'Annotations'}
+export const BUILTIN_LAYERS:Record<string,string> = {scenery:'Scénographie',materials:'Matos',audio:'Audio',power:'Électricité',connectivity:'Réseau / connectique',accessories:'Accessoires',annotations:'Annotations'}
 export const clone = <T,>(value:T):T => structuredClone(value)
 export const uid = ():string => crypto.randomUUID()
 export const fmt = (n:number) => new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2}).format(n)
@@ -24,8 +24,13 @@ export const linkLayer=(link:InstallationLink)=>link.layerId??(link.kind==='powe
 export function layers(plan:Plan){return Array.from(new Set([...(plan.layerOrder??[]),...Object.keys(BUILTIN_LAYERS),...(plan.customLayers??[]).map(l=>l.id)]))}
 export const layerName=(plan:Plan,id:string)=>plan.layerNames?.[id]??plan.customLayers?.find(l=>l.id===id)?.name??BUILTIN_LAYERS[id]??id
 export const visible=(plan:Plan,id:string)=>plan.layers?.[id]!==false
-export const nodeLocked=(plan:Plan,node:InstallationNode)=>!!(node.locked||plan.layerLocks?.[nodeLayer(node)])
-export const linkLocked=(plan:Plan,link:InstallationLink)=>!!(link.locked||plan.layerLocks?.[linkLayer(link)])
+export const nodeLocked=(plan:Plan,node:InstallationNode)=>!!(node.locked||plan.layerLocks?.[nodeLayer(node)]||plan.groups?.some(g=>g.locked&&g.nodeIds.includes(node.id)))
+export const linkLocked=(plan:Plan,link:InstallationLink)=>!!(link.locked||plan.layerLocks?.[linkLayer(link)]||plan.groups?.some(g=>g.locked&&g.nodeIds.includes(link.fromNodeId)&&g.nodeIds.includes(link.toNodeId)))
+export function stockNeeds(plan:Plan){
+  const counts=new Map<string,number>()
+  for(const n of plan.nodes)if(n.stockItemId&&!n.visualOnly)counts.set(n.stockItemId,(counts.get(n.stockItemId)??0)+Math.max(1,Math.round(finite(n.quantity,1))))
+  return counts
+}
 export function linkPoints(plan:Plan,link:InstallationLink):Point[]{
   const a=plan.nodes.findIndex(n=>n.id===link.fromNodeId),b=plan.nodes.findIndex(n=>n.id===link.toNodeId)
   if(a<0||b<0)return []
@@ -76,12 +81,14 @@ export function changeMetrics(plan:Plan,width:number,depth:number,ppm:number,ada
   const sx=next.stageWidth/m.width,sy=next.stageHeight/m.height
   next.nodes=next.nodes.map((n,i)=>{const g=geometry(n,i);return {...n,x:g.x*sx,y:g.y*sy,width:g.width*sx,height:g.height*sy}})
   next.links=next.links.map(l=>({...l,route:l.route?.map(p=>({x:p.x*sx,y:p.y*sy}))}))
+  if(next.backgroundImage){const b=next.backgroundImage;next.backgroundImage={...b,x:b.x*sx,y:b.y*sy,width:b.width*sx,height:b.height*sy}}
   return next
 }
 export function planBounds(plan:Plan,allowed=layers(plan).filter(id=>visible(plan,id))){
   const m=metrics(plan),points:Point[]=[{x:0,y:0},{x:m.width,y:m.height}],set=new Set(allowed)
   plan.nodes.forEach((n,i)=>{if(!set.has(nodeLayer(n)))return;const g=geometry(n,i),a=g.rotation*Math.PI/180
     for(const x of [-g.width/2,g.width/2])for(const y of [-g.height/2,g.height/2])points.push({x:g.cx+x*Math.cos(a)-y*Math.sin(a),y:g.cy+x*Math.sin(a)+y*Math.cos(a)})
+    if(n.appearance?.labelMode!=='none')points.push({x:g.cx-Math.max(g.width/2,100),y:g.cy+Math.hypot(g.width,g.height)/2+36},{x:g.cx+Math.max(g.width/2,100),y:g.y})
   })
   plan.links.filter(l=>set.has(linkLayer(l))).forEach(l=>points.push(...linkPoints(plan,l)))
   const x=Math.min(0,...points.map(p=>p.x-8)),y=Math.min(0,...points.map(p=>p.y-8)),right=Math.max(m.width,...points.map(p=>p.x+8)),bottom=Math.max(m.height,...points.map(p=>p.y+8))
@@ -94,7 +101,8 @@ export function duplicateSelection(plan:Plan,ids:string[],offset:Point={x:24,y:2
     return {...clone(n),id,x:g.x+offset.x,y:g.y+offset.y,locked:false}
   })
   const links=plan.links.filter(l=>mapping.has(l.fromNodeId)&&mapping.has(l.toNodeId)).map(l=>({...clone(l),id:uid(),fromNodeId:mapping.get(l.fromNodeId)!,toNodeId:mapping.get(l.toNodeId)!,locked:false,route:l.route?.map(p=>({x:p.x+offset.x,y:p.y+offset.y}))}))
-  return {plan:{...plan,nodes:[...plan.nodes,...nodes],links:[...plan.links,...links]},ids:nodes.map(n=>n.id)}
+  const groups=(plan.groups??[]).filter(g=>g.nodeIds.every(id=>mapping.has(id))).map(g=>({...clone(g),id:uid(),locked:false,nodeIds:g.nodeIds.map(id=>mapping.get(id)!)}))
+  return {plan:{...plan,nodes:[...plan.nodes,...nodes],links:[...plan.links,...links],groups:[...(plan.groups??[]),...groups]},ids:nodes.map(n=>n.id)}
 }
 export function moveSelection(plan:Plan,ids:string[],delta:Point):Plan{
   const moved=new Set(plan.nodes.filter(n=>ids.includes(n.id)&&!nodeLocked(plan,n)).map(n=>n.id))
@@ -133,11 +141,67 @@ export function copyProgram(source:InventoryProgram,name:string,date:string,mode
   const map=new Map(original.nodes.map(n=>[n.id,uid()]))
   next.nodes=clone(original.nodes).map(n=>({...n,id:map.get(n.id)!}))
   next.links=clone(original.links).map(l=>({...l,id:uid(),fromNodeId:map.get(l.fromNodeId)??l.fromNodeId,toNodeId:map.get(l.toNodeId)??l.toNodeId}))
+  next.groups=original.groups?.map(g=>({...clone(g),id:uid(),nodeIds:g.nodeIds.map(id=>map.get(id)!).filter(Boolean)}))
   next.snapshots=(original.snapshots??[]).map(s=>({...clone(s),id:uid()}))
   return {id:uid(),name,date:template?'':date,location:mode==='complete'?source.location:'',notes:mode==='complete'?source.notes:'',
     startTime:mode==='complete'?source.startTime:'',endTime:mode==='complete'?source.endTime:'',frequency:template?'once':mode==='complete'?source.frequency:'once',weekday:date?new Date(date+'T12:00:00').getDay():null,
     items:mode==='plan'?[]:clone(source.items).map(i=>({...i,id:uid(),loaded:false,returned:false})),installation:next,
     isTemplate:template,isPublic:false,createdAt:stamp,updatedAt:stamp,deletedAt:null}
+}
+
+/** Expand a click to the whole persistent group; groups never nest. */
+export function expandGroups(plan:Plan,ids:string[]){
+  const expanded=new Set(ids)
+  for(const group of plan.groups??[])if(group.nodeIds.some(id=>expanded.has(id)))group.nodeIds.forEach(id=>expanded.add(id))
+  return [...expanded].filter(id=>plan.nodes.some(n=>n.id===id))
+}
+export function groupSelection(plan:Plan,ids:string[],name:string):Plan{
+  const chosen=expandGroups(plan,ids).filter(id=>{const n=plan.nodes.find(n=>n.id===id);return n&&!nodeLocked(plan,n)})
+  if(chosen.length<2)return plan
+  return {...plan,groups:[...(plan.groups??[]).filter(g=>!g.nodeIds.some(id=>chosen.includes(id))),{id:uid(),name:name.trim()||'Groupe',nodeIds:chosen}]}
+}
+export function selectionPlan(plan:Plan,ids:string[]):Plan{
+  return {...clone(plan),nodes:clone(plan.nodes.filter(n=>ids.includes(n.id))),links:clone(plan.links.filter(l=>ids.includes(l.fromNodeId)&&ids.includes(l.toNodeId))),groups:clone((plan.groups??[]).filter(g=>g.nodeIds.every(id=>ids.includes(id)))),snapshots:[]}
+}
+/** Inserting a block remaps nodes, cables, groups and assets; no source is mutated. */
+export function insertBlock(plan:Plan,source:Plan,point:Point):{plan:Plan;ids:string[]}{
+  if(!source.nodes.length)return {plan,ids:[]}
+  const minX=Math.min(...source.nodes.map((n,i)=>geometry(n,i).x)),minY=Math.min(...source.nodes.map((n,i)=>geometry(n,i).y))
+  const ratio=metrics(plan).ppm/metrics(source).ppm,scaled=clone(source)
+  scaled.nodes=source.nodes.map((n,i)=>{const g=geometry(n,i);return {...clone(n),x:(g.x-minX)*ratio+point.x,y:(g.y-minY)*ratio+point.y,width:g.width*ratio,height:g.height*ratio}})
+  scaled.links=source.links.map(l=>({...clone(l),route:l.route?.map(p=>({x:(p.x-minX)*ratio+point.x,y:(p.y-minY)*ratio+point.y}))}))
+  const copy=duplicateSelection(scaled,scaled.nodes.map(n=>n.id),{x:0,y:0}),newIds=new Set(copy.ids),oldLinks=new Set(scaled.links.map(l=>l.id)),oldGroups=new Set(scaled.groups?.map(g=>g.id))
+  const imageIds=new Map(Object.keys(source.assets??{}).map(id=>[id,uid()])),assets={...plan.assets}
+  for(const [id,img] of Object.entries(source.assets??{})){const key=imageIds.get(id)!;assets[key]={...clone(img),id:key}}
+  const nodes=copy.plan.nodes.filter(n=>newIds.has(n.id)).map(n=>({...n,appearance:n.appearance?{...n.appearance,imageId:imageIds.get(n.appearance.imageId??'')??n.appearance.imageId}:undefined}))
+  return {plan:{...plan,nodes:[...plan.nodes,...nodes],links:[...plan.links,...copy.plan.links.filter(l=>!oldLinks.has(l.id))],groups:[...(plan.groups??[]),...(copy.plan.groups??[]).filter(g=>!oldGroups.has(g.id))],assets,customLayers:[...(plan.customLayers??[]),...(source.customLayers??[]).filter(l=>!(plan.customLayers??[]).some(p=>p.id===l.id))],layers:{...plan.layers,...Object.fromEntries(nodes.map(n=>[nodeLayer(n),true]))}},ids:copy.ids}
+}
+export type SeriesOptions={count:number;layout:'line'|'column'|'grid'|'arc'|'circle';columns:number;gapX:number;gapY:number;rotation:number;radius:number;arc:number}
+export function seriesSelection(plan:Plan,ids:string[],options:SeriesOptions):{plan:Plan;ids:string[]}{
+  if(plan.nodes.some(n=>ids.includes(n.id)&&nodeLocked(plan,n)))return {plan,ids}
+  const source=selectionPlan(plan,ids.filter(id=>{const n=plan.nodes.find(n=>n.id===id);return n&&!nodeLocked(plan,n)}))
+  if(!source.nodes.length)return {plan,ids:[]}
+  const count=clamp(Math.round(options.count),1,200),ppm=metrics(plan).ppm,gs=source.nodes.map((n,i)=>geometry(n,i)),left=Math.min(...gs.map(g=>g.x)),top=Math.min(...gs.map(g=>g.y)),width=Math.max(...gs.map(g=>g.x+g.width))-left,height=Math.max(...gs.map(g=>g.y+g.height))-top
+  const cx=left+width/2,cy=top+height/2,columns=clamp(Math.round(options.columns),1,count),angle=options.rotation*Math.PI/180
+  let next:Plan={...plan,nodes:plan.nodes.filter(n=>!ids.includes(n.id)),links:plan.links.filter(l=>!source.links.some(s=>s.id===l.id)),groups:plan.groups?.filter(g=>!g.nodeIds.some(id=>ids.includes(id)))}
+  const resultIds:string[]=[]
+  for(let i=0;i<count;i++){
+    let x=0,y=0,rotation=options.rotation
+    if(options.layout==='line')x=i*(width+options.gapX*ppm)
+    if(options.layout==='column')y=i*(height+options.gapY*ppm)
+    if(options.layout==='grid'){x=(i%columns)*(width+options.gapX*ppm);y=Math.floor(i/columns)*(height+options.gapY*ppm)}
+    if(options.layout==='circle'||options.layout==='arc'){
+      const span=options.layout==='circle'?360:options.arc,t=(options.layout==='circle'?i/count:count===1?.5:i/(count-1))*span-span/2,r=t*Math.PI/180
+      x=options.radius*ppm*Math.sin(r);y=options.radius*ppm*(1-Math.cos(r));rotation+=t
+    }
+    const dx=x*Math.cos(angle)-y*Math.sin(angle),dy=x*Math.sin(angle)+y*Math.cos(angle),a=rotation*Math.PI/180
+    const transform=(p:Point)=>({x:cx+(p.x-cx)*Math.cos(a)-(p.y-cy)*Math.sin(a)+dx,y:cy+(p.x-cx)*Math.sin(a)+(p.y-cy)*Math.cos(a)+dy})
+    const sample={...source,nodes:source.nodes.map((n,j)=>{const g=gs[j],p=transform({x:g.cx,y:g.cy});return {...clone(n),x:p.x-g.width/2,y:p.y-g.height/2,rotation:g.rotation+rotation}}),links:source.links.map(l=>({...clone(l),route:l.route?.map(transform)}))}
+    const copy=i===0?{plan:sample,ids:sample.nodes.map(n=>n.id)}:duplicateSelection(sample,sample.nodes.map(n=>n.id),{x:0,y:0})
+    const nodes=copy.plan.nodes.filter(n=>copy.ids.includes(n.id)),links=i===0?sample.links:copy.plan.links.filter(l=>!sample.links.some(s=>s.id===l.id)),groups=i===0?sample.groups:copy.plan.groups?.filter(g=>!sample.groups?.some(s=>s.id===g.id))
+    next={...next,nodes:[...next.nodes,...nodes],links:[...next.links,...links],groups:[...(next.groups??[]),...(groups??[])]};resultIds.push(...copy.ids)
+  }
+  return {plan:next,ids:resultIds}
 }
 export class HistoryManager {
   past:Plan[]=[];future:Plan[]=[]

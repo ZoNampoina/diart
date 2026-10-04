@@ -8,6 +8,21 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'3.7.0',
+    date:'4 octobre 2026',
+    title:'Scénographie & présentation client',
+    summary:'Une seule installation pour le plan technique, la maquette visuelle et la présentation client, avec une bibliothèque de silhouettes vue du dessus.',
+    highlights:[
+      'Galerie d’éléments de scène : instruments, audio, mobilier, lumière, vidéo, structures, décorations, personnes, zones et annotations.',
+      'Apparence indépendante du matériel : variantes, couleurs, opacité, rotation, labels, proportions verrouillées et dimensions réelles indicatives.',
+      'Objets scénographiques sans réservation, associables ensuite au stock et à une quantité représentée.',
+      'Groupes nommés et verrouillables, duplication en ligne, colonne, grille, arc ou cercle, blocs réutilisables dans Mes objets.',
+      'Import SVG, PNG et WebP, logos, plans de salle et calibration sur une distance connue.',
+      'Vues Technique, Hybride et Présentation client sur les mêmes positions ; informations internes masquées par défaut pour le client.',
+      'Aperçu exact et téléchargement PNG haute définition ou PDF : plan seul ou fiche avec événement, client, date, lieu, logo, dimensions, légende et version.'
+    ]
+  },
+  {
     version:'3.6.0',
     date:'3 octobre 2026',
     title:'Éditeur de plan de scène',

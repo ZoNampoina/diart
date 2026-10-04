@@ -29,7 +29,7 @@ function preset(name:string,names:string[]):InventoryProgram{
 export function TemplateManager({mode,program,plan,onCreated,onChanged,close,flush}:{mode:'duplicate'|'templates';program:InventoryProgram;plan:Plan;onCreated:(id:string)=>void;onChanged:()=>void;close:()=>void;flush:()=>Promise<void>}){
   const [templates,setTemplates]=useState<InventoryProgram[]>([]),[source,setSource]=useState<InventoryProgram|null>(mode==='duplicate'?{...program,installation:clone(plan)}:null)
   const [name,setName]=useState(program.name+' — copie'),[date,setDate]=useState(''),[copyMode,setCopyMode]=useState<CopyMode>('plan'),[templateName,setTemplateName]=useState(program.name),[busy,setBusy]=useState(false),[error,setError]=useState('')
-  const load=async()=>setTemplates((await db.programs.toArray()).filter(p=>p.isTemplate&&!p.deletedAt).sort((a,b)=>Number(!!b.templateFavorite)-Number(!!a.templateFavorite)||a.name.localeCompare(b.name,'fr')))
+  const load=async()=>setTemplates((await db.programs.toArray()).filter(p=>p.isTemplate&&(!p.templateKind||p.templateKind==='installation')&&!p.deletedAt).sort((a,b)=>Number(!!b.templateFavorite)-Number(!!a.templateFavorite)||a.name.localeCompare(b.name,'fr')))
   useEffect(()=>{void load().catch(()=>setError('Impossible de charger les modèles.'))},[])
   const run=async(action:()=>Promise<void>)=>{if(busy)return;setBusy(true);setError('');try{await action();onChanged()}catch(e){setError(e instanceof Error?e.message:'Enregistrement impossible.')}finally{setBusy(false)}}
   const create=()=>run(async()=>{if(!source||!name.trim())return;await flush();const copy=copyProgram(source,name.trim(),date,copyMode);await db.programs.add(copy);onCreated(copy.id)})

@@ -1,14 +1,14 @@
 import { useEffect,useRef,useState,type PointerEvent as ReactPointerEvent } from 'react'
 import type { InstallationNode,InventoryStockItem } from '../types'
-import { StageScene,type IconRenderer } from './StageScene'
-import { cablePath,clamp,clone,fmt,geometry,linkLayer,linkLocked,linkPoints,metrics,moveSelection,nodeLayer,nodeLocked,visible,type Plan,type Point } from './model'
+import { StageScene,cableVisibility,type IconRenderer } from './StageScene'
+import { cablePath,clamp,clone,expandGroups,fmt,geometry,linkLayer,linkLocked,linkPoints,metrics,moveSelection,nodeLayer,nodeLocked,visible,type Plan,type Point } from './model'
 import type { useStageDocument } from './useStageDocument'
 
-export type Tool='select'|'pan'|'equipment'|'audio'|'power'|'network'|'accessory'|'text'|'zone'|'measure'
+export type Tool='select'|'pan'|'equipment'|'audio'|'power'|'network'|'accessory'|'text'|'zone'|'measure'|'visual'|'calibrate'
 export type View={x:number;y:number;zoom:number}
 export type MenuTarget={x:number;y:number;point:Point;nodeId?:string;linkId?:string}
 type Drag={kind:'pan'|'move'|'box'|'resize'|'rotate'|'point'|'segment';start:Point;client:Point;plan:Plan;ids:string[];node?:InstallationNode;handle?:string;linkId?:string;pointIndex?:number;route?:Point[];view:View}
-type Props={doc:ReturnType<typeof useStageDocument>;stock:InventoryStockItem[];renderIcon:IconRenderer;tool:Tool;selected:string[];setSelected:(ids:string[])=>void;linkId:string;setLinkId:(id:string)=>void;view:View;setView:(view:View)=>void;fitToken:number;onPlace:(point:Point)=>void;onCable:(id:string)=>void;connectFrom:string;onMenu:(target:MenuTarget)=>void;onCursor:(point:Point)=>void}
+type Props={doc:ReturnType<typeof useStageDocument>;stock:InventoryStockItem[];renderIcon:IconRenderer;tool:Tool;selected:string[];setSelected:(ids:string[])=>void;linkId:string;setLinkId:(id:string)=>void;view:View;setView:(view:View)=>void;fitToken:number;onPlace:(point:Point)=>void;onCable:(id:string)=>void;connectFrom:string;onMenu:(target:MenuTarget)=>void;onCursor:(point:Point)=>void;onDropItem:(point:Point)=>void;onCalibration:(points:Point[])=>void}
 export function StageViewport(p:Props){
   const {doc,view,tool,selected,linkId}=p,plan=doc.plan,m=metrics(plan)
   const root=useRef<HTMLDivElement>(null),drag=useRef<Drag|null>(null),space=useRef(false)
@@ -33,7 +33,7 @@ export function StageViewport(p:Props){
     window.addEventListener('keydown',key,true);window.addEventListener('keyup',key,true);window.addEventListener('blur',up)
     return()=>{resize.disconnect();el.removeEventListener('wheel',wheel);window.removeEventListener('keydown',key,true);window.removeEventListener('keyup',key,true);window.removeEventListener('blur',up)}
   },[])
-  useEffect(()=>{if(tool!=='measure')setMeasurement([])},[tool])
+  useEffect(()=>{if(tool!=='measure'&&tool!=='calibrate')setMeasurement([])},[tool])
   const at=(e:{clientX:number;clientY:number})=>{const r=root.current!.getBoundingClientRect();return {x:(e.clientX-r.left-view.x)/view.zoom,y:(e.clientY-r.top-view.y)/view.zoom}}
   const down=(e:ReactPointerEvent)=>{
     if(e.button===2)return
@@ -48,15 +48,16 @@ export function StageViewport(p:Props){
     const node=plan.nodes.find(n=>n.id===nodeId)??hitNode,link=plan.links.find(l=>l.id===(wireId??linkId))
     let kind:Drag['kind']='box',ids=selected
     if(tool==='pan'||space.current||e.button===1)kind='pan'
+    else if(tool==='calibrate'){if(measurement.length===1){p.onCalibration([measurement[0],point]);setMeasurement([])}else setMeasurement([point]);return}
     else if(tool==='measure'){setMeasurement(current=>[...current,point]);return}
-    else if(['equipment','accessory','text','zone'].includes(tool)){p.onPlace(point);return}
-    else if(['audio','power','network'].includes(tool)){if(node&&node.kind!=='text'&&node.kind!=='zone')p.onCable(node.id);return}
+    else if(['equipment','accessory','text','zone','visual'].includes(tool)){p.onPlace(point);return}
+    else if(['audio','power','network'].includes(tool)){if(node&&!['text','zone','shape'].includes(node.kind??'equipment'))p.onCable(node.id);return}
     else if(handle&&node){if(nodeLocked(plan,node))return;kind=handle==='rotate'?'rotate':'resize';ids=[node.id]}
     else if(wirePoint!==null&&link){if(linkLocked(plan,link))return;kind='point'}
     else if(segment!==null&&link){if(linkLocked(plan,link))return;kind='segment'}
     else if(node){
-      if(e.shiftKey){ids=selected.includes(node.id)?selected.filter(id=>id!==node.id):[...selected,node.id];p.setSelected(ids);p.setLinkId('');return}
-      ids=selected.includes(node.id)?selected:[node.id];p.setSelected(ids);p.setLinkId('');if(nodeLocked(plan,node))return;kind='move'
+      if(e.shiftKey){ids=selected.includes(node.id)?selected.filter(id=>!expandGroups(plan,[node.id]).includes(id)):expandGroups(plan,[...selected,node.id]);p.setSelected(ids);p.setLinkId('');return}
+      ids=selected.includes(node.id)?selected:expandGroups(plan,[node.id]);p.setSelected(ids);p.setLinkId('');if(nodeLocked(plan,node))return;kind='move'
     }else if(wireId){p.setLinkId(wireId);p.setSelected([]);return}
     else {if(!e.shiftKey){p.setSelected([]);p.setLinkId('');ids=[]}setBox({a:point,b:point})}
     drag.current={kind,start:point,client:{x:e.clientX,y:e.clientY},plan:clone(plan),ids,node,handle:handle??undefined,linkId:link?.id,pointIndex:Number(wirePoint??segment),route:link?.route?clone(link.route):[],view}
@@ -88,6 +89,11 @@ export function StageViewport(p:Props){
       let w=g.width,hg=g.height,l=0,t=0
       if(h.includes('e'))w=Math.max(16,g.width+dx);if(h.includes('s'))hg=Math.max(16,g.height+dy)
       if(h.includes('w')){w=Math.max(16,g.width-dx);l=g.width-w}if(h.includes('n')){hg=Math.max(16,g.height-dy);t=g.height-hg}
+      if(d.node.appearance?.lockAspect){
+        const ratio=g.width/g.height
+        if(h==='n'||h==='s')w=hg*ratio;else hg=w/ratio
+        l=h.includes('w')?g.width-w:0;t=h.includes('n')?g.height-hg:0
+      }
       const centerLocal={x:l+(w-g.width)/2,y:t+(hg-g.height)/2},r=g.rotation*Math.PI/180
       const cx=g.cx+centerLocal.x*Math.cos(r)-centerLocal.y*Math.sin(r),cy=g.cy+centerLocal.x*Math.sin(r)+centerLocal.y*Math.cos(r)
       doc.preview({...d.plan,nodes:d.plan.nodes.map(n=>n.id===d.node!.id?{...n,x:cx-w/2,y:cy-hg/2,width:w,height:hg}:n)});return
@@ -106,7 +112,7 @@ export function StageViewport(p:Props){
     if(d.kind==='box'){
       const end=at(e),x=Math.min(end.x,d.start.x),y=Math.min(end.y,d.start.y),w=Math.abs(end.x-d.start.x),h=Math.abs(end.y-d.start.y)
       const hits=d.plan.nodes.filter((n,i)=>{const g=geometry(n,i);return visible(plan,nodeLayer(n))&&g.x<=x+w&&g.x+g.width>=x&&g.y<=y+h&&g.y+g.height>=y}).map(n=>n.id)
-      p.setSelected(Array.from(new Set([...d.ids,...hits])))
+      p.setSelected(expandGroups(plan,Array.from(new Set([...d.ids,...hits]))))
     }else if(d.kind!=='pan')doc.finish()
     drag.current=null;setBox(null);setGuides(null)
     if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId)
@@ -114,7 +120,7 @@ export function StageViewport(p:Props){
   const selectedLink=plan.links.find(l=>l.id===linkId)
   const measurePoints=measurement.length?[...measurement,cursor]:[]
   const measureDistance=measurePoints.reduce((sum,p,i)=>i?sum+Math.hypot(p.x-measurePoints[i-1].x,p.y-measurePoints[i-1].y)/m.ppm:sum,0)
-  return <div className={'stage-viewport tool-'+tool} ref={root} tabIndex={0} aria-label="Plan de scène" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={()=>{doc.cancel();drag.current=null;setBox(null);setGuides(null)}} onContextMenu={e=>{e.preventDefault();const el=e.target as Element,point=at(e);let n=el.closest('[data-node]')?.getAttribute('data-node')??undefined,l=el.closest('[data-link]')?.getAttribute('data-link')??undefined;if(!n&&l){n=plan.nodes.slice().reverse().find(node=>{if(!visible(plan,nodeLayer(node)))return false;const g=geometry(node,plan.nodes.indexOf(node)),r=-g.rotation*Math.PI/180,dx=point.x-g.cx,dy=point.y-g.cy;return Math.abs(dx*Math.cos(r)-dy*Math.sin(r))<=g.width/2&&Math.abs(dx*Math.sin(r)+dy*Math.cos(r))<=g.height/2})?.id;if(n)l=undefined}if(n&&!selected.includes(n))p.setSelected([n]);if(l){p.setLinkId(l);p.setSelected([])}p.onMenu({x:e.clientX,y:e.clientY,point:at(e),nodeId:n,linkId:l})}}>
+  return <div className={'stage-viewport tool-'+tool} ref={root} tabIndex={0} aria-label="Plan de scène" onDragOver={e=>{if(e.dataTransfer.types.includes('application/x-diart-object')){e.preventDefault();e.dataTransfer.dropEffect='copy'}}} onDrop={e=>{if(e.dataTransfer.getData('application/x-diart-object')){e.preventDefault();p.onDropItem(at(e))}}} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={()=>{doc.cancel();drag.current=null;setBox(null);setGuides(null)}} onContextMenu={e=>{e.preventDefault();const el=e.target as Element,point=at(e);let n=el.closest('[data-node]')?.getAttribute('data-node')??undefined,l=el.closest('[data-link]')?.getAttribute('data-link')??undefined;if(!n&&l){n=plan.nodes.slice().reverse().find(node=>{if(!visible(plan,nodeLayer(node)))return false;const g=geometry(node,plan.nodes.indexOf(node)),r=-g.rotation*Math.PI/180,dx=point.x-g.cx,dy=point.y-g.cy;return Math.abs(dx*Math.cos(r)-dy*Math.sin(r))<=g.width/2&&Math.abs(dx*Math.sin(r)+dy*Math.cos(r))<=g.height/2})?.id;if(n)l=undefined}if(n&&!selected.includes(n))p.setSelected(expandGroups(plan,[n]));if(l){p.setLinkId(l);p.setSelected([])}p.onMenu({x:e.clientX,y:e.clientY,point:at(e),nodeId:n,linkId:l})}}>
     <svg className="stage-world" width={m.width} height={m.height} viewBox={`0 0 ${m.width} ${m.height}`} style={{transform:`translate(${view.x}px, ${view.y}px) scale(${view.zoom})`}}>
       <StageScene plan={plan} stock={p.stock} renderIcon={p.renderIcon} interactive/>
       <g fill="none" stroke="#1494b4" strokeWidth={1.5/view.zoom}>
@@ -130,20 +136,20 @@ export function StageViewport(p:Props){
             </>}
           </g>
         })}
-        {selectedLink&&visible(plan,linkLayer(selectedLink))&&<g data-link={selectedLink.id}>
+        {selectedLink&&cableVisibility(plan,selectedLink)>0&&visible(plan,linkLayer(selectedLink))&&<g data-link={selectedLink.id}>
           <path d={cablePath(linkPoints(plan,selectedLink),selectedLink.routeMode)} strokeWidth={7/view.zoom} strokeOpacity=".3" pointerEvents="none"/>
           {!linkLocked(plan,selectedLink)&&(selectedLink.route??[]).map((q,i)=><g key={i}>
             {i<(selectedLink.route?.length??0)-1&&<circle data-segment={i} cx={(q.x+selectedLink.route![i+1].x)/2} cy={(q.y+selectedLink.route![i+1].y)/2} r={5/view.zoom} fill="#b6e9f6" style={{cursor:'move'}}/>}
             <circle data-point={i} cx={q.x} cy={q.y} r={6/view.zoom} fill="white" style={{cursor:'move'}}/>
           </g>)}
         </g>}
-        {['audio','power','network'].includes(tool)&&plan.nodes.filter(n=>n.kind!=='text'&&n.kind!=='zone'&&visible(plan,nodeLayer(n))).map(n=>{const g=geometry(n,plan.nodes.indexOf(n));return <circle key={n.id} data-node={n.id} cx={g.cx} cy={g.cy} r={8/view.zoom} fill={p.connectFrom===n.id?'#16a3be':'white'}/>})}
+        {['audio','power','network'].includes(tool)&&plan.nodes.filter(n=>!['text','zone','shape'].includes(n.kind??'equipment')&&visible(plan,nodeLayer(n))).map(n=>{const g=geometry(n,plan.nodes.indexOf(n));return <circle key={n.id} data-node={n.id} cx={g.cx} cy={g.cy} r={8/view.zoom} fill={p.connectFrom===n.id?'#16a3be':'white'}/>})}
         {box&&<rect x={Math.min(box.a.x,box.b.x)} y={Math.min(box.a.y,box.b.y)} width={Math.abs(box.a.x-box.b.x)} height={Math.abs(box.a.y-box.b.y)} fill="#159abc" fillOpacity=".12" pointerEvents="none"/>}
         {guides&&<g stroke="#bd7f2e" strokeDasharray="5 5" pointerEvents="none">{Number.isFinite(guides.x)&&<path d={`M ${guides.x} 0 V ${m.height}`}/>} {Number.isFinite(guides.y)&&<path d={`M 0 ${guides.y} H ${m.width}`}/>}</g>}
       </g>
       {measurePoints.length>1&&<g pointerEvents="none"><polyline points={measurePoints.map(q=>`${q.x},${q.y}`).join(' ')} stroke="#b34c6b" strokeWidth={2/view.zoom} fill="none"/>{measurement.map((q,i)=><circle key={i} cx={q.x} cy={q.y} r={4/view.zoom} fill="#b34c6b"/>)}<text x={cursor.x+10/view.zoom} y={cursor.y-12/view.zoom} fontSize={14/view.zoom} fill="#922d4d" stroke="white" strokeWidth={3/view.zoom} paintOrder="stroke" fontFamily="Arial">{fmt(measureDistance)} m</text></g>}
     </svg>
     {plan.nodes.length===0&&<div className="stage-empty-hint"><b>Votre scène est prête</b><span>Ajoutez du matériel ou partez d’un modèle.</span></div>}
-    <div className="stage-view-hint">{tool==='measure'?'Cliquez pour mesurer · Échap pour effacer':p.connectFrom?'Choisissez la destination':tool==='pan'?'Glissez pour déplacer la vue':tool==='select'?'Molette : zoom · Espace + glisser : vue · Maj + clic : sélection':'Cliquez sur la scène pour placer'}</div>
+    <div className="stage-view-hint">{tool==='calibrate'?'Calibration : cliquez deux points de distance connue':tool==='measure'?'Cliquez pour mesurer · Échap pour effacer':p.connectFrom?'Choisissez la destination':tool==='pan'?'Glissez pour déplacer la vue':tool==='select'?'Molette : zoom · Espace + glisser : vue · Maj + clic : sélection':'Cliquez sur la scène pour placer'}</div>
   </div>
 }

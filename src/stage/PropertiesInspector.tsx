@@ -1,8 +1,10 @@
 import { useEffect,useState } from 'react'
 import { Copy,Trash2,Lock,Unlock,X,Plus } from 'lucide-react'
 import type { InstallationLink,InstallationNode,InventoryStockItem } from '../types'
-import { alignSelection,cableDistance,CABLE_STYLES,changeMetrics,fmt,geometry,layers,layerName,linkLayer,linkLocked,linkPoints,metrics,nodeLayer,nodeLocked,type Alignment,type Plan } from './model'
+import { alignSelection,groupSelection,cableDistance,CABLE_STYLES,changeMetrics,fmt,geometry,layers,layerName,linkLayer,linkLocked,linkPoints,metrics,nodeLayer,nodeLocked,type Alignment,type Plan } from './model'
 import { ToolButton } from './StageToolbar'
+import { AppearanceInspector } from './AppearanceInspector'
+import { BackgroundPanel } from './BackgroundPanel'
 
 export function Field({label,value,onCommit,type='text',min,step,disabled=false}:{label:string;value:string|number;onCommit:(value:string)=>void;type?:string;min?:number;step?:number;disabled?:boolean}){
   const [draft,setDraft]=useState(String(value))
@@ -20,10 +22,11 @@ export function addBend(plan:Plan,link:InstallationLink){
   const a=points[points.length-2],b=points[points.length-1]
   return {...link,route:[...(link.route??[]),{x:(a.x+b.x)/2,y:(a.y+b.y)/2}]}
 }
-export function PropertiesInspector({plan,stock,selected,linkId,commit,duplicate,remove,close}:{plan:Plan;stock:InventoryStockItem[];selected:string[];linkId:string;commit:(plan:Plan)=>void;duplicate:()=>void;remove:()=>void;close:()=>void}){
+export function PropertiesInspector({plan,stock,selected,linkId,commit,duplicate,remove,close,open}:{plan:Plan;stock:InventoryStockItem[];selected:string[];linkId:string;commit:(plan:Plan)=>void;duplicate:()=>void;remove:()=>void;close:()=>void;open:(panel:string)=>void}){
   const m=metrics(plan),node=selected.length===1?plan.nodes.find(n=>n.id===selected[0]):undefined,link=plan.links.find(l=>l.id===linkId)
   const [dimensions,setDimensions]=useState({width:m.metersW,depth:m.metersH,ppm:m.ppm})
   useEffect(()=>setDimensions({width:m.metersW,depth:m.metersH,ppm:m.ppm}),[m.metersW,m.metersH,m.ppm])
+  const group=plan.groups?.find(g=>g.nodeIds.length===selected.length&&g.nodeIds.every(id=>selected.includes(id)))
   const order=layers(plan),locked=node?nodeLocked(plan,node):link?linkLocked(plan,link):false
   const updateNode=(patch:Partial<InstallationNode>)=>{if(!node||locked)return;commit({...plan,nodes:plan.nodes.map(n=>n.id===node.id?{...n,...patch}:n)})}
   const updateLink=(patch:Partial<InstallationLink>)=>{if(!link||locked)return;commit({...plan,links:plan.links.map(l=>l.id===link.id?{...l,...patch}:l)})}
@@ -35,30 +38,37 @@ export function PropertiesInspector({plan,stock,selected,linkId,commit,duplicate
       <Field label="Catégorie" value={node.category??source?.category??'Équipement libre'} disabled={locked} onCommit={category=>updateNode({category})}/>
       {source&&<p className="stage-note">{source.provider??'Mon stock'} · stock physique : {source.quantity}</p>}
       {layerSelect(nodeLayer(node),layerId=>updateNode({layerId}))}
+      <AppearanceInspector key={node.id} node={node} plan={plan} stock={stock} locked={locked} update={updateNode}/>
       <div className="stage-field-grid">
         <Field label="X (m)" value={Number((g.x/m.ppm).toFixed(3))} type="number" step={.05} disabled={locked} onCommit={v=>updateNode({x:Number(v)*m.ppm})}/>
         <Field label="Y (m)" value={Number((g.y/m.ppm).toFixed(3))} type="number" step={.05} disabled={locked} onCommit={v=>updateNode({y:Number(v)*m.ppm})}/>
-        <Field label="Largeur (m)" value={Number((g.width/m.ppm).toFixed(3))} type="number" min={.05} step={.05} disabled={locked} onCommit={v=>updateNode({width:Math.max(8,Number(v)*m.ppm)})}/>
-        <Field label="Profondeur (m)" value={Number((g.height/m.ppm).toFixed(3))} type="number" min={.05} step={.05} disabled={locked} onCommit={v=>updateNode({height:Math.max(8,Number(v)*m.ppm)})}/>
+        <Field label="Largeur (m)" value={Number((g.width/m.ppm).toFixed(3))} type="number" min={.05} step={.05} disabled={locked} onCommit={v=>updateNode({width:Math.max(8,Number(v)*m.ppm),...(node.appearance?.lockAspect?{height:Math.max(8,Number(v)*m.ppm)*g.height/g.width}:{})})}/>
+        <Field label="Profondeur (m)" value={Number((g.height/m.ppm).toFixed(3))} type="number" min={.05} step={.05} disabled={locked} onCommit={v=>updateNode({height:Math.max(8,Number(v)*m.ppm),...(node.appearance?.lockAspect?{width:Math.max(8,Number(v)*m.ppm)*g.width/g.height}:{})})}/>
       </div>
       <Field label="Rotation (°)" type="number" step={1} value={g.rotation} disabled={locked} onCommit={v=>updateNode({rotation:Number(v)})}/>
       <Field label="Zone" value={node.zone??'Scène'} disabled={locked} onCommit={zone=>updateNode({zone})}/>
       {source?.ports?.length?<div className="stage-port-list">{source.ports.map(port=><span key={port.id}>{port.count} × {port.connector} · {port.direction}</span>)}</div>:null}
       <button className="stage-wide-button" disabled={!!plan.layerLocks?.[nodeLayer(node)]} onClick={()=>commit({...plan,nodes:plan.nodes.map(n=>n.id===node.id?{...n,locked:!n.locked}:n)})}>{node.locked?<Unlock/>:<Lock/>}{node.locked?'Déverrouiller':'Verrouiller'}</button>
       <button className="stage-wide-button" onClick={duplicate}><Copy/>Dupliquer l’objet</button>
+      <button className="stage-wide-button" disabled={locked} onClick={()=>open('series')}>Dupliquer en série</button>
+      <button className="stage-wide-button" onClick={()=>open('save-object')}>Enregistrer dans Mes objets</button>
       <button className="stage-wide-button danger" disabled={locked} onClick={remove}><Trash2/>Supprimer l’objet</button>
       <small className="stage-note">Les copies graphiques ne modifient pas le stock. Utilisez Réserver pour vérifier les besoins.</small>
     </>})()}
     {selected.length>1&&<>
+      {group?<><Field label="Nom du groupe" value={group.name} onCommit={name=>commit({...plan,groups:plan.groups?.map(g=>g.id===group.id?{...g,name}:g)})}/><button className="stage-wide-button" onClick={()=>commit({...plan,groups:plan.groups?.filter(g=>g.id!==group.id)})}>Dégrouper</button><button className="stage-wide-button" onClick={()=>commit({...plan,groups:plan.groups?.map(g=>g.id===group.id?{...g,locked:!g.locked}:g)})}>{group.locked?'Déverrouiller le groupe':'Verrouiller le groupe'}</button></>:<button className="stage-wide-button primary" onClick={()=>commit(groupSelection(plan,selected,'Nouveau groupe'))}>Grouper</button>}
+      <button className="stage-wide-button" disabled={selected.some(id=>{const n=plan.nodes.find(n=>n.id===id);return n&&nodeLocked(plan,n)})} onClick={()=>open('series')}>Dupliquer en série</button>
+      <button className="stage-wide-button" onClick={()=>open('save-object')}>Enregistrer dans Mes objets</button>
       {layerSelect('',layerId=>commit({...plan,nodes:plan.nodes.map(n=>selected.includes(n.id)&&!nodeLocked(plan,n)?{...n,layerId}:n)}))}
+      <div className="stage-field-grid"><button className="stage-wide-button" onClick={()=>commit({...plan,nodes:plan.nodes.map(n=>selected.includes(n.id)&&!nodeLocked(plan,n)?{...n,appearance:{...n.appearance,labelMode:'none'}}:n)})}>Masquer les labels</button><button className="stage-wide-button" onClick={()=>commit({...plan,nodes:plan.nodes.map(n=>selected.includes(n.id)&&!nodeLocked(plan,n)?{...n,appearance:{...n.appearance,labelMode:'auto'}}:n)})}>Labels automatiques</button></div>
       <div className="stage-align-grid">{([['left','Gauche'],['center','Centre'],['right','Droite'],['top','Haut'],['middle','Milieu'],['bottom','Bas'],['horizontal','Espacer ↔'],['vertical','Espacer ↕']] as [Alignment,string][]).map(([id,label])=><button key={id} onClick={()=>commit(alignSelection(plan,selected,id))}>{label}</button>)}</div>
       <button className="stage-wide-button" onClick={duplicate}><Copy/>Dupliquer la sélection</button>
       <button className="stage-wide-button" onClick={()=>commit({...plan,nodes:plan.nodes.map(n=>selected.includes(n.id)&&!plan.layerLocks?.[nodeLayer(n)]?{...n,locked:!plan.nodes.filter(n=>selected.includes(n.id)).every(n=>n.locked)}:n)})}><Lock/>Verrouiller / déverrouiller</button>
       <button className="stage-wide-button danger" onClick={remove}><Trash2/>Supprimer la sélection</button>
     </>}
     {link&&(()=>{const distance=cableDistance(plan,link),margin=link.marginPercent??20,recommended=Math.ceil(distance*(1+margin/100)),from=plan.nodes.find(n=>n.id===link.fromNodeId),to=plan.nodes.find(n=>n.id===link.toNodeId);return <>
-      <label className="stage-field"><span>Source</span><select aria-label="Source du câble" disabled={locked} value={link.fromNodeId} onChange={e=>updateLink({fromNodeId:e.target.value,fromPort:undefined})}>{plan.nodes.filter(n=>n.id!==link.toNodeId&&(!n.kind||n.kind==='equipment')).map(n=><option key={n.id} value={n.id}>{n.name}</option>)}</select></label>
-      <label className="stage-field"><span>Destination</span><select aria-label="Destination du câble" disabled={locked} value={link.toNodeId} onChange={e=>updateLink({toNodeId:e.target.value,toPort:undefined})}>{plan.nodes.filter(n=>n.id!==link.fromNodeId&&(!n.kind||n.kind==='equipment')).map(n=><option key={n.id} value={n.id}>{n.name}</option>)}</select></label>
+      <label className="stage-field"><span>Source</span><select aria-label="Source du câble" disabled={locked} value={link.fromNodeId} onChange={e=>updateLink({fromNodeId:e.target.value,fromPort:undefined})}>{plan.nodes.filter(n=>n.id!==link.toNodeId&&!['text','zone','shape'].includes(n.kind??'equipment')).map(n=><option key={n.id} value={n.id}>{n.name}</option>)}</select></label>
+      <label className="stage-field"><span>Destination</span><select aria-label="Destination du câble" disabled={locked} value={link.toNodeId} onChange={e=>updateLink({toNodeId:e.target.value,toPort:undefined})}>{plan.nodes.filter(n=>n.id!==link.fromNodeId&&!['text','zone','shape'].includes(n.kind??'equipment')).map(n=><option key={n.id} value={n.id}>{n.name}</option>)}</select></label>
       {(['from','to'] as const).map(side=>{const equipment=side==='from'?from:to,ports=stock.find(s=>s.id===equipment?.stockItemId)?.ports??[];return ports.length?<label key={side} className="stage-field"><span>{side==='from'?'Port source':'Port destination'}</span><select disabled={locked} value={(side==='from'?link.fromPort:link.toPort)??''} onChange={e=>updateLink(side==='from'?{fromPort:e.target.value}:{toPort:e.target.value})}><option value="">Automatique</option>{ports.map(port=><option key={port.id} value={port.id}>{port.label} · {port.connector}</option>)}</select></label>:null})}
       <label className="stage-field"><span>Type de câble</span><select aria-label="Type de câble" value={link.kind??'unknown'} disabled={locked} onChange={e=>updateLink({kind:e.target.value as InstallationLink['kind']})}>{Object.entries(CABLE_STYLES).map(([id,s])=><option key={id} value={id}>{s.label}</option>)}</select></label>
       {layerSelect(linkLayer(link),layerId=>updateLink({layerId}))}
@@ -84,6 +94,7 @@ export function PropertiesInspector({plan,stock,selected,linkId,commit,duplicate
       <label className="stage-field"><span>Côté public</span><select value={plan.audience??'bottom'} onChange={e=>commit({...plan,audience:e.target.value as 'top'|'bottom'})}><option value="bottom">En bas</option><option value="top">En haut</option></select></label>
       <label className="stage-field"><span>Fond de scène</span><input type="color" aria-label="Fond de scène" value={plan.background??'#f6fafb'} onChange={e=>commit({...plan,background:e.target.value})}/></label>
       <label className="stage-check"><input type="checkbox" checked={plan.cableLabels??false} onChange={e=>commit({...plan,cableLabels:e.target.checked})}/>Étiquettes des câbles</label>
+      <BackgroundPanel plan={plan} commit={commit} calibrate={()=>open('calibrate')}/>
       <div className="stage-shortcuts"><b>Raccourcis</b><span>Ctrl+Z / Ctrl+Y · Annuler / rétablir</span><span>Ctrl+D · Dupliquer</span><span>Ctrl+C / Ctrl+V · Copier / coller</span><span>Maj + clic · Sélection multiple</span><span>Suppr · Supprimer</span><span>G · Grille / S · Magnétisme</span><span>F · Adapter à l’écran</span></div>
     </>}
     {locked&&<p className="stage-lock-notice"><Lock size={14}/>Objet ou calque verrouillé</p>}

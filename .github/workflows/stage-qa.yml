@@ -1,0 +1,64 @@
+name: Stage editor browser checks
+
+on:
+  push:
+    branches: [codex/scenographie-3.7.0]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Install test browser
+        run: |
+          npm install --no-save --package-lock=false playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Start isolated test server
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/diart-vite.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/scripts/stage-qa/index.html > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/diart-vite.log
+          exit 1
+      - name: Existing editor and scenography user journeys
+        run: |
+          node scripts/stage-qa/smoke.mjs
+          node scripts/stage-qa/commands.mjs
+          node scripts/stage-qa/scenography.mjs
+      - name: Inspect exported PDF and prepare visual review
+        if: always()
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq poppler-utils
+          python -m pip install Pillow
+          if test -f /tmp/diart-scenography-results/presentation-client.pdf; then
+            pdfinfo /tmp/diart-scenography-results/presentation-client.pdf
+            pdftoppm -png -scale-to 1600 -singlefile /tmp/diart-scenography-results/presentation-client.pdf /tmp/diart-scenography-results/pdf-render
+          fi
+          python scripts/stage-qa/visual-report.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stage-editor-results
+          path: |
+            /tmp/diart-stage-results
+            /tmp/diart-scenography-results
+            /tmp/diart-vite.log
+          retention-days: 14

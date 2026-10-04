@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Undo2,Redo2,Save,History,Copy,ZoomIn,ZoomOut,Scan,Grid3X3,Magnet,Layers,Download,Settings2,Maximize,Minimize,Library,MousePointer2,Hand,PackagePlus,Cable,Zap,Network,Paperclip,Type,Square,Ruler,PanelRight } from 'lucide-react'
+import { Undo2,Redo2,Save,History,Copy,ZoomIn,ZoomOut,Scan,Grid3X3,Magnet,Layers,Download,Settings2,Maximize,Minimize,Library,MousePointer2,Hand,PackagePlus,Cable,Zap,Network,Paperclip,Type,Square,Ruler,PanelRight,Armchair } from 'lucide-react'
 import type { Tool } from './StageViewport'
 export function ToolButton({label,children,active=false,disabled=false,onClick}:{label:string;children:ReactNode;active?:boolean;disabled?:boolean;onClick:()=>void}){
   return <button type="button" className={'stage-icon-button'+(active?' active':'')} title={label} aria-label={label} aria-pressed={active} disabled={disabled} onClick={onClick}>{children}</button>
@@ -32,7 +32,7 @@ export function StageToolbar(p:{name:string;status:string;canUndo:boolean;canRed
   </header>
 }
 const tools:{id:Tool;name:string;icon:ReactNode}[]=[
-  {id:'select',name:'Sélection',icon:<MousePointer2/>},{id:'pan',name:'Déplacement de la vue',icon:<Hand/>},{id:'equipment',name:'Ajouter matériel',icon:<PackagePlus/>},
+  {id:'select',name:'Sélection',icon:<MousePointer2/>},{id:'pan',name:'Déplacement de la vue',icon:<Hand/>},{id:'visual',name:'Ajouter un objet visuel',icon:<Armchair/>},{id:'equipment',name:'Ajouter matériel',icon:<PackagePlus/>},
   {id:'audio',name:'Ajouter câble audio',icon:<Cable/>},{id:'power',name:'Ajouter alimentation',icon:<Zap/>},{id:'network',name:'Ajouter réseau',icon:<Network/>},
   {id:'accessory',name:'Ajouter accessoire',icon:<Paperclip/>},{id:'text',name:'Texte / annotation',icon:<Type/>},{id:'zone',name:'Zone / forme',icon:<Square/>},{id:'measure',name:'Mesurer',icon:<Ruler/>}
 ]

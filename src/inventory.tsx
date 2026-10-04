@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { db, logActivity } from './db'
 import { StageEditor } from './stage/StageEditor'
+import { stockNeeds } from './stage/model'
 import { analyzeInventoryInstallationWithAI } from './cloud'
 import type {
   ActivityEntry, InstallationLink, InstallationNode, InstallationSuggestion, InventoryCategory, InventoryCharacteristic, InventoryFrequency,
@@ -703,6 +704,7 @@ function localInstallationAnalysis(program:InventoryProgram,stock:InventoryStock
     }
   }
   for(const node of installation.nodes){
+    if(node.visualOnly||node.kind==='text'||node.kind==='zone'||node.kind==='shape')continue
     const key=node.name.toLowerCase()
     const accessory=/micro/.test(key)?'Pied de micro':/piano|clavier/.test(key)?'Pied de clavier':/guitare|basse/.test(key)?'Stand guitare / basse':''
     if(accessory){
@@ -1763,8 +1765,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
   }
   const layerItemCount=(layerId:string)=>installation.nodes.filter(node=>nodeLayerId(node)===layerId).length+installation.links.filter(link=>linkLayerId(link)===layerId).length
   const installationNeeds=useMemo(()=>{
-    const counts=new Map<string,number>()
-    for(const node of installation.nodes)if(node.stockItemId)counts.set(node.stockItemId,(counts.get(node.stockItemId)??0)+1)
+    const counts=stockNeeds(installation)
     return Array.from(counts.entries()).map(([stockItemId,quantity])=>{
       const item=stock.find(value=>value.id===stockItemId)
       const available=program&&item?effectiveStockQuantity(item,program,programs):0
@@ -1775,12 +1776,13 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
   const electricalSummary=useMemo(()=>{
     let knownWatts=0,knownDevices=0,powered=0
     for(const node of installation.nodes){
+      if(node.visualOnly||node.kind==='text'||node.kind==='zone'||node.kind==='shape')continue
       const source=node.stockItemId?stock.find(item=>item.id===node.stockItemId):undefined
       const isPowered=(source?.ports??[]).some(port=>port.direction==='power')||/alimentation|prise|onduleur|baffle|table|mr18|piano|clavier|répéteur|repeteur/i.test(node.name)
-      if(isPowered)powered++
+      if(isPowered)powered+=Math.max(1,node.quantity??1)
       const power=(source?.characteristics??[]).find(c=>/puissance|power|watt/i.test(c.label))
       const watts=power?Number(String(power.value).replace(',','.').match(/[\d.]+/)?.[0]??0):0
-      if(watts>0){knownWatts+=watts;knownDevices++}
+      if(watts>0){knownWatts+=watts*Math.max(1,node.quantity??1);knownDevices+=Math.max(1,node.quantity??1)}
     }
     return {powered,knownWatts:Math.round(knownWatts),knownDevices,outlets:Math.max(1,powered)}
   },[installation.nodes,stock])
