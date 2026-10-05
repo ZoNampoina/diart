@@ -8,6 +8,21 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'4.0.0',
+    date:'5 octobre 2026',
+    title:'Inventory Workspace',
+    summary:'L’ensemble du module Inventaire devient un workspace unifié, plus compact et plus professionnel, tout en conservant les stocks, programmes, installations, exports et historiques existants.',
+    highlights:[
+      'Navigation locale Vue d’ensemble, Programmes, Stock, Installation et Mouvements, avec dashboard global des disponibilités, alertes et prochains événements.',
+      'Stock restructuré avec recherche étendue aux connectiques, filtre par emplacement et stock faible, tris supplémentaires, vues Compacte / Cartes / Tableau et actions groupées sur le stockage.',
+      'Fiche matériel ouverte en drawer contextuel sur ordinateur et en vue plein écran sur mobile, sans pousser ni déformer la liste du Stock.',
+      'Programme réorganisé autour de sections Aperçu, Matériel, Check-list, Installation, Besoins et Export, avec groupes visuels indépendants des catégories techniques.',
+      'Check-list opérationnelle à cinq états — à préparer, chargé, sur place, retourné, problème — avec progression, actions globales et compatibilité avec les anciens états chargé/retourné.',
+      'Vue Besoins enrichie avec synthèse des manquants et proposition d’optimisation des sources visant à réduire le nombre de prestataires, toujours soumise à validation.',
+      'Design system Inventaire responsive pour PC, tablette et mobile, appliqué sans modifier les clés de données historiques ni l’identité visuelle DI’ART.'
+    ]
+  },
+  {
     version:'3.9.0',
     date:'5 octobre 2026',
     title:'Stock Workspace',
