@@ -3,7 +3,8 @@ import { toPng } from 'html-to-image'
 import {
   AlertTriangle, Archive, Boxes, BrainCircuit, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp,
   ClipboardCheck, Eye, EyeOff, History, ImageDown, LayoutGrid, Link2, Minus, Network, PackageCheck, PackagePlus,
-  PackageSearch, Plus, Repeat2, RotateCcw, Save, Settings2, Trash2, Wifi, WifiOff, X, Globe2, Share2, Zap, Copy
+  PackageSearch, Plus, Repeat2, RotateCcw, Save, Settings2, Trash2, Wifi, WifiOff, X, Globe2, Share2, Zap, Copy,
+  Search, List, Table2, Grid3X3, MapPin, CheckSquare
 } from 'lucide-react'
 import { db, logActivity } from './db'
 import { StageEditor } from './stage/StageEditor'
@@ -1159,6 +1160,13 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   const [openCategories,setOpenCategories]=useState<Record<InventoryCategory,boolean>>(
     Object.fromEntries(DEFAULT_CATEGORY_ORDER.map(category=>[category,true]))
   )
+  const [stockLayout,setStockLayout]=useState<'compact'|'cards'|'table'>('compact')
+  const [stockSearch,setStockSearch]=useState('')
+  const [stockCategoryFilter,setStockCategoryFilter]=useState<'all'|InventoryCategory>('all')
+  const [stockStatusFilter,setStockStatusFilter]=useState<'all'|InventoryStockStatus>('all')
+  const [stockSort,setStockSort]=useState<'name'|'quantity-desc'|'quantity-asc'|'location'>('name')
+  const [selectedStockIds,setSelectedStockIds]=useState<string[]>([])
+  const [bulkLocation,setBulkLocation]=useState('')
 
   const refresh=async()=>{
     await ensureStockSeed()
@@ -1179,6 +1187,32 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   const changed=async()=>{await refresh();onChanged()}
   const providers=useMemo(()=>Array.from(new Set([DEFAULT_PROVIDER,...stock.map(item=>normalizeProvider(item.provider))])).sort((a,b)=>a===DEFAULT_PROVIDER?-1:b===DEFAULT_PROVIDER?1:a.localeCompare(b,'fr')),[stock])
   const categoryOrder=useMemo(()=>Array.from(new Set([...categories.map(item=>item.id),...stock.map(item=>item.category)])),[categories,stock])
+  const providerStock=useMemo(()=>stock.filter(item=>normalizeProvider(item.provider)===stockProvider),[stock,stockProvider])
+  const filteredProviderStock=useMemo(()=>{
+    const query=stockSearch.trim().toLowerCase()
+    return providerStock.filter(item=>{
+      if(stockCategoryFilter!=='all'&&item.category!==stockCategoryFilter)return false
+      if(stockStatusFilter!=='all'&&(item.status??'available')!==stockStatusFilter)return false
+      if(!query)return true
+      const haystack=[item.name,categoryLabel(item.category,categories),item.storageLocation??'',item.notes??'',...(item.characteristics??[]).flatMap(value=>[value.label,value.value])].join(' ').toLowerCase()
+      return haystack.includes(query)
+    }).sort((a,b)=>{
+      if(stockSort==='quantity-desc')return b.quantity-a.quantity||a.name.localeCompare(b.name,'fr')
+      if(stockSort==='quantity-asc')return a.quantity-b.quantity||a.name.localeCompare(b.name,'fr')
+      if(stockSort==='location')return (a.storageLocation??'').localeCompare(b.storageLocation??'','fr')||a.name.localeCompare(b.name,'fr')
+      return a.name.localeCompare(b.name,'fr')
+    })
+  },[providerStock,stockSearch,stockCategoryFilter,stockStatusFilter,stockSort,categories])
+  const providerMetrics=useMemo(()=>{
+    const total=providerStock.reduce((sum,item)=>sum+item.quantity,0)
+    const available=providerStock.filter(item=>(item.status??'available')==='available').reduce((sum,item)=>sum+item.quantity,0)
+    const reserved=providerStock.filter(item=>(item.status??'available')==='reserved').reduce((sum,item)=>sum+item.quantity,0)
+    const inUse=providerStock.filter(item=>(item.status??'available')==='in_use').reduce((sum,item)=>sum+item.quantity,0)
+    const unavailable=providerStock.filter(item=>['repair','maintenance','unavailable'].includes(item.status??'available')).reduce((sum,item)=>sum+item.quantity,0)
+    return {total,available,reserved,inUse,unavailable}
+  },[providerStock])
+  const lowStockItems=useMemo(()=>providerStock.filter(item=>item.quantity>0&&Number.isFinite(item.lowStockThreshold)&&item.quantity<=(item.lowStockThreshold??0)),[providerStock])
+  const selectedStock=useMemo(()=>stock.filter(item=>selectedStockIds.includes(item.id)),[stock,selectedStockIds])
 
   const createCategory=async()=>{
     const label=newCategoryName.trim()
@@ -1200,6 +1234,9 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
       category:techDraft.category,
       provider:normalizeProvider(techDraft.provider),
       notes:techDraft.notes??'',
+      storageLocation:techDraft.storageLocation?.trim()??'',
+      lowStockThreshold:Math.max(0,Number(techDraft.lowStockThreshold)||0),
+      associatedItemIds:techDraft.associatedItemIds??[],
       representationIcon:techDraft.representationIcon??'auto',
       characteristics:(techDraft.characteristics??[]).filter(item=>item.label.trim()||item.value.trim()),
       ports:(techDraft.ports??[]).filter(item=>item.label.trim()||item.connector.trim()),
@@ -1298,6 +1335,26 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
       source:'inventory',inventoryStockItemId:item.id,inventoryProvider:normalizeProvider(item.provider),inventoryDelta:-item.quantity
     })
     await changed();toast('Élément retiré du stock.')
+  }
+
+  const toggleStockSelection=(id:string)=>setSelectedStockIds(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id])
+  const selectVisibleStock=()=>setSelectedStockIds(current=>filteredProviderStock.every(item=>current.includes(item.id))?current.filter(id=>!filteredProviderStock.some(item=>item.id===id)):Array.from(new Set([...current,...filteredProviderStock.map(item=>item.id)])))
+  const bulkSetStockStatus=async(status:InventoryStockStatus)=>{
+    if(!selectedStock.length)return
+    const updatedAt=now()
+    await Promise.all(selectedStock.map(item=>db.inventoryStock.update(item.id,{status,updatedAt})))
+    await Promise.all(selectedStock.map(item=>logActivity('update','État groupé',item.name+' · '+STOCK_STATUS_LABELS[status],{source:'inventory',inventoryStockItemId:item.id,inventoryProvider:normalizeProvider(item.provider)})))
+    setSelectedStockIds([]);await changed();toast(selectedStock.length+' matériels mis à jour.')
+  }
+  const bulkSetStockLocation=async()=>{
+    const location=bulkLocation.trim();if(!location||!selectedStock.length)return
+    const updatedAt=now();await Promise.all(selectedStock.map(item=>db.inventoryStock.update(item.id,{storageLocation:location,updatedAt})))
+    setSelectedStockIds([]);setBulkLocation('');await changed();toast('Emplacement appliqué à la sélection.')
+  }
+  const bulkDeleteStock=async()=>{
+    if(!selectedStock.length)return
+    const stamp=now();await Promise.all(selectedStock.map(item=>db.inventoryStock.update(item.id,{deletedAt:stamp,updatedAt:stamp})))
+    setSelectedStockIds([]);await changed();toast(selectedStock.length+' matériels retirés du stock.')
   }
 
   const toggleCategory=(category:InventoryCategory)=>setOpenCategories(value=>({...value,[category]:!value[category]}))
