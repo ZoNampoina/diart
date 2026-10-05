@@ -1413,7 +1413,10 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   const bulkSetStockStatus=async(status:InventoryStockStatus)=>{
     if(!selectedStock.length)return
     const updatedAt=now()
-    await Promise.all(selectedStock.map(item=>db.inventoryStock.update(item.id,{status,updatedAt})))
+    await Promise.all(selectedStock.map(item=>{
+      const units=item.trackUnits?(item.units??[]).map((unit,index)=>index<item.quantity?{...unit,status}:unit):item.units
+      return db.inventoryStock.update(item.id,{status,units,updatedAt})
+    }))
     await Promise.all(selectedStock.map(item=>logActivity('update','État groupé',item.name+' · '+STOCK_STATUS_LABELS[status],{source:'inventory',inventoryStockItemId:item.id,inventoryProvider:normalizeProvider(item.provider)})))
     setSelectedStockIds([]);await changed();toast(selectedStock.length+' matériels mis à jour.')
   }
@@ -1466,7 +1469,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     const escape=(value:unknown)=>'"'+String(value??'').replace(/"/g,'""')+'"'
     const rows=[
       ['Matériel','Classe','Stockage','Emplacement','Quantité','État'],
-      ...selectedStock.map(item=>[item.name,categoryLabel(item.category,categories),normalizeProvider(item.provider),item.storageLocation??'',item.quantity,STOCK_STATUS_LABELS[item.status??'available']])
+      ...selectedStock.map(item=>[item.name,categoryLabel(item.category,categories),normalizeProvider(item.provider),item.storageLocation??'',item.quantity,item.trackUnits?'Suivi individuel':STOCK_STATUS_LABELS[item.status??'available']])
     ]
     const csv='\uFEFF'+rows.map(row=>row.map(escape).join(';')).join('\n')
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}))
