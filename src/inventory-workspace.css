@@ -130,6 +130,7 @@
 .source-plan{display:grid;gap:5px;margin:6px 0 10px}.source-plan-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:11px}.source-plan-row small{color:var(--muted)}.source-plan-actions{display:flex;justify-content:flex-end;gap:7px}
 .inventory-needs-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-bottom:10px}.inventory-needs-summary span{padding:9px;background:var(--surface2);border-radius:9px}.inventory-needs-summary small{display:block;color:var(--muted);font-size:9px}.inventory-needs-summary b{font-size:16px}
 .inventory-program-page .inventory-missing-panel,.inventory-program-page .inventory-checklist-panel,.inventory-program-page .inventory-kit-panel,.inventory-program-page .stock-picker{border-radius:11px}
+.inventory-kit-row-v4{display:grid!important;grid-template-columns:minmax(180px,1fr) 64px auto auto auto 34px!important;gap:7px!important;align-items:center}.inventory-kit-row-v4>span{min-width:0}.kit-name-input{width:100%;min-height:34px!important;height:34px;padding:5px 7px!important;font-weight:750;background:transparent!important;border-color:transparent!important}.kit-name-input:hover,.kit-name-input:focus{background:var(--surface2)!important;border-color:var(--line)!important}.kit-multiplier{display:grid;gap:2px}.kit-multiplier small{font-size:8px!important;text-transform:uppercase}.kit-multiplier input{width:60px;min-height:34px;height:34px;padding:5px 6px;font-size:10px}.inventory-kit-row-v4 .secondary{min-height:34px;height:34px;font-size:10px;padding:0 8px}
 
 /* Responsive */
 @media(max-width:1180px){
@@ -160,6 +161,7 @@
   .inventory-program-page .program-detail-head{grid-template-columns:1fr;gap:10px}
   .inventory-program-page .program-head-actions{overflow:auto;scrollbar-width:none}
   .inventory-program-page .program-section-tabs{top:calc(68px + env(safe-area-inset-top))}
+  .inventory-kit-row-v4{grid-template-columns:1fr auto!important}.inventory-kit-row-v4>span{grid-column:1/-1}.inventory-kit-row-v4 .secondary{width:100%}.inventory-kit-row-v4 .bare-action{justify-self:end}
   .checklist-row{grid-template-columns:1fr 1fr!important}
   .checklist-row>span{grid-column:1/-1}
   .inventory-needs-summary{grid-template-columns:repeat(2,1fr)}
