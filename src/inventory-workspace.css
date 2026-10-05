@@ -87,6 +87,9 @@
 .inventory-workspace-v4 .stock-tech-section{border:0;background:var(--surface2);border-radius:12px;padding:12px;margin-top:10px}
 .inventory-workspace-v4 .stock-general-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
 .inventory-workspace-v4 .stock-related-grid{max-height:260px;overflow:auto;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.stock-unit-tracking-toggle{align-content:start}.stock-unit-switch{min-height:40px;display:flex;align-items:center;gap:8px;padding:0 10px;border:1px solid var(--inv-border);border-radius:9px;background:var(--surface)}.stock-unit-switch input{width:16px;height:16px;min-height:auto;padding:0}.stock-unit-switch b{font-size:11px}
+.stock-units-editor .stock-tech-section-head>span{display:grid;gap:2px}.stock-units-editor .stock-tech-section-head small{font-size:10px;color:var(--muted);font-weight:400}
+.stock-units-list{display:grid;gap:6px;max-height:320px;overflow:auto}.stock-unit-row{display:grid;grid-template-columns:28px minmax(80px,.6fr) minmax(120px,.8fr) minmax(140px,1.4fr);gap:6px;align-items:center}.stock-unit-row>span{width:28px;height:28px;border-radius:8px;background:var(--surface3);display:grid;place-items:center;font-size:9px;font-weight:800;color:var(--muted)}.stock-unit-row input,.stock-unit-row select{min-height:34px;height:34px;padding:5px 7px;font-size:10px}
 .inventory-workspace-v4 .stock-tech-pair,.inventory-workspace-v4 .stock-port-row{border-radius:9px;background:var(--surface2)}
 .inventory-workspace-v4 .stock-layout-cards .category-body{display:grid;grid-template-columns:repeat(3,minmax(230px,1fr));gap:9px}
 .inventory-workspace-v4 .stock-layout-cards .stock-item-wrap{min-width:0}.inventory-workspace-v4 .stock-layout-cards .stock-workspace-row{height:100%;display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;grid-template-areas:"select icon title status" ". . qty actions";align-items:center;padding:12px}
@@ -153,6 +156,7 @@
   .stock-tech-editor.inventory-drawer,.inventory-workspace-v4 .stock-tech-editor{top:0;right:0;bottom:0;left:0;width:auto;border-radius:0;padding:14px 14px calc(90px + env(safe-area-inset-bottom))}
   .inventory-workspace-v4 .stock-tech-head{top:-14px}
   .inventory-workspace-v4 .stock-general-grid,.inventory-workspace-v4 .stock-related-grid{grid-template-columns:1fr}
+  .stock-unit-row{grid-template-columns:28px 1fr}.stock-unit-row select,.stock-unit-row input:last-child{grid-column:2}
   .inventory-program-page .program-detail-head{grid-template-columns:1fr;gap:10px}
   .inventory-program-page .program-head-actions{overflow:auto;scrollbar-width:none}
   .inventory-program-page .program-section-tabs{top:calc(68px + env(safe-area-inset-top))}
