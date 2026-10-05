@@ -1730,6 +1730,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
   const [customName,setCustomName]=useState('')
   const [customCategory,setCustomCategory]=useState<InventoryCategory>('cable')
   const [kitName,setKitName]=useState('')
+  const [kitMultipliers,setKitMultipliers]=useState<Record<string,number>>({})
   const [categories,setCategories]=useState<InventoryCategoryDef[]>(DEFAULT_CATEGORIES)
   const [programView,setProgramView]=useState<'materials'|'installation'>('materials')
   const [advancedInstallationAvailable,setAdvancedInstallationAvailable]=useState(()=>window.matchMedia('(min-width:700px)').matches)
@@ -1968,15 +1969,37 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
     toast('Kit enregistré.')
   }
 
-  const applyKit=(kit:InventoryKit)=>{
+  const applyKit=(kit:InventoryKit,multiplier=1)=>{
+    const factor=Math.max(1,Math.min(99,Math.floor(multiplier)||1))
     let next=[...items]
     for(const kitItem of kit.items){
+      const amount=kitItem.quantity*factor
       const existing=next.find(item=>(kitItem.stockItemId&&item.stockItemId===kitItem.stockItemId)||(!kitItem.stockItemId&&item.category===kitItem.category&&item.name.trim().toLowerCase()===kitItem.name.trim().toLowerCase()))
-      if(existing)next=next.map(item=>item.id===existing.id?{...item,quantity:item.quantity+kitItem.quantity,returned:false}:item)
-      else next.push({id:crypto.randomUUID(),name:kitItem.name,category:kitItem.category,quantity:kitItem.quantity,stockItemId:kitItem.stockItemId,loaded:false,returned:false})
+      if(existing)next=next.map(item=>item.id===existing.id?{...item,quantity:item.quantity+amount,returned:false,checkState:'prepare' as InventoryChecklistState}:item)
+      else next.push({id:crypto.randomUUID(),name:kitItem.name,category:kitItem.category,quantity:amount,stockItemId:kitItem.stockItemId,loaded:false,returned:false,checkState:'prepare'})
     }
     void persist({items:next})
-    toast('Kit « '+kit.name+' » ajouté au programme.')
+    toast('Kit « '+kit.name+' » × '+factor+' ajouté au programme.')
+  }
+
+  const renameKit=async(kit:InventoryKit,name:string)=>{
+    const value=name.trim()
+    if(!value||value===kit.name)return
+    const next=kits.map(valueKit=>valueKit.id===kit.id?{...valueKit,name:value,updatedAt:now()}:valueKit)
+    setKits(next);await saveInventoryKits(next);toast('Kit renommé.')
+  }
+
+  const duplicateKit=async(kit:InventoryKit)=>{
+    const stamp=now()
+    const clone:InventoryKit={...kit,id:crypto.randomUUID(),name:kit.name+' — copie',items:kit.items.map(item=>({...item})),createdAt:stamp,updatedAt:stamp}
+    const next=[...kits,clone]
+    setKits(next);await saveInventoryKits(next);toast('Kit dupliqué.')
+  }
+
+  const replaceKitWithSelection=async(kit:InventoryKit)=>{
+    if(!selectedItems.length){toast('Sélectionnez du matériel dans le programme.');return}
+    const next=kits.map(value=>value.id===kit.id?{...value,items:selectedItems.map(item=>({name:item.name,quantity:item.quantity,category:item.category,stockItemId:item.stockItemId})),updatedAt:now()}:value)
+    setKits(next);await saveInventoryKits(next);toast('Contenu du kit mis à jour.')
   }
 
   const deleteKit=async(id:string)=>{
@@ -2074,6 +2097,22 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
     await persist({items:next})
     setSourcePlan([])
     toast('Proposition de sources appliquée.')
+  }
+
+  const duplicateProgram=async()=>{
+    if(!program)return
+    const stamp=now()
+    const clone:InventoryProgram={
+      ...structuredClone(program),
+      id:crypto.randomUUID(),
+      name:program.name+' — copie',
+      isPublic:false,
+      items:program.items.map(item=>({...item,id:crypto.randomUUID(),loaded:false,returned:false,checkState:'prepare'})),
+      createdAt:stamp,updatedAt:stamp,deletedAt:null
+    }
+    await db.programs.add(clone)
+    await logActivity('create','Programme dupliqué',clone.name,{source:'inventory',inventoryProgramId:clone.id})
+    onChanged();toast('Programme dupliqué.');onOpen(clone.id)
   }
 
   const removeProgram=async()=>{
@@ -2544,6 +2583,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
         <button className={'secondary mobile-icon-action '+(overviewOpen?'active':'')} aria-label="Voir" title="Voir" onClick={()=>setOverviewOpen(value=>!value)}><Eye/><span>{overviewOpen?'Fermer la vue':'Voir'}</span></button>
         <button className={'secondary mobile-icon-action '+(program.isPublic?'active':'')} aria-label={program.isPublic?'Rendre personnel':'Rendre public'} title={program.isPublic?'Rendre personnel':'Rendre public'} onClick={()=>void persist({isPublic:!program.isPublic}).then(()=>toast(program.isPublic?'Inventaire repassé en mode personnel.':'Inventaire rendu public.'))}><Globe2/><span>{program.isPublic?'Public':'Rendre public'}</span></button>
         <button className="secondary mobile-icon-action" aria-label="Partager" title="Partager" onClick={onShare}><Share2/><span>Partager</span></button>
+        <button className="secondary mobile-icon-action" aria-label="Dupliquer" title="Dupliquer" onClick={()=>void duplicateProgram()}><Copy/><span>Dupliquer</span></button>
         <button className="secondary mobile-icon-action" aria-label="Exporter" title="Exporter" onClick={()=>setExportOpen(true)}><ImageDown/><span>Exporter</span></button>
         <button className="bare-action danger-icon" aria-label="Supprimer le programme" onClick={()=>setConfirmDelete(true)}><Trash2/></button>
       </div>
@@ -2857,11 +2897,22 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
           <button className="primary" disabled={!kitName.trim()||!selectedItems.length} onClick={()=>void saveKit()}><Save/>Enregistrer la sélection</button>
         </div>
         <div className="inventory-kit-list">
-          {kits.length?kits.map(kit=><div className="inventory-kit-row" key={kit.id}>
-            <span><b>{kit.name}</b><small>{kit.items.length} réf. · {kit.items.reduce((sum,item)=>sum+item.quantity,0)} u.</small></span>
-            <button className="secondary" onClick={()=>applyKit(kit)}><Plus/>Ajouter</button>
-            <button className="bare-action danger-icon" aria-label={'Supprimer '+kit.name} onClick={()=>void deleteKit(kit.id)}><Trash2/></button>
-          </div>):<div className="stock-picker-empty">Aucun kit enregistré. Sélectionnez du matériel puis enregistrez la configuration.</div>}
+          {kits.length?kits.map(kit=>{
+            const multiplier=kitMultipliers[kit.id]??1
+            const shortages=kit.items.filter(kitItem=>{
+              if(!program)return false
+              const source=kitItem.stockItemId?stock.find(item=>item.id===kitItem.stockItemId):stock.find(item=>item.category===kitItem.category&&item.name.trim().toLowerCase()===kitItem.name.trim().toLowerCase())
+              return !source||effectiveStockQuantity(source,program,programs)<kitItem.quantity*multiplier
+            }).length
+            return <div className="inventory-kit-row inventory-kit-row-v4" key={kit.id}>
+              <span><input className="kit-name-input" defaultValue={kit.name} onBlur={e=>void renameKit(kit,e.target.value)} aria-label={'Nom du kit '+kit.name}/><small>{kit.items.length} réf. · {kit.items.reduce((sum,item)=>sum+item.quantity,0)} u.{shortages?' · '+shortages+' manque'+(shortages>1?'s':''):''}</small></span>
+              <label className="kit-multiplier"><small>Qté</small><input type="number" min="1" max="99" value={multiplier} onChange={e=>setKitMultipliers(current=>({...current,[kit.id]:Math.max(1,Math.min(99,Number(e.target.value)||1))}))}/></label>
+              <button className="secondary" onClick={()=>applyKit(kit,multiplier)}><Plus/>Ajouter ×{multiplier}</button>
+              <button className="secondary" onClick={()=>void replaceKitWithSelection(kit)}><Save/>Mettre à jour</button>
+              <button className="secondary" onClick={()=>void duplicateKit(kit)}><Copy/>Dupliquer</button>
+              <button className="bare-action danger-icon" aria-label={'Supprimer '+kit.name} onClick={()=>void deleteKit(kit.id)}><Trash2/></button>
+            </div>
+          }):<div className="stock-picker-empty">Aucun kit enregistré. Sélectionnez du matériel puis enregistrez la configuration.</div>}
         </div>
       </div>}
 
