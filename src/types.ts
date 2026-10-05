@@ -146,6 +146,8 @@ export interface InventoryPort {
   icon?: InventoryTechnicalIcon
 }
 
+export type InventoryChecklistState = 'prepare'|'loaded'|'onsite'|'returned'|'problem'
+
 export interface InventoryMaterial {
   id: string
   name: string
@@ -154,8 +156,19 @@ export interface InventoryMaterial {
   stockItemId?: string
   loaded?: boolean
   returned?: boolean
+  /** État opérationnel de la check-list. Les booléens loaded/returned restent conservés pour rétrocompatibilité. */
+  checkState?: InventoryChecklistState
+  /** Groupe visuel propre au programme, sans modifier la catégorie technique réelle. */
+  visualGroup?: string
   /** Position personnalisée dans la liste du programme (indépendante de la catégorie). */
   listOrder?: number
+}
+
+export interface InventoryTrackedUnit {
+  id: string
+  label: string
+  status: InventoryStockStatus
+  notes?: string
 }
 
 export interface InventoryStockItem {
@@ -174,6 +187,10 @@ export interface InventoryStockItem {
   lowStockThreshold?: number
   /** Matériels généralement utilisés avec cet élément. */
   associatedItemIds?: string[]
+  /** Active le suivi par exemplaire pour les matériels qui le nécessitent. */
+  trackUnits?: boolean
+  /** Exemplaires suivis individuellement. Ignoré tant que trackUnits est désactivé. */
+  units?: InventoryTrackedUnit[]
   representationIcon?: InventoryTechnicalIcon
   createdAt: string
   updatedAt: string

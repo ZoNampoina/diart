@@ -59,11 +59,15 @@ function ConnectorSelect({label,value,onChange}:{label:string;value:string;onCha
 
 export function InventoryStructuredFields({item,onChange}:{item:InventoryStockItem;onChange:(item:InventoryStockItem)=>void}){
   const category=item.category.toLocaleLowerCase('fr')
+  const descriptor=(item.category+' '+item.name).toLocaleLowerCase('fr')
   const cable=category.includes('cable')||category.includes('câble')
   const instrument=category.includes('instrument')
   const adapter=category.includes('adapt')
-  const powerStrip=category.includes('prise')&&/multiple|multiprise|multi-prise/i.test(item.name)
-  if(!cable&&!instrument&&!adapter&&!powerStrip)return null
+  const powerStrip=(category.includes('prise')||descriptor.includes('alimentation'))&&/multiple|multiprise|multi-prise/i.test(item.name)
+  const microphone=/\bmicro\b|microphone|micro hf|micro sans fil/.test(descriptor)
+  const mixer=/console|mixeur|mixer|table de mix|mr18|xr18/.test(descriptor)
+  const speaker=/enceinte|speaker|baffle|retour de scène|monitor/.test(descriptor)
+  if(!cable&&!instrument&&!adapter&&!powerStrip&&!microphone&&!mixer&&!speaker)return null
   const setChar=(label:string,value:string)=>onChange(setInventoryCharacteristic(item,label,value))
   const setPort=(direction:InventoryPortDirection,connector:string,label:string)=>onChange(setPrimaryPort(item,direction,connector,label))
   return <div className="stock-tech-section structured-tech-section">
@@ -85,9 +89,32 @@ export function InventoryStructuredFields({item,onChange}:{item:InventoryStockIt
       <ConnectorSelect label="IN" value={primaryPort(item,'input')?.connector??'JACK'} onChange={value=>setPort('input',value,'IN')}/>
       <ConnectorSelect label="OUT" value={primaryPort(item,'output')?.connector??'XLR(M)'} onChange={value=>setPort('output',value,'OUT')}/>
     </div>}
+    {microphone&&<div className="structured-tech-grid">
+      <label><span>Type</span><input value={characteristicValue(item,'Type micro')} onChange={e=>setChar('Type micro',e.target.value)} placeholder="Dynamique, statique, cravate…"/></label>
+      <label><span>Liaison</span><select value={characteristicValue(item,'Liaison')||'Filaire'} onChange={e=>setChar('Liaison',e.target.value)}><option>Filaire</option><option>HF</option><option>USB</option><option>Autre</option></select></label>
+      <ConnectorSelect label="Connectique" value={primaryPort(item,'output')?.connector??'XLR(M)'} onChange={value=>setPort('output',value,'Sortie micro')}/>
+      <label><span>Alimentation fantôme</span><select value={characteristicValue(item,'Alimentation fantôme')||'Non'} onChange={e=>setChar('Alimentation fantôme',e.target.value)}><option>Non</option><option>48V requis</option><option>48V supporté</option><option>48V interdit</option></select></label>
+      <label><span>Directivité</span><input value={characteristicValue(item,'Directivité')} onChange={e=>setChar('Directivité',e.target.value)} placeholder="Cardioïde, supercardioïde…"/></label>
+    </div>}
+    {mixer&&<div className="structured-tech-grid">
+      <label><span>Entrées</span><input value={characteristicValue(item,'Entrées')} onChange={e=>setChar('Entrées',e.target.value)} placeholder="18 × XLR/TRS…"/></label>
+      <label><span>Sorties</span><input value={characteristicValue(item,'Sorties')} onChange={e=>setChar('Sorties',e.target.value)} placeholder="Main L/R, monitor…"/></label>
+      <label><span>AUX</span><input value={characteristicValue(item,'AUX')} onChange={e=>setChar('AUX',e.target.value)} placeholder="6 × AUX…"/></label>
+      <label><span>Réseau</span><input value={characteristicValue(item,'Réseau')} onChange={e=>setChar('Réseau',e.target.value)} placeholder="Ethernet, Wi‑Fi…"/></label>
+      <label><span>USB</span><input value={characteristicValue(item,'USB')} onChange={e=>setChar('USB',e.target.value)} placeholder="USB-B 18×18…"/></label>
+      <label><span>Alimentation</span><input value={characteristicValue(item,'Alimentation')} onChange={e=>setChar('Alimentation',e.target.value)} placeholder="IEC, adaptateur…"/></label>
+    </div>}
     {powerStrip&&<div className="structured-tech-grid">
-      <label><span>Nombre de sorties</span><input type="number" min="1" max="64" value={characteristicValue(item,'Nombre de sorties').replace(/\D/g,'')} onChange={e=>setChar('Nombre de sorties',e.target.value)}/></label>
+      <label><span>Nombre de prises</span><input type="number" min="1" max="64" value={(characteristicValue(item,'Nombre de prises')||characteristicValue(item,'Nombre de sorties')).replace(/\D/g,'')} onChange={e=>setChar('Nombre de prises',e.target.value)}/></label>
       <label><span>Longueur du câble</span><div className="structured-unit"><input type="number" min="0" step=".5" value={characteristicValue(item,'Longueur').replace(/[^0-9.,-]/g,'').replace(',','.')} onChange={e=>setChar('Longueur',e.target.value?e.target.value+' m':'')}/><em>m</em></div></label>
+      <label><span>Puissance max</span><input value={characteristicValue(item,'Puissance max')} onChange={e=>setChar('Puissance max',e.target.value)} placeholder="3680 W, 16 A…"/></label>
+    </div>}
+    {speaker&&<div className="structured-tech-grid">
+      <label><span>Type</span><select value={characteristicValue(item,'Type enceinte')||'Active'} onChange={e=>setChar('Type enceinte',e.target.value)}><option>Active</option><option>Passive</option></select></label>
+      <label><span>Puissance</span><input value={characteristicValue(item,'Puissance')} onChange={e=>setChar('Puissance',e.target.value)} placeholder="1000 W RMS…"/></label>
+      <label><span>Entrées</span><input value={characteristicValue(item,'Entrées')} onChange={e=>setChar('Entrées',e.target.value)} placeholder="XLR, Jack…"/></label>
+      <label><span>Sorties</span><input value={characteristicValue(item,'Sorties')} onChange={e=>setChar('Sorties',e.target.value)} placeholder="Link XLR…"/></label>
+      <label><span>Alimentation</span><input value={characteristicValue(item,'Alimentation')} onChange={e=>setChar('Alimentation',e.target.value)} placeholder="IEC / PowerCON…"/></label>
     </div>}
   </div>
 }
