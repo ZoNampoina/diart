@@ -1972,6 +1972,33 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
     void persist({items:items.map(item=>orderById.has(item.id)?{...item,listOrder:orderById.get(item.id)}:item)})
   }
 
+  const renameVisualGroup=(group:string,name:string)=>{
+    const nextName=name.trim()
+    if(!nextName||nextName===group)return
+    void persist({items:items.map(item=>(item.visualGroup??'').trim()===group?{...item,visualGroup:nextName}:item)})
+    setCollapsedProgramGroups(current=>{
+      const next={...current};if(group in next){next[nextName]=next[group];delete next[group]}return next
+    })
+  }
+
+  const moveVisualGroup=(group:string,direction:-1|1)=>{
+    const ordered=[...selectedItems]
+    const keys:string[]=[]
+    const keyFor=(item:InventoryMaterial)=>{
+      const visual=(item.visualGroup??'').trim()
+      return visual||'__item:'+item.id
+    }
+    for(const item of ordered){const key=keyFor(item);if(!keys.includes(key))keys.push(key)}
+    const index=keys.indexOf(group),target=index+direction
+    if(index<0||target<0||target>=keys.length)return
+    ;[keys[index],keys[target]]=[keys[target],keys[index]]
+    const byKey=new Map<string,InventoryMaterial[]>()
+    for(const item of ordered){const key=keyFor(item);byKey.set(key,[...(byKey.get(key)??[]),item])}
+    const nextOrder=keys.flatMap(key=>byKey.get(key)??[])
+    const orderById=new Map(nextOrder.map((item,position)=>[item.id,position]))
+    void persist({items:items.map(item=>orderById.has(item.id)?{...item,listOrder:orderById.get(item.id)}:item)})
+  }
+
   const addCustom=()=>{
     const value=customName.trim()
     if(!value||!program)return
@@ -2649,10 +2676,11 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
         <span className="eyebrow">Programme · événement</span>
         <input className="program-title-input" value={program.name} onChange={e=>setProgram({...program,name:e.target.value})} onBlur={()=>void persist({name:program.name.trim()||'Événement'})}/>
         <div className="program-summary">
-          <span>{selectedItems.length} réf.</span>
-          <span>{totalQuantity} unité{totalQuantity>1?'s':''}</span>
+          {program.date&&<span>{new Date(program.date+'T00:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}</span>}
+          {program.location&&<span>{program.location}</span>}
+          <span>{selectedItems.length} réf. · {totalQuantity} u.</span>
           <span>{recurrenceText(program)}</span>
-          {missingItems.length>0&&<span className="summary-warning">{missingItems.length} manquant{missingItems.length>1?'s':''}</span>}
+          <span className={missingItems.length?'summary-warning':'summary-ready'}>{missingItems.length?missingItems.length+' manquant'+(missingItems.length>1?'s':''):'Prêt'}</span>
         </div>
       </div>
       <div className="program-head-actions">
@@ -3056,14 +3084,20 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
           const collapsed=group?Boolean(collapsedProgramGroups[group]):false
           const groupCount=group?selectedItems.filter(value=>(value.visualGroup??'').trim()===group).length:0
           return <div className="program-order-block" key={item.id}>
-            {group&&group!==previousGroup&&<div className="program-visual-group"><button type="button" onClick={()=>setCollapsedProgramGroups(current=>({...current,[group]:!current[group]}))} aria-label={collapsed?'Déplier '+group:'Réduire '+group}>{collapsed?<ChevronRight/>:<ChevronDown/>}</button><b>{group}</b><small>{groupCount} élément{groupCount>1?'s':''}</small></div>}
+            {group&&group!==previousGroup&&<div className="program-visual-group">
+              <button type="button" onClick={()=>setCollapsedProgramGroups(current=>({...current,[group]:!current[group]}))} aria-label={collapsed?'Déplier '+group:'Réduire '+group}>{collapsed?<ChevronRight/>:<ChevronDown/>}</button>
+              <input defaultValue={group} onBlur={event=>renameVisualGroup(group,event.target.value)} aria-label={'Nom du groupe '+group}/>
+              <small>{groupCount} élément{groupCount>1?'s':''}</small>
+              <button type="button" onClick={()=>moveVisualGroup(group,-1)} aria-label={'Monter le groupe '+group}>↑</button>
+              <button type="button" onClick={()=>moveVisualGroup(group,1)} aria-label={'Descendre le groupe '+group}>↓</button>
+            </div>}
             <div className={'program-order-row '+(draggedMaterialId===item.id?'dragging ':'')+(collapsed?'group-collapsed':'')} draggable
               onDragStart={event=>{setDraggedMaterialId(item.id);event.dataTransfer.effectAllowed='move'}}
               onDragEnd={()=>setDraggedMaterialId('')}
               onDragOver={event=>{event.preventDefault();event.dataTransfer.dropEffect='move'}}
               onDrop={event=>{event.preventDefault();if(draggedMaterialId&&draggedMaterialId!==item.id)reorderSelected(draggedMaterialId,index);setDraggedMaterialId('')}}>
               <span className="program-order-grip" title="Glisser pour déplacer" aria-hidden="true">⋮⋮</span>
-              <span className="program-order-name"><b>{item.name}</b><small>{categoryLabel(item.category,categories)}{source?' · '+normalizeProvider(source.provider):''}</small></span>
+              <span className="program-order-name"><b>{item.name}</b><small>{categoryLabel(item.category,categories)}{source?' · '+normalizeProvider(source.provider)+(source.storageLocation?' · '+source.storageLocation:'')+' · dispo '+availableFor(item):' · sans source'}</small></span>
               <strong>× {item.quantity}</strong>
               <div className="program-order-actions">
                 <button type="button" disabled={index===0} onClick={()=>reorderSelected(item.id,index-1)} aria-label={'Monter '+item.name}>↑</button>
