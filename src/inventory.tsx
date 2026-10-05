@@ -1310,6 +1310,10 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     unavailable:stock.reduce((sum,item)=>sum+stockStatusCount(item,'unavailable'),0)
   }),[stock])
   const globalLowStock=useMemo(()=>stock.filter(item=>item.quantity>0&&(item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)),[stock])
+  const prolongedMaintenance=useMemo(()=>{
+    const limit=Date.now()-7*24*60*60*1000
+    return stock.filter(item=>(item.status??'available')==='maintenance'&&Date.parse(item.updatedAt)<limit)
+  },[stock])
   const conflictPrograms=useMemo(()=>programs.filter(program=>programHasStockShortage(program,programs,stock)),[programs,stock])
   const nonReturnedPrograms=useMemo(()=>programs.filter(program=>program.items.some(item=>item.quantity>0&&item.loaded&&!item.returned)),[programs])
   const upcomingPrograms=useMemo(()=>{
@@ -1538,13 +1542,14 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
       </div>
       <aside className="inventory-dashboard-side">
         <section className="panel inventory-dashboard-panel">
-          <header><h3>Alertes</h3><small>{globalLowStock.length+conflictPrograms.length+nonReturnedPrograms.length+stockStatusTotals.maintenance+stockStatusTotals.repair}</small></header>
+          <header><h3>Alertes</h3><small>{globalLowStock.length+conflictPrograms.length+nonReturnedPrograms.length+stockStatusTotals.maintenance+stockStatusTotals.repair+prolongedMaintenance.length}</small></header>
           <div className="inventory-alert-list">
             {globalLowStock.length>0&&<button className="inventory-alert-row warning" onClick={()=>setWorkspaceView('stock')}><AlertTriangle/><span><b>Stocks faibles</b><small>{globalLowStock.slice(0,3).map(item=>item.name+' ('+item.quantity+')').join(' · ')}</small></span><strong>{globalLowStock.length}</strong></button>}
             {conflictPrograms.length>0&&<button className="inventory-alert-row danger" onClick={()=>setWorkspaceView('programs')}><PackageSearch/><span><b>Conflits de réservation</b><small>{conflictPrograms.slice(0,3).map(item=>item.name).join(' · ')}</small></span><strong>{conflictPrograms.length}</strong></button>}
             {nonReturnedPrograms.length>0&&<button className="inventory-alert-row warning" onClick={()=>setWorkspaceView('programs')}><RotateCcw/><span><b>Matériels non retournés</b><small>{nonReturnedPrograms.slice(0,3).map(item=>item.name).join(' · ')}</small></span><strong>{nonReturnedPrograms.length}</strong></button>}
             {(stockStatusTotals.maintenance+stockStatusTotals.repair)>0&&<button className="inventory-alert-row warning" onClick={()=>setWorkspaceView('stock')}><Settings2/><span><b>Maintenance / panne</b><small>Matériels nécessitant une attention technique.</small></span><strong>{stockStatusTotals.maintenance+stockStatusTotals.repair}</strong></button>}
-            {!globalLowStock.length&&!conflictPrograms.length&&!nonReturnedPrograms.length&&!stockStatusTotals.maintenance&&!stockStatusTotals.repair&&<div className="inventory-empty-compact">Aucune alerte active.</div>}
+            {prolongedMaintenance.length>0&&<button className="inventory-alert-row warning" onClick={()=>setWorkspaceView('stock')}><History/><span><b>Maintenance prolongée</b><small>En maintenance depuis plus de 7 jours : {prolongedMaintenance.slice(0,3).map(item=>item.name).join(' · ')}</small></span><strong>{prolongedMaintenance.length}</strong></button>}
+            {!globalLowStock.length&&!conflictPrograms.length&&!nonReturnedPrograms.length&&!stockStatusTotals.maintenance&&!stockStatusTotals.repair&&!prolongedMaintenance.length&&<div className="inventory-empty-compact">Aucune alerte active.</div>}
           </div>
         </section>
         <section className="panel inventory-dashboard-panel">
