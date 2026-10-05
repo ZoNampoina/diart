@@ -164,6 +164,13 @@ export interface InventoryMaterial {
   listOrder?: number
 }
 
+export interface InventoryTrackedUnit {
+  id: string
+  label: string
+  status: InventoryStockStatus
+  notes?: string
+}
+
 export interface InventoryStockItem {
   id: string
   name: string
@@ -180,6 +187,10 @@ export interface InventoryStockItem {
   lowStockThreshold?: number
   /** Matériels généralement utilisés avec cet élément. */
   associatedItemIds?: string[]
+  /** Active le suivi par exemplaire pour les matériels qui le nécessitent. */
+  trackUnits?: boolean
+  /** Exemplaires suivis individuellement. Ignoré tant que trackUnits est désactivé. */
+  units?: InventoryTrackedUnit[]
   representationIcon?: InventoryTechnicalIcon
   createdAt: string
   updatedAt: string
