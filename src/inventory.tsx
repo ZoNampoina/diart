@@ -1404,6 +1404,38 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
           <input value={providerName} onChange={e=>setProviderName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createProvider()}} placeholder="Nouveau prestataire / stockage…"/>
           <button className="secondary" disabled={!providerName.trim()} onClick={()=>void createProvider()}><Plus/>Prestataire</button>
         </div>
+        <section className="stock-workspace-dashboard panel">
+          <div className="stock-workspace-metrics">
+            <span><small>Total</small><b>{providerMetrics.total}</b></span>
+            <span className="available"><small>Disponibles</small><b>{providerMetrics.available}</b></span>
+            <span className="reserved"><small>Réservés</small><b>{providerMetrics.reserved}</b></span>
+            <span className="in-use"><small>Utilisés</small><b>{providerMetrics.inUse}</b></span>
+            <span className={providerMetrics.unavailable?'warning':''}><small>Indisponibles</small><b>{providerMetrics.unavailable}</b></span>
+          </div>
+          {lowStockItems.length>0&&<div className="stock-low-alert"><AlertTriangle/><span><b>{lowStockItems.length} stock{lowStockItems.length>1?'s':''} faible{lowStockItems.length>1?'s':''}</b><small>{lowStockItems.slice(0,4).map(item=>item.name+' ('+item.quantity+')').join(' · ')}{lowStockItems.length>4?' · …':''}</small></span></div>}
+        </section>
+        <div className="stock-workspace-toolbar panel">
+          <label className="stock-search"><Search/><input value={stockSearch} onChange={e=>setStockSearch(e.target.value)} placeholder="Rechercher nom, emplacement, caractéristique…"/></label>
+          <select value={stockCategoryFilter} onChange={e=>setStockCategoryFilter(e.target.value as 'all'|InventoryCategory)}><option value="all">Toutes les classes</option>{categoryOrder.map(category=><option value={category} key={category}>{categoryLabel(category,categories)}</option>)}</select>
+          <select value={stockStatusFilter} onChange={e=>setStockStatusFilter(e.target.value as 'all'|InventoryStockStatus)}><option value="all">Tous les états</option>{Object.entries(STOCK_STATUS_LABELS).map(([value,label])=><option value={value} key={value}>{label}</option>)}</select>
+          <select value={stockSort} onChange={e=>setStockSort(e.target.value as typeof stockSort)}><option value="name">Nom A–Z</option><option value="quantity-desc">Quantité ↓</option><option value="quantity-asc">Quantité ↑</option><option value="location">Emplacement</option></select>
+          <div className="stock-layout-switch" aria-label="Affichage du stock">
+            <button className={stockLayout==='compact'?'active':''} onClick={()=>setStockLayout('compact')} title="Vue compacte"><List/></button>
+            <button className={stockLayout==='cards'?'active':''} onClick={()=>setStockLayout('cards')} title="Vue cartes"><Grid3X3/></button>
+            <button className={stockLayout==='table'?'active':''} onClick={()=>setStockLayout('table')} title="Vue tableau"><Table2/></button>
+          </div>
+        </div>
+        {filteredProviderStock.length>0&&<div className="stock-selection-head">
+          <button className="secondary" onClick={selectVisibleStock}><CheckSquare/>{filteredProviderStock.every(item=>selectedStockIds.includes(item.id))?'Désélectionner':'Sélectionner'} visibles</button>
+          <span>{filteredProviderStock.length} référence{filteredProviderStock.length>1?'s':''} affichée{filteredProviderStock.length>1?'s':''}</span>
+        </div>}
+        {selectedStock.length>0&&<div className="stock-bulk-toolbar panel">
+          <b>{selectedStock.length} sélectionné{selectedStock.length>1?'s':''}</b>
+          <select defaultValue="" onChange={e=>{if(e.target.value)void bulkSetStockStatus(e.target.value as InventoryStockStatus);e.currentTarget.value=''}}><option value="">Changer l’état…</option>{Object.entries(STOCK_STATUS_LABELS).map(([value,label])=><option value={value} key={value}>{label}</option>)}</select>
+          <input value={bulkLocation} onChange={e=>setBulkLocation(e.target.value)} placeholder="Emplacement commun…"/>
+          <button className="secondary" disabled={!bulkLocation.trim()} onClick={()=>void bulkSetStockLocation()}><MapPin/>Appliquer</button>
+          <button className="danger" onClick={()=>void bulkDeleteStock()}><Trash2/>Retirer</button>
+        </div>
         <div className="stock-class-toolbar panel">
           <span><b>Classes de matériel</b><small>{categories.length} classes · Accessoires inclus</small></span>
           <div className="stock-class-chips">{categories.map(category=><button className={stockCategory===category.id?'active':''} key={category.id} onClick={()=>setStockCategory(category.id)}>{category.label}</button>)}</div>
@@ -1417,13 +1449,14 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
           <input value={stockName} onChange={e=>setStockName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void addStock()}} placeholder={'Ajouter chez '+stockProvider+'…'}/>
           <button className="primary" disabled={!stockName.trim()} onClick={()=>void addStock()}><Plus/>Ajouter</button>
         </div>
-        <div className="inventory-category-stack planned-material-list">
+        <div className={'inventory-category-stack planned-material-list stock-layout-'+stockLayout}>
           {categoryOrder.map(category=>{
-            const items=stock.filter(item=>normalizeProvider(item.provider)===stockProvider&&item.category===category)
+            const items=filteredProviderStock.filter(item=>item.category===category)
             return <CategorySection category={category} label={categoryLabel(category,categories)} key={category} open={openCategories[category]??true} onToggle={()=>toggleCategory(category)} count={items.length}>
               {items.map(item=><div className="stock-item-wrap" key={item.id}>
-                <div className={'stock-row stock-row-with-status stock-row-with-tech '+(item.quantity>0?'active':'empty-stock')}>
-                  <span className="stock-representation-icon"><TechnicalIcon icon={item.representationIcon} text={item.name+' '+item.category}/></span><b>{item.name}</b>
+                <div className={'stock-row stock-row-with-status stock-row-with-tech stock-workspace-row '+(item.quantity>0?'active ':'empty-stock ')+(selectedStockIds.includes(item.id)?'selected ':'')+((item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)?'low-stock':'')}>
+                  <label className="stock-select-control" title="Sélectionner"><input type="checkbox" checked={selectedStockIds.includes(item.id)} onChange={()=>toggleStockSelection(item.id)}/><span/></label>
+                  <span className="stock-representation-icon"><TechnicalIcon icon={item.representationIcon} text={item.name+' '+item.category}/></span><span className="stock-main-label"><b>{item.name}</b><small>{item.storageLocation?<><MapPin/>{item.storageLocation}</>:categoryLabel(item.category,categories)}{(item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)?' · stock faible':''}</small></span>
                   <label className={'stock-status-control status-'+(item.status??'available')} title={STOCK_STATUS_LABELS[item.status??'available']}>
                     <span className="stock-status-dot" aria-hidden="true"/>
                     <span className="stock-status-label">{STOCK_STATUS_LABELS[item.status??'available']}</span>
@@ -1448,10 +1481,16 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                       <label className="stock-icon-field"><span>Icône</span><TechnicalIconPicker value={techDraft.representationIcon} text={techDraft.name+' '+techDraft.category} onChange={representationIcon=>setTechDraft({...techDraft,representationIcon})}/></label>
                       <label><span>Classe</span><select value={techDraft.category} onChange={e=>setTechDraft({...techDraft,category:e.target.value})}>{categories.map(category=><option key={category.id} value={category.id}>{category.label}</option>)}</select></label>
                       <label><span>Stockage</span><input value={normalizeProvider(techDraft.provider)} onChange={e=>setTechDraft({...techDraft,provider:e.target.value})}/></label>
+                      <label><span>Emplacement précis</span><input value={techDraft.storageLocation??''} onChange={e=>setTechDraft({...techDraft,storageLocation:e.target.value})} placeholder="Flight case, rack, étagère, local…"/></label>
+                      <label><span>Alerte stock faible</span><input type="number" min="0" max="999" value={techDraft.lowStockThreshold??0} onChange={e=>setTechDraft({...techDraft,lowStockThreshold:Math.max(0,Number(e.target.value)||0)})}/></label>
                       <label className="span2"><span>Notes</span><input value={techDraft.notes??''} onChange={e=>setTechDraft({...techDraft,notes:e.target.value})} placeholder="Référence, usage, remarques…"/></label>
                     </div>
                   </div>
                   <InventoryStructuredFields item={techDraft} onChange={setTechDraft}/>
+                  <details className="stock-related-editor">
+                    <summary>Matériels liés / accessoires habituels</summary>
+                    <div className="stock-related-grid">{stock.filter(candidate=>candidate.id!==techDraft.id).map(candidate=><label key={candidate.id}><input type="checkbox" checked={(techDraft.associatedItemIds??[]).includes(candidate.id)} onChange={e=>setTechDraft({...techDraft,associatedItemIds:e.target.checked?Array.from(new Set([...(techDraft.associatedItemIds??[]),candidate.id])):(techDraft.associatedItemIds??[]).filter(id=>id!==candidate.id)})}/><span><TechnicalIcon icon={candidate.representationIcon} text={candidate.name}/><b>{candidate.name}</b><small>{normalizeProvider(candidate.provider)}</small></span></label>)}</div>
+                  </details>
                   <div className="stock-tech-section">
                     <div className="stock-tech-section-head"><b>Caractéristiques</b><button className="secondary" onClick={()=>setTechDraft({...techDraft,characteristics:[...(techDraft.characteristics??[]),{id:crypto.randomUUID(),label:'',value:''}]})}><Plus/>Champ</button></div>
                     {(techDraft.characteristics??[]).map((characteristic,index)=><div className="stock-tech-pair stock-tech-pair-with-icon" key={characteristic.id}>
