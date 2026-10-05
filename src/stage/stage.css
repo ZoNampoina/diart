@@ -96,3 +96,7 @@
 .stage-personal-category select{font-size:12px;min-height:32px}
 .stage-view-modes button{font-size:13px}
 @media(max-width:699px){.stage-view-modes button{font-size:12px;padding:6px}.stage-mode-bar .stage-client-export{font-size:12px}.stage-category-chips{max-height:88px}.stage-object-library footer small{font-size:11px}}
+
+.stage-free-stock{display:grid;gap:8px;padding-top:8px;border-top:1px solid var(--stage-border)}
+.stage-free-stock>form{display:flex;gap:6px}.stage-free-stock>form input{flex:1;min-width:0}.stage-free-stock>form button{display:flex;align-items:center;justify-content:center;min-width:38px;border:1px solid var(--stage-border);background:transparent;color:inherit;border-radius:6px}
+.stage-free-stock-create{display:grid;grid-template-columns:minmax(0,1fr) 78px;gap:6px}.stage-free-stock-create select,.stage-free-stock-create input{min-width:0}.stage-free-stock-create .stage-wide-button{grid-column:1/-1;margin:0}

@@ -8,6 +8,19 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'3.8.0',
+    date:'5 octobre 2026',
+    title:'Inventaire personnalisé & matériel structuré',
+    summary:'Les fiches techniques s’adaptent désormais au destinataire, tandis que les matériels utilisent des caractéristiques structurées réutilisées dans l’installation avancée.',
+    highlights:[
+      'Profils d’export Propriétaire, Technicien, Prestataire / musiciens et Personnalisé avec sections affichables et réordonnables.',
+      'Schéma de scène, liste du matériel, note saisissable et matériel manquant intégrables dans la même fiche, avec contenu modifiable avant export.',
+      'Export de l’aperçu final en image PNG haute résolution et en PDF.',
+      'Champs dédiés pour câbles, instruments et multiprises, dont longueur, couleur, IN / OUT inversables, accessoires, alimentation et nombre de sorties.',
+      'Création d’un nouveau matériel directement depuis Installation avancée, ajout au stock puis placement sur le plan.'
+    ]
+  },
+  {
     version:'3.7.0',
     date:'4 octobre 2026',
     title:'Scénographie & présentation client',
