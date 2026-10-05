@@ -1,5 +1,5 @@
 import { useEffect,useMemo,useRef,useState } from 'react'
-import { Download,FileImage,FileText,RefreshCw } from 'lucide-react'
+import { FileImage,FileText,RefreshCw } from 'lucide-react'
 import { toPng } from 'html-to-image'
 import type { InventoryMaterial,InventoryProgram,InventoryStockItem,StageViewMode } from './types'
 import type { IconRenderer } from './stage/StageScene'
