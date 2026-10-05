@@ -1185,6 +1185,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   const [stockSearch,setStockSearch]=useState('')
   const [stockCategoryFilter,setStockCategoryFilter]=useState<'all'|InventoryCategory>('all')
   const [stockStatusFilter,setStockStatusFilter]=useState<'all'|InventoryStockStatus>('all')
+  const [stockAvailabilityFilter,setStockAvailabilityFilter]=useState<'all'|'full'|'partial'|'none'>('all')
   const [stockSort,setStockSort]=useState<'name'|'quantity-desc'|'quantity-asc'|'location'|'status'|'updated'>('name')
   const [stockLocationFilter,setStockLocationFilter]=useState('all')
   const [stockLowOnly,setStockLowOnly]=useState(false)
@@ -1226,6 +1227,10 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     return providerStock.filter(item=>{
       if(stockCategoryFilter!=='all'&&item.category!==stockCategoryFilter)return false
       if(stockStatusFilter!=='all'&&(item.status??'available')!==stockStatusFilter)return false
+      const available=item.trackUnits?stockAvailableCount(item):(statusBlocksAvailability(item.status)?0:item.quantity)
+      if(stockAvailabilityFilter==='full'&&available<item.quantity)return false
+      if(stockAvailabilityFilter==='partial'&&!(available>0&&available<item.quantity))return false
+      if(stockAvailabilityFilter==='none'&&available>0)return false
       if(stockLocationFilter!=='all'&&(item.storageLocation??'')!==stockLocationFilter)return false
       if(stockLowOnly&&!((item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)))return false
       if(!query)return true
@@ -1239,7 +1244,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
       if(stockSort==='updated')return b.updatedAt.localeCompare(a.updatedAt)||a.name.localeCompare(b.name,'fr')
       return a.name.localeCompare(b.name,'fr')
     })
-  },[providerStock,stockSearch,stockCategoryFilter,stockStatusFilter,stockLocationFilter,stockLowOnly,stockSort,categories])
+  },[providerStock,stockSearch,stockCategoryFilter,stockStatusFilter,stockAvailabilityFilter,stockLocationFilter,stockLowOnly,stockSort,categories])
   const providerMetrics=useMemo(()=>{
     const total=providerStock.reduce((sum,item)=>sum+item.quantity,0)
     const available=providerStock.reduce((sum,item)=>sum+stockStatusCount(item,'available'),0)
@@ -1629,6 +1634,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
           <label className="stock-search"><Search/><input value={stockSearch} onChange={e=>setStockSearch(e.target.value)} placeholder="Rechercher nom, emplacement, caractéristique…"/></label>
           <select value={stockCategoryFilter} onChange={e=>setStockCategoryFilter(e.target.value as 'all'|InventoryCategory)}><option value="all">Toutes les classes</option>{categoryOrder.map(category=><option value={category} key={category}>{categoryLabel(category,categories)}</option>)}</select>
           <select value={stockStatusFilter} onChange={e=>setStockStatusFilter(e.target.value as 'all'|InventoryStockStatus)}><option value="all">Tous les états</option>{Object.entries(STOCK_STATUS_LABELS).map(([value,label])=><option value={value} key={value}>{label}</option>)}</select>
+          <select value={stockAvailabilityFilter} onChange={e=>setStockAvailabilityFilter(e.target.value as typeof stockAvailabilityFilter)}><option value="all">Toute disponibilité</option><option value="full">Disponible en totalité</option><option value="partial">Partiellement disponible</option><option value="none">Aucune disponibilité</option></select>
           <select value={stockLocationFilter} onChange={e=>setStockLocationFilter(e.target.value)}><option value="all">Tous les emplacements</option>{stockLocations.map(location=><option value={location} key={location}>{location}</option>)}</select>
           <select value={stockSort} onChange={e=>setStockSort(e.target.value as typeof stockSort)}><option value="name">Nom A–Z</option><option value="quantity-desc">Quantité ↓</option><option value="quantity-asc">Quantité ↑</option><option value="location">Emplacement</option><option value="status">État</option><option value="updated">Dernière modification</option></select>
           <label className="stock-filter-toggle"><input type="checkbox" checked={stockLowOnly} onChange={e=>setStockLowOnly(e.target.checked)}/><span>Stock faible</span></label>
