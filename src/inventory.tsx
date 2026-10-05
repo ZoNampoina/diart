@@ -1661,13 +1661,16 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                 <div className={'stock-row stock-row-with-status stock-row-with-tech stock-workspace-row '+(item.quantity>0?'active ':'empty-stock ')+(selectedStockIds.includes(item.id)?'selected ':'')+((item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)?'low-stock':'')}>
                   <label className="stock-select-control" title="Sélectionner"><input type="checkbox" checked={selectedStockIds.includes(item.id)} onChange={()=>toggleStockSelection(item.id)}/><span/></label>
                   <span className="stock-representation-icon"><TechnicalIcon icon={item.representationIcon} text={item.name+' '+item.category}/></span><span className="stock-main-label"><b>{item.name}</b><small>{item.storageLocation?<><MapPin/>{item.storageLocation}</>:categoryLabel(item.category,categories)}{item.trackUnits?' · suivi individuel':''}{(item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)?' · stock faible':''}</small></span>
-                  <label className={'stock-status-control status-'+(item.status??'available')} title={STOCK_STATUS_LABELS[item.status??'available']}>
+                  {item.trackUnits?<div className="stock-unit-status-summary" title="États des unités individuelles">
+                    <div>{(Object.entries(STOCK_STATUS_LABELS) as Array<[InventoryStockStatus,string]>).map(([status,label])=>{const count=stockStatusCount(item,status);return count>0?<span className={'unit-status-chip status-'+status} key={status}><i className="stock-status-dot" aria-hidden="true"/>{label} <b>{count}</b></span>:null})}</div>
+                    <select defaultValue="" aria-label={'Changer toutes les unités de '+item.name} onChange={e=>{if(e.target.value)void setStockStatus(item,e.target.value as InventoryStockStatus);e.currentTarget.value=''}}><option value="">Tout passer à…</option>{Object.entries(STOCK_STATUS_LABELS).map(([value,label])=><option value={value} key={value}>{label}</option>)}</select>
+                  </div>:<label className={'stock-status-control status-'+(item.status??'available')} title={STOCK_STATUS_LABELS[item.status??'available']}>
                     <span className="stock-status-dot" aria-hidden="true"/>
                     <span className="stock-status-label">{STOCK_STATUS_LABELS[item.status??'available']}</span>
                     <select className="stock-status-native" aria-label={'Statut de '+item.name} value={item.status??'available'} onChange={e=>void setStockStatus(item,e.target.value as InventoryStockStatus)}>
                       {Object.entries(STOCK_STATUS_LABELS).map(([value,label])=><option value={value} key={value}>{label}</option>)}
                     </select>
-                  </label>
+                  </label>}
                   <div className="compact-qty">
                     <button disabled={item.quantity<=0} onClick={()=>void setStockQuantity(item,item.quantity-1)}><Minus/></button>
                     <input type="number" min="0" max="999" inputMode="numeric" value={item.quantity} onChange={e=>void setStockQuantity(item,Number(e.target.value))}/>
