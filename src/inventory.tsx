@@ -1190,6 +1190,10 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   const [selectedStockIds,setSelectedStockIds]=useState<string[]>([])
   const [bulkLocation,setBulkLocation]=useState('')
   const [bulkProvider,setBulkProvider]=useState('')
+  const [movementSearch,setMovementSearch]=useState('')
+  const [movementProviderFilter,setMovementProviderFilter]=useState('all')
+  const [movementKindFilter,setMovementKindFilter]=useState<'all'|ActivityEntry['kind']>('all')
+  const [movementDateFilter,setMovementDateFilter]=useState('')
 
   const refresh=async()=>{
     await ensureStockSeed()
@@ -1241,6 +1245,16 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   },[providerStock])
   const lowStockItems=useMemo(()=>providerStock.filter(item=>item.quantity>0&&Number.isFinite(item.lowStockThreshold)&&item.quantity<=(item.lowStockThreshold??0)),[providerStock])
   const selectedStock=useMemo(()=>stock.filter(item=>selectedStockIds.includes(item.id)),[stock,selectedStockIds])
+  const filteredHistory=useMemo(()=>{
+    const query=movementSearch.trim().toLowerCase()
+    return history.filter(entry=>{
+      if(movementProviderFilter!=='all'&&(entry.inventoryProvider??'')!==movementProviderFilter)return false
+      if(movementKindFilter!=='all'&&entry.kind!==movementKindFilter)return false
+      if(movementDateFilter&&!entry.createdAt.startsWith(movementDateFilter))return false
+      if(!query)return true
+      return [entry.label,entry.details,entry.inventoryProvider??''].join(' ').toLowerCase().includes(query)
+    })
+  },[history,movementSearch,movementProviderFilter,movementKindFilter,movementDateFilter])
 
   const createCategory=async()=>{
     const label=newCategoryName.trim()
@@ -1481,13 +1495,20 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     </section>}
 
     {workspaceView==='movements'&&<section className="panel inventory-dashboard-panel">
-      <header><h3>Mouvements du stock</h3><small>Historique opérationnel récent</small></header>
-      <div className="inventory-movement-workspace">{history.length?history.map(entry=><div className="inventory-movement-row" key={entry.id}>
+      <header><h3>Mouvements du stock</h3><small>{filteredHistory.length} mouvement{filteredHistory.length>1?'s':''} affiché{filteredHistory.length>1?'s':''}</small></header>
+      <div className="inventory-movement-filters">
+        <label className="stock-search"><Search/><input value={movementSearch} onChange={e=>setMovementSearch(e.target.value)} placeholder="Matériel, programme, détail…"/></label>
+        <input type="date" value={movementDateFilter} onChange={e=>setMovementDateFilter(e.target.value)} aria-label="Filtrer par date"/>
+        <select value={movementProviderFilter} onChange={e=>setMovementProviderFilter(e.target.value)}><option value="all">Tous les stockages</option>{providers.map(provider=><option value={provider} key={provider}>{provider}</option>)}</select>
+        <select value={movementKindFilter} onChange={e=>setMovementKindFilter(e.target.value as 'all'|ActivityEntry['kind'])}><option value="all">Tous les types</option><option value="create">Création</option><option value="update">Modification</option><option value="complete">Check-list</option><option value="delete">Suppression</option><option value="import">Import</option><option value="export">Export</option></select>
+        {(movementSearch||movementDateFilter||movementProviderFilter!=='all'||movementKindFilter!=='all')&&<button className="secondary" onClick={()=>{setMovementSearch('');setMovementDateFilter('');setMovementProviderFilter('all');setMovementKindFilter('all')}}><RotateCcw/>Réinitialiser</button>}
+      </div>
+      <div className="inventory-movement-workspace">{filteredHistory.length?filteredHistory.map(entry=><div className="inventory-movement-row" key={entry.id}>
         <time>{new Date(entry.createdAt).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</time>
         <span className="icon"><History/></span>
         <span><b>{entry.label}</b><small>{entry.details}{entry.inventoryProvider?' · '+entry.inventoryProvider:''}</small></span>
         {typeof entry.inventoryDelta==='number'&&entry.inventoryDelta!==0?<em>{entry.inventoryDelta>0?'+':''}{entry.inventoryDelta}</em>:<em>—</em>}
-      </div>):<div className="inventory-empty-compact">Aucun mouvement enregistré pour le moment.</div>}</div>
+      </div>):<div className="inventory-empty-compact">Aucun mouvement ne correspond aux filtres.</div>}</div>
     </section>}
 
     {workspaceView==='programs'?<>
