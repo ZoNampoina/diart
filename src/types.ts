@@ -168,6 +168,12 @@ export interface InventoryStockItem {
   characteristics?: InventoryCharacteristic[]
   ports?: InventoryPort[]
   notes?: string
+  /** Emplacement physique précis : flight-case, rack, étagère, local, véhicule… */
+  storageLocation?: string
+  /** Seuil à partir duquel l’interface signale un stock faible. */
+  lowStockThreshold?: number
+  /** Matériels généralement utilisés avec cet élément. */
+  associatedItemIds?: string[]
   representationIcon?: InventoryTechnicalIcon
   createdAt: string
   updatedAt: string

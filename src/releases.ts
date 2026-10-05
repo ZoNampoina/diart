@@ -8,6 +8,20 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'3.9.0',
+    date:'5 octobre 2026',
+    title:'Stock Workspace',
+    summary:'Le Stock devient un espace de gestion plus rapide et plus lisible, avec recherche, filtres, vues adaptées, actions groupées et suivi physique du matériel.',
+    highlights:[
+      'Recherche plein texte sur le nom, la classe, les notes, l’emplacement et les caractéristiques techniques.',
+      'Filtres par classe et état, tri par nom, quantité ou emplacement, avec vues Compacte, Cartes et Tableau.',
+      'Tableau de bord instantané : total, disponibles, réservés, utilisés, indisponibles et alertes de stock faible.',
+      'Sélection multiple avec changement d’état, affectation d’un emplacement commun et retrait groupé.',
+      'Fiche matériel enrichie avec emplacement physique, seuil de stock faible et matériels/accessoires associés.',
+      'Interface responsive pour PC, tablette et mobile, sans casser les données ni les Programmes existants.'
+    ]
+  },
+  {
     version:'3.8.1',
     date:'5 octobre 2026',
     title:'Ordre personnalisé de l’inventaire',
