@@ -1435,7 +1435,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
           <input value={bulkLocation} onChange={e=>setBulkLocation(e.target.value)} placeholder="Emplacement commun…"/>
           <button className="secondary" disabled={!bulkLocation.trim()} onClick={()=>void bulkSetStockLocation()}><MapPin/>Appliquer</button>
           <button className="danger" onClick={()=>void bulkDeleteStock()}><Trash2/>Retirer</button>
-        </div>
+        </div>}
         <div className="stock-class-toolbar panel">
           <span><b>Classes de matériel</b><small>{categories.length} classes · Accessoires inclus</small></span>
           <div className="stock-class-chips">{categories.map(category=><button className={stockCategory===category.id?'active':''} key={category.id} onClick={()=>setStockCategory(category.id)}>{category.label}</button>)}</div>
