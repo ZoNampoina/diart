@@ -1166,6 +1166,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   const [programs,setPrograms]=useState<InventoryProgram[]>([])
   const [stock,setStock]=useState<InventoryStockItem[]>([])
   const [history,setHistory]=useState<ActivityEntry[]>([])
+  const [kits,setKits]=useState<InventoryKit[]>([])
   const [workspaceView,setWorkspaceView]=useState<'overview'|'programs'|'stock'|'installation'|'movements'>('overview')
   const [stockView,setStockView]=useState<'provider'|'global'|'history'>('provider')
   const [name,setName]=useState('')
@@ -1190,6 +1191,8 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   const [selectedStockIds,setSelectedStockIds]=useState<string[]>([])
   const [bulkLocation,setBulkLocation]=useState('')
   const [bulkProvider,setBulkProvider]=useState('')
+  const [bulkProgramId,setBulkProgramId]=useState('')
+  const [bulkKitId,setBulkKitId]=useState('')
   const [movementSearch,setMovementSearch]=useState('')
   const [movementProviderFilter,setMovementProviderFilter]=useState('all')
   const [movementKindFilter,setMovementKindFilter]=useState<'all'|ActivityEntry['kind']>('all')
@@ -1197,16 +1200,18 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
 
   const refresh=async()=>{
     await ensureStockSeed()
-    const [p,s,h,defs]=await Promise.all([
+    const [p,s,h,defs,savedKits]=await Promise.all([
       db.programs.toArray(),
       db.inventoryStock.toArray(),
       db.activity.orderBy('createdAt').reverse().limit(180).toArray(),
-      loadInventoryCategories()
+      loadInventoryCategories(),
+      loadInventoryKits()
     ])
     setPrograms(p.filter(item=>!item.deletedAt&&!item.isTemplate).map(normalizeProgram).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)))
     setStock(s.filter(item=>!item.deletedAt).map(normalizeStockItem).sort((a,b)=>a.name.localeCompare(b.name,'fr')))
     setHistory(h.filter(item=>item.source==='inventory'))
     setCategories(defs)
+    setKits(savedKits)
     setOpenCategories(current=>({...Object.fromEntries(defs.map(item=>[item.id,true])),...current}))
   }
   useEffect(()=>{void refresh()},[])
@@ -1423,6 +1428,52 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     await Promise.all(selectedStock.map(item=>logActivity('update','Stockage groupé',item.name+' · '+provider,{source:'inventory',inventoryStockItemId:item.id,inventoryProvider:provider})))
     setSelectedStockIds([]);setBulkProvider('');await changed();toast('Stockage appliqué à la sélection.')
   }
+  const bulkAddToProgram=async()=>{
+    if(!bulkProgramId||!selectedStock.length)return
+    const target=programs.find(item=>item.id===bulkProgramId)
+    if(!target)return
+    const normalized=normalizeProgram(target)
+    let next=[...normalized.items]
+    let maxOrder=next.reduce((max,item)=>Math.max(max,item.listOrder??-1),-1)
+    for(const source of selectedStock){
+      const existing=next.find(item=>item.stockItemId===source.id)
+      if(existing)next=next.map(item=>item.id===existing.id?{...item,quantity:item.quantity+1,returned:false,checkState:'prepare' as InventoryChecklistState}:item)
+      else next.push({id:crypto.randomUUID(),name:source.name,category:source.category,quantity:1,stockItemId:source.id,loaded:false,returned:false,checkState:'prepare',listOrder:++maxOrder})
+    }
+    const updatedAt=now()
+    await db.programs.update(target.id,{items:next,updatedAt})
+    await Promise.all(selectedStock.map(source=>logActivity('create','Ajout groupé au programme',source.name+' · '+target.name,{source:'inventory',inventoryProgramId:target.id,inventoryStockItemId:source.id,inventoryProvider:normalizeProvider(source.provider)})))
+    setSelectedStockIds([]);setBulkProgramId('');await changed();toast('Sélection ajoutée à « '+target.name+' ».')
+  }
+
+  const bulkAddToKit=async()=>{
+    if(!bulkKitId||!selectedStock.length)return
+    const kit=kits.find(item=>item.id===bulkKitId)
+    if(!kit)return
+    let kitItems=[...kit.items]
+    for(const source of selectedStock){
+      const existing=kitItems.find(item=>item.stockItemId===source.id)
+      if(existing)kitItems=kitItems.map(item=>item===existing?{...item,quantity:item.quantity+1}:item)
+      else kitItems.push({name:source.name,quantity:1,category:source.category,stockItemId:source.id})
+    }
+    const nextKits=kits.map(item=>item.id===kit.id?{...item,items:kitItems,updatedAt:now()}:item)
+    setKits(nextKits);await saveInventoryKits(nextKits)
+    setSelectedStockIds([]);setBulkKitId('');toast('Sélection ajoutée au kit « '+kit.name+' ».')
+  }
+
+  const exportSelectedStockCsv=()=>{
+    if(!selectedStock.length)return
+    const escape=(value:unknown)=>'"'+String(value??'').replace(/"/g,'""')+'"'
+    const rows=[
+      ['Matériel','Classe','Stockage','Emplacement','Quantité','État'],
+      ...selectedStock.map(item=>[item.name,categoryLabel(item.category,categories),normalizeProvider(item.provider),item.storageLocation??'',item.quantity,STOCK_STATUS_LABELS[item.status??'available']])
+    ]
+    const csv='\uFEFF'+rows.map(row=>row.map(escape).join(';')).join('\n')
+    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}))
+    const link=document.createElement('a');link.href=url;link.download='diart-stock-selection.csv';link.click();URL.revokeObjectURL(url)
+    toast('Sélection exportée en CSV.')
+  }
+
   const bulkDeleteStock=async()=>{
     if(!selectedStock.length)return
     const stamp=now();await Promise.all(selectedStock.map(item=>db.inventoryStock.update(item.id,{deletedAt:stamp,updatedAt:stamp})))
@@ -1580,6 +1631,10 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
           <button className="secondary" disabled={!bulkLocation.trim()} onClick={()=>void bulkSetStockLocation()}><MapPin/>Emplacement</button>
           <select value={bulkProvider} onChange={e=>setBulkProvider(e.target.value)}><option value="">Changer stockage…</option>{providers.map(provider=><option value={provider} key={provider}>{provider}</option>)}</select>
           <button className="secondary" disabled={!bulkProvider} onClick={()=>void bulkSetStockProvider()}><Archive/>Stockage</button>
+          <select value={bulkProgramId} onChange={e=>setBulkProgramId(e.target.value)}><option value="">Ajouter au programme…</option>{programs.map(program=><option value={program.id} key={program.id}>{program.name}</option>)}</select>
+          <button className="secondary" disabled={!bulkProgramId} onClick={()=>void bulkAddToProgram()}><CalendarDays/>Programme</button>
+          {kits.length>0&&<><select value={bulkKitId} onChange={e=>setBulkKitId(e.target.value)}><option value="">Ajouter au kit…</option>{kits.map(kit=><option value={kit.id} key={kit.id}>{kit.name}</option>)}</select><button className="secondary" disabled={!bulkKitId} onClick={()=>void bulkAddToKit()}><Boxes/>Kit</button></>}
+          <button className="secondary" onClick={exportSelectedStockCsv}><ImageDown/>Exporter</button>
           <button className="danger" onClick={()=>void bulkDeleteStock()}><Trash2/>Retirer</button>
         </div>}
         <div className="stock-class-toolbar panel">
