@@ -87,8 +87,22 @@ function normalizeStockItem(item:InventoryStockItem):InventoryStockItem{
     ...item,
     category:normalizeCategory(item.category,item.name),
     provider:normalizeProvider(item.provider),
-    status:item.status??'available'
+    status:item.status??'available',
+    trackUnits:item.trackUnits??false,
+    units:item.units??[]
   }
+}
+
+function stockStatusCount(item:InventoryStockItem,status:InventoryStockStatus):number{
+  if(!item.trackUnits)return (item.status??'available')===status?item.quantity:0
+  const activeUnits=(item.units??[]).slice(0,item.quantity)
+  const tracked=activeUnits.filter(unit=>(unit.status??'available')===status).length
+  const missing=Math.max(0,item.quantity-activeUnits.length)
+  return tracked+((item.status??'available')===status?missing:0)
+}
+
+function stockAvailableCount(item:InventoryStockItem):number{
+  return stockStatusCount(item,'available')
 }
 
 
@@ -424,9 +438,9 @@ function conflictingReservation(stockItemId:string,current:InventoryProgram,prog
 }
 
 function effectiveStockQuantity(stockItem:InventoryStockItem,current:InventoryProgram,programs:InventoryProgram[]):number{
-  if(statusBlocksAvailability(stockItem.status))return 0
+  const physicalAvailable=stockItem.trackUnits?stockAvailableCount(stockItem):(statusBlocksAvailability(stockItem.status)?0:stockItem.quantity)
   const reserved=conflictingReservation(stockItem.id,current,programs).quantity
-  return Math.max(0,stockItem.quantity-reserved)
+  return Math.max(0,physicalAvailable-reserved)
 }
 
 async function loadInventoryKits():Promise<InventoryKit[]>{
@@ -1219,10 +1233,10 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   },[providerStock,stockSearch,stockCategoryFilter,stockStatusFilter,stockLocationFilter,stockLowOnly,stockSort,categories])
   const providerMetrics=useMemo(()=>{
     const total=providerStock.reduce((sum,item)=>sum+item.quantity,0)
-    const available=providerStock.filter(item=>(item.status??'available')==='available').reduce((sum,item)=>sum+item.quantity,0)
-    const reserved=providerStock.filter(item=>(item.status??'available')==='reserved').reduce((sum,item)=>sum+item.quantity,0)
-    const inUse=providerStock.filter(item=>(item.status??'available')==='in_use').reduce((sum,item)=>sum+item.quantity,0)
-    const unavailable=providerStock.filter(item=>['repair','maintenance','unavailable'].includes(item.status??'available')).reduce((sum,item)=>sum+item.quantity,0)
+    const available=providerStock.reduce((sum,item)=>sum+stockStatusCount(item,'available'),0)
+    const reserved=providerStock.reduce((sum,item)=>sum+stockStatusCount(item,'reserved'),0)
+    const inUse=providerStock.reduce((sum,item)=>sum+stockStatusCount(item,'in_use'),0)
+    const unavailable=providerStock.reduce((sum,item)=>sum+stockStatusCount(item,'repair')+stockStatusCount(item,'maintenance')+stockStatusCount(item,'unavailable'),0)
     return {total,available,reserved,inUse,unavailable}
   },[providerStock])
   const lowStockItems=useMemo(()=>providerStock.filter(item=>item.quantity>0&&Number.isFinite(item.lowStockThreshold)&&item.quantity<=(item.lowStockThreshold??0)),[providerStock])
@@ -1251,6 +1265,8 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
       storageLocation:techDraft.storageLocation?.trim()??'',
       lowStockThreshold:Math.max(0,Number(techDraft.lowStockThreshold)||0),
       associatedItemIds:techDraft.associatedItemIds??[],
+      trackUnits:techDraft.trackUnits??false,
+      units:techDraft.units??[],
       representationIcon:techDraft.representationIcon??'auto',
       characteristics:(techDraft.characteristics??[]).filter(item=>item.label.trim()||item.value.trim()),
       ports:(techDraft.ports??[]).filter(item=>item.label.trim()||item.connector.trim()),
@@ -1260,14 +1276,14 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     setTechDraft(null);await changed();toast('Matériel modifié.')
   }
   const stockUnits=stock.reduce((sum,item)=>sum+item.quantity,0)
-  const unavailableUnits=stock.filter(item=>statusBlocksAvailability(item.status)).reduce((sum,item)=>sum+item.quantity,0)
+  const unavailableUnits=stock.reduce((sum,item)=>sum+stockStatusCount(item,'repair')+stockStatusCount(item,'maintenance')+stockStatusCount(item,'unavailable'),0)
   const stockStatusTotals=useMemo(()=>({
-    available:stock.filter(item=>(item.status??'available')==='available').reduce((sum,item)=>sum+item.quantity,0),
-    reserved:stock.filter(item=>(item.status??'available')==='reserved').reduce((sum,item)=>sum+item.quantity,0),
-    inUse:stock.filter(item=>(item.status??'available')==='in_use').reduce((sum,item)=>sum+item.quantity,0),
-    maintenance:stock.filter(item=>(item.status??'available')==='maintenance').reduce((sum,item)=>sum+item.quantity,0),
-    repair:stock.filter(item=>(item.status??'available')==='repair').reduce((sum,item)=>sum+item.quantity,0),
-    unavailable:stock.filter(item=>(item.status??'available')==='unavailable').reduce((sum,item)=>sum+item.quantity,0)
+    available:stock.reduce((sum,item)=>sum+stockStatusCount(item,'available'),0),
+    reserved:stock.reduce((sum,item)=>sum+stockStatusCount(item,'reserved'),0),
+    inUse:stock.reduce((sum,item)=>sum+stockStatusCount(item,'in_use'),0),
+    maintenance:stock.reduce((sum,item)=>sum+stockStatusCount(item,'maintenance'),0),
+    repair:stock.reduce((sum,item)=>sum+stockStatusCount(item,'repair'),0),
+    unavailable:stock.reduce((sum,item)=>sum+stockStatusCount(item,'unavailable'),0)
   }),[stock])
   const globalLowStock=useMemo(()=>stock.filter(item=>item.quantity>0&&(item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)),[stock])
   const conflictPrograms=useMemo(()=>programs.filter(program=>programHasStockShortage(program,programs,stock)),[programs,stock])
@@ -1343,7 +1359,12 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     const next=clampQuantity(quantity)
     const delta=next-item.quantity
     if(!delta)return
-    await db.inventoryStock.update(item.id,{quantity:next,updatedAt:now()})
+    let units=item.units??[]
+    if(item.trackUnits&&next>units.length){
+      units=[...units]
+      for(let index=units.length;index<next;index++)units.push({id:crypto.randomUUID(),label:'#'+String(index+1).padStart(2,'0'),status:item.status??'available',notes:''})
+    }
+    await db.inventoryStock.update(item.id,{quantity:next,units,updatedAt:now()})
     await logActivity('update',delta>0?'Entrée stock':'Sortie stock',item.name+' · '+(delta>0?'+':'')+delta,{
       source:'inventory',inventoryStockItemId:item.id,inventoryProvider:normalizeProvider(item.provider),inventoryDelta:delta
     })
@@ -1351,8 +1372,9 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   }
 
   const setStockStatus=async(item:InventoryStockItem,status:InventoryStockStatus)=>{
-    if((item.status??'available')===status)return
-    await db.inventoryStock.update(item.id,{status,updatedAt:now()})
+    if((item.status??'available')===status&&!item.trackUnits)return
+    const units=item.trackUnits?(item.units??[]).map((unit,index)=>index<item.quantity?{...unit,status}:unit):item.units
+    await db.inventoryStock.update(item.id,{status,units,updatedAt:now()})
     await logActivity('update','État matériel',item.name+' · '+STOCK_STATUS_LABELS[status],{
       source:'inventory',inventoryStockItemId:item.id,inventoryProvider:normalizeProvider(item.provider)
     })
@@ -1559,7 +1581,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
               {items.map(item=><div className="stock-item-wrap" key={item.id}>
                 <div className={'stock-row stock-row-with-status stock-row-with-tech stock-workspace-row '+(item.quantity>0?'active ':'empty-stock ')+(selectedStockIds.includes(item.id)?'selected ':'')+((item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)?'low-stock':'')}>
                   <label className="stock-select-control" title="Sélectionner"><input type="checkbox" checked={selectedStockIds.includes(item.id)} onChange={()=>toggleStockSelection(item.id)}/><span/></label>
-                  <span className="stock-representation-icon"><TechnicalIcon icon={item.representationIcon} text={item.name+' '+item.category}/></span><span className="stock-main-label"><b>{item.name}</b><small>{item.storageLocation?<><MapPin/>{item.storageLocation}</>:categoryLabel(item.category,categories)}{(item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)?' · stock faible':''}</small></span>
+                  <span className="stock-representation-icon"><TechnicalIcon icon={item.representationIcon} text={item.name+' '+item.category}/></span><span className="stock-main-label"><b>{item.name}</b><small>{item.storageLocation?<><MapPin/>{item.storageLocation}</>:categoryLabel(item.category,categories)}{item.trackUnits?' · suivi individuel':''}{(item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)?' · stock faible':''}</small></span>
                   <label className={'stock-status-control status-'+(item.status??'available')} title={STOCK_STATUS_LABELS[item.status??'available']}>
                     <span className="stock-status-dot" aria-hidden="true"/>
                     <span className="stock-status-label">{STOCK_STATUS_LABELS[item.status??'available']}</span>
@@ -1586,10 +1608,46 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                       <label><span>Stockage</span><input value={normalizeProvider(techDraft.provider)} onChange={e=>setTechDraft({...techDraft,provider:e.target.value})}/></label>
                       <label><span>Emplacement précis</span><input value={techDraft.storageLocation??''} onChange={e=>setTechDraft({...techDraft,storageLocation:e.target.value})} placeholder="Flight case, rack, étagère, local…"/></label>
                       <label><span>Alerte stock faible</span><input type="number" min="0" max="999" value={techDraft.lowStockThreshold??0} onChange={e=>setTechDraft({...techDraft,lowStockThreshold:Math.max(0,Number(e.target.value)||0)})}/></label>
+                      <label className="stock-unit-tracking-toggle"><span>Gestion</span><span className="stock-unit-switch"><input type="checkbox" checked={Boolean(techDraft.trackUnits)} onChange={e=>{
+                        let units=[...(techDraft.units??[])]
+                        if(e.target.checked&&units.length<techDraft.quantity){
+                          for(let index=units.length;index<techDraft.quantity;index++)units.push({id:crypto.randomUUID(),label:'#'+String(index+1).padStart(2,'0'),status:techDraft.status??'available',notes:''})
+                        }
+                        setTechDraft({...techDraft,trackUnits:e.target.checked,units})
+                      }}/><b>Suivi par unité</b></span></label>
                       <label className="span2"><span>Notes</span><input value={techDraft.notes??''} onChange={e=>setTechDraft({...techDraft,notes:e.target.value})} placeholder="Référence, usage, remarques…"/></label>
                     </div>
                   </div>
                   <InventoryStructuredFields item={techDraft} onChange={setTechDraft}/>
+                  {techDraft.trackUnits&&<div className="stock-tech-section stock-units-editor">
+                    <div className="stock-tech-section-head"><span><b>Unités individuelles</b><small>{techDraft.quantity} exemplaire{techDraft.quantity>1?'s':''} actif{techDraft.quantity>1?'s':''} · les anciennes unités restent conservées si la quantité diminue.</small></span></div>
+                    <div className="stock-units-list">
+                      {Array.from({length:techDraft.quantity},(_,index)=>{
+                        const unit=(techDraft.units??[])[index]??{id:crypto.randomUUID(),label:'#'+String(index+1).padStart(2,'0'),status:techDraft.status??'available',notes:''}
+                        return <div className="stock-unit-row" key={unit.id}>
+                          <span>{String(index+1).padStart(2,'0')}</span>
+                          <input value={unit.label} onChange={e=>{
+                            const units=[...(techDraft.units??[])]
+                            while(units.length<=index)units.push({id:crypto.randomUUID(),label:'#'+String(units.length+1).padStart(2,'0'),status:techDraft.status??'available',notes:''})
+                            units[index]={...units[index],label:e.target.value}
+                            setTechDraft({...techDraft,units})
+                          }} aria-label={'Identifiant unité '+(index+1)}/>
+                          <select value={unit.status} onChange={e=>{
+                            const units=[...(techDraft.units??[])]
+                            while(units.length<=index)units.push({id:crypto.randomUUID(),label:'#'+String(units.length+1).padStart(2,'0'),status:techDraft.status??'available',notes:''})
+                            units[index]={...units[index],status:e.target.value as InventoryStockStatus}
+                            setTechDraft({...techDraft,units})
+                          }} aria-label={'État unité '+(index+1)}>{Object.entries(STOCK_STATUS_LABELS).map(([value,label])=><option value={value} key={value}>{label}</option>)}</select>
+                          <input value={unit.notes??''} onChange={e=>{
+                            const units=[...(techDraft.units??[])]
+                            while(units.length<=index)units.push({id:crypto.randomUUID(),label:'#'+String(units.length+1).padStart(2,'0'),status:techDraft.status??'available',notes:''})
+                            units[index]={...units[index],notes:e.target.value}
+                            setTechDraft({...techDraft,units})
+                          }} placeholder="Note / série…" aria-label={'Note unité '+(index+1)}/>
+                        </div>
+                      })}
+                    </div>
+                  </div>}
                   <details className="stock-related-editor">
                     <summary>Matériels liés / accessoires habituels</summary>
                     <div className="stock-related-grid">{stock.filter(candidate=>candidate.id!==techDraft.id).map(candidate=><label key={candidate.id}><input type="checkbox" checked={(techDraft.associatedItemIds??[]).includes(candidate.id)} onChange={e=>setTechDraft({...techDraft,associatedItemIds:e.target.checked?Array.from(new Set([...(techDraft.associatedItemIds??[]),candidate.id])):(techDraft.associatedItemIds??[]).filter(id=>id!==candidate.id)})}/><span><TechnicalIcon icon={candidate.representationIcon} text={candidate.name}/><b>{candidate.name}</b><small>{normalizeProvider(candidate.provider)}</small></span></label>)}</div>
