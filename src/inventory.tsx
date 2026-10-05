@@ -1272,7 +1272,11 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   const globalLowStock=useMemo(()=>stock.filter(item=>item.quantity>0&&(item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)),[stock])
   const conflictPrograms=useMemo(()=>programs.filter(program=>programHasStockShortage(program,programs,stock)),[programs,stock])
   const nonReturnedPrograms=useMemo(()=>programs.filter(program=>program.items.some(item=>item.quantity>0&&item.loaded&&!item.returned)),[programs])
-  const upcomingPrograms=useMemo(()=>programs.filter(program=>program.date).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6),[programs])
+  const upcomingPrograms=useMemo(()=>{
+    const today=new Date().toISOString().slice(0,10)
+    const future=programs.filter(program=>program.date&&program.date>=today).sort((a,b)=>a.date.localeCompare(b.date))
+    return (future.length?future:programs.filter(program=>program.date).sort((a,b)=>b.date.localeCompare(a.date))).slice(0,6)
+  },[programs])
 
   const globalStock=useMemo(()=>{
     const map=new Map<string,{category:InventoryCategory;name:string;total:number;providers:{provider:string;quantity:number;status:InventoryStockStatus;id:string}[]}>()
@@ -1702,6 +1706,8 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
   const [exportOpen,setExportOpen]=useState(false)
   const [confirmDelete,setConfirmDelete]=useState(false)
   const [draggedMaterialId,setDraggedMaterialId]=useState('')
+  const [collapsedProgramGroups,setCollapsedProgramGroups]=useState<Record<string,boolean>>({})
+  const [sourcePlan,setSourcePlan]=useState<Array<{itemId:string;stockItemId:string;provider:string;available:number}>>([])
   const [openCategories,setOpenCategories]=useState<Record<InventoryCategory,boolean>>(Object.fromEntries(DEFAULT_CATEGORY_ORDER.map(category=>[category,true])))
   const [stockPickerCategories,setStockPickerCategories]=useState<Record<InventoryCategory,boolean>>(Object.fromEntries(DEFAULT_CATEGORY_ORDER.map((category,index)=>[category,index===0])))
 
@@ -1756,8 +1762,11 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
   const categoryOrder=useMemo(()=>Array.from(new Set([...categories.map(item=>item.id),...stock.map(item=>item.category),...items.map(item=>item.category)])),[categories,stock,items])
   const selectedItems=useMemo(()=>items.filter(item=>item.quantity>0).sort((a,b)=>(a.listOrder??Number.MAX_SAFE_INTEGER)-(b.listOrder??Number.MAX_SAFE_INTEGER)),[items])
   const totalQuantity=useMemo(()=>selectedItems.reduce((sum,item)=>sum+item.quantity,0),[selectedItems])
-  const loadedCount=useMemo(()=>selectedItems.filter(item=>item.loaded).length,[selectedItems])
-  const returnedCount=useMemo(()=>selectedItems.filter(item=>item.returned).length,[selectedItems])
+  const loadedCount=useMemo(()=>selectedItems.filter(item=>item.checkState==='loaded'||item.checkState==='onsite'||item.checkState==='returned'||item.loaded).length,[selectedItems])
+  const returnedCount=useMemo(()=>selectedItems.filter(item=>item.checkState==='returned'||item.returned).length,[selectedItems])
+  const readyCount=useMemo(()=>selectedItems.filter(item=>['loaded','onsite','returned'].includes(item.checkState??'')||item.loaded||item.returned).length,[selectedItems])
+  const checklistProgress=selectedItems.length?Math.round(readyCount/selectedItems.length*100):0
+  const programGroupNames=useMemo(()=>Array.from(new Set(selectedItems.map(item=>(item.visualGroup??'').trim()).filter(Boolean))),[selectedItems])
 
   const stockFor=(item:InventoryMaterial)=>item.stockItemId?stock.find(value=>value.id===item.stockItemId):undefined
   const availableFor=(item:InventoryMaterial)=>{
@@ -1810,7 +1819,8 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
       quantity:nextQuantity,
       listOrder:nextQuantity>0&&item.quantity<=0?maxOrder+1:item.listOrder,
       loaded:nextQuantity>0?item.loaded:false,
-      returned:nextQuantity>0?item.returned:false
+      returned:nextQuantity>0?item.returned:false,
+      checkState:nextQuantity>0?(item.checkState??(item.returned?'returned':item.loaded?'loaded':'prepare')):'prepare'
     }:item)
     void persist({items:next})
   }
@@ -1922,8 +1932,8 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
     if(!target)return
     const next=items.map(item=>{
       if(item.id!==id)return item
-      if(field==='loaded')return {...item,loaded:checked,returned:checked?item.returned:false}
-      return {...item,returned:checked,loaded:checked?true:item.loaded}
+      if(field==='loaded')return {...item,loaded:checked,returned:checked?item.returned:false,checkState:checked?'loaded':'prepare' as InventoryChecklistState}
+      return {...item,returned:checked,loaded:checked?true:item.loaded,checkState:checked?'returned':(item.loaded?'loaded':'prepare') as InventoryChecklistState}
     })
     await persist({items:next})
     await logActivity('complete',field==='loaded'?(checked?'Matériel chargé':'Chargement annulé'):(checked?'Matériel retourné':'Retour annulé'),target.name,{
@@ -1931,15 +1941,81 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
     })
   }
 
+  const setChecklistStage=async(id:string,checkState:InventoryChecklistState)=>{
+    if(!program)return
+    const target=items.find(item=>item.id===id)
+    if(!target)return
+    const loaded=['loaded','onsite','returned'].includes(checkState)
+    const returned=checkState==='returned'
+    await persist({items:items.map(item=>item.id===id?{...item,checkState,loaded,returned}:item)})
+    await logActivity('complete','Check-list matériel',target.name+' · '+({prepare:'À préparer',loaded:'Chargé',onsite:'Sur place',returned:'Retourné',problem:'Problème'} as Record<InventoryChecklistState,string>)[checkState],{
+      source:'inventory',inventoryProgramId:program.id,inventoryStockItemId:target.stockItemId
+    })
+  }
+
   const markAllChecklist=async(field:'loaded'|'returned',checked:boolean)=>{
     if(!program)return
     const next=items.map(item=>item.quantity>0?(
-      field==='loaded'?{...item,loaded:checked,returned:checked?item.returned:false}:{...item,returned:checked,loaded:checked?true:item.loaded}
+      field==='loaded'
+        ?{...item,loaded:checked,returned:checked?item.returned:false,checkState:(checked?'loaded':'prepare') as InventoryChecklistState}
+        :{...item,returned:checked,loaded:checked?true:item.loaded,checkState:(checked?'returned':(item.loaded?'loaded':'prepare')) as InventoryChecklistState}
     ):item)
     await persist({items:next})
     await logActivity('complete',field==='loaded'?(checked?'Programme chargé':'Chargement réinitialisé'):(checked?'Programme retourné':'Retours réinitialisés'),program.name,{
       source:'inventory',inventoryProgramId:program.id
     })
+  }
+
+  const resetChecklist=async()=>{
+    if(!program)return
+    await persist({items:items.map(item=>item.quantity>0?{...item,loaded:false,returned:false,checkState:'prepare' as InventoryChecklistState}:item)})
+    await logActivity('update','Check-list réinitialisée',program.name,{source:'inventory',inventoryProgramId:program.id})
+  }
+
+  const prepareSourceOptimization=()=>{
+    if(!program||!missingItems.length){setSourcePlan([]);toast('Aucun manque à optimiser.');return}
+    const candidatesByItem=new Map<string,InventoryStockItem[]>()
+    for(const item of missingItems){
+      const same=stock.filter(candidate=>
+        candidate.category===item.category&&
+        candidate.name.trim().toLowerCase()===item.name.trim().toLowerCase()&&
+        effectiveStockQuantity(candidate,program,programs)>0
+      )
+      candidatesByItem.set(item.id,same)
+    }
+    const providerScore=new Map<string,number>()
+    for(const candidates of candidatesByItem.values()){
+      for(const provider of new Set(candidates.map(candidate=>normalizeProvider(candidate.provider)))){
+        providerScore.set(provider,(providerScore.get(provider)??0)+1)
+      }
+    }
+    const providerRank=Array.from(providerScore.entries()).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'fr')).map(([provider])=>provider)
+    const plan:Array<{itemId:string;stockItemId:string;provider:string;available:number}>=[]
+    for(const item of missingItems){
+      const candidates=[...(candidatesByItem.get(item.id)??[])].sort((a,b)=>{
+        const rankA=providerRank.indexOf(normalizeProvider(a.provider)),rankB=providerRank.indexOf(normalizeProvider(b.provider))
+        if(rankA!==rankB)return rankA-rankB
+        return effectiveStockQuantity(b,program,programs)-effectiveStockQuantity(a,program,programs)
+      })
+      const chosen=candidates[0]
+      if(chosen)plan.push({itemId:item.id,stockItemId:chosen.id,provider:normalizeProvider(chosen.provider),available:effectiveStockQuantity(chosen,program,programs)})
+    }
+    setSourcePlan(plan)
+    if(!plan.length)toast('Aucune source alternative disponible.')
+  }
+
+  const applySourcePlan=async()=>{
+    if(!program||!sourcePlan.length)return
+    const byItem=new Map(sourcePlan.map(plan=>[plan.itemId,plan]))
+    const next=items.map(item=>{
+      const plan=byItem.get(item.id)
+      if(!plan)return item
+      const source=stock.find(candidate=>candidate.id===plan.stockItemId)
+      return source?{...item,stockItemId:source.id,name:source.name,category:source.category}:item
+    })
+    await persist({items:next})
+    setSourcePlan([])
+    toast('Proposition de sources appliquée.')
   }
 
   const removeProgram=async()=>{
@@ -2414,9 +2490,13 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
         <button className="bare-action danger-icon" aria-label="Supprimer le programme" onClick={()=>setConfirmDelete(true)}><Trash2/></button>
       </div>
     </section>
-    <div className="program-section-tabs panel">
-      <button className={programView==='materials'?'active':''} onClick={()=>setProgramView('materials')}><Boxes/><span>Matériels</span></button>
-      {advancedInstallationAvailable&&<button className={programView==='installation'?'active':''} onClick={()=>{setProgramView('installation');setInstallationOpen(true)}}><Network/><span>Installation avancée</span></button>}
+    <div className="program-section-tabs panel" aria-label="Sections du programme">
+      <button className={overviewOpen?'active':''} onClick={()=>{setProgramView('materials');setOverviewOpen(value=>!value);setChecklistOpen(false);setMissingOnly(false)}}><Eye/><span>Aperçu</span></button>
+      <button className={programView==='materials'&&!overviewOpen&&!checklistOpen&&!missingOnly?'active':''} onClick={()=>{setProgramView('materials');setOverviewOpen(false);setChecklistOpen(false);setMissingOnly(false)}}><Boxes/><span>Matériel</span></button>
+      <button className={checklistOpen?'active':''} onClick={()=>{setProgramView('materials');setOverviewOpen(false);setChecklistOpen(true);setMissingOnly(false)}}><ClipboardCheck/><span>Check-list</span></button>
+      {advancedInstallationAvailable&&<button className={programView==='installation'?'active':''} onClick={()=>{setProgramView('installation');setInstallationOpen(true);setOverviewOpen(false);setChecklistOpen(false);setMissingOnly(false)}}><Network/><span>Installation</span></button>}
+      <button className={missingOnly?'active':''} onClick={()=>{setProgramView('materials');setOverviewOpen(false);setChecklistOpen(false);setMissingOnly(true)}}><PackageSearch/><span>Besoins</span></button>
+      <button onClick={()=>setExportOpen(true)}><ImageDown/><span>Export</span></button>
     </div>
 
     {overviewOpen&&<section className="panel inventory-overview">
@@ -2729,6 +2809,20 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
 
       {missingOnly&&<div className="inventory-missing-panel">
         <div className="inventory-alert-head"><PackageSearch/><span><b>Matériel à trouver</b><small>{missingItems.length?missingItems.length+' référence'+(missingItems.length>1?'s':'')+' à compléter':'Tout le matériel est couvert.'}</small></span></div>
+        <div className="inventory-needs-summary">
+          <span><small>Références</small><b>{selectedItems.length}</b></span>
+          <span><small>Manquantes</small><b>{missingItems.length}</b></span>
+          <span><small>Stockages</small><b>{stockProviders.length}</b></span>
+          <span><small>Conflits</small><b>{conflictReservations.length}</b></span>
+        </div>
+        <div className="source-optimizer">
+          <button className="secondary" disabled={!missingItems.length} onClick={prepareSourceOptimization}><Zap/>Optimiser les sources</button>
+          <small>Proposition uniquement : DI’ART privilégie les prestataires capables de couvrir le plus de besoins.</small>
+        </div>
+        {sourcePlan.length>0&&<div className="source-plan">
+          {sourcePlan.map(plan=>{const item=items.find(value=>value.id===plan.itemId);return <div className="source-plan-row" key={plan.itemId}><span><b>{item?.name??'Matériel'}</b><small>{plan.provider}</small></span><span>Dispo {plan.available}</span><span>Besoin {item?.quantity??0}</span></div>})}
+          <div className="source-plan-actions"><button className="secondary" onClick={()=>setSourcePlan([])}>Annuler</button><button className="primary" onClick={()=>void applySourcePlan()}><Check/>Appliquer la proposition</button></div>
+        </div>}
         {missingItems.map(item=>{
           const source=stockFor(item)
           const available=availableFor(item)
@@ -2744,14 +2838,21 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
 
       {checklistOpen&&<div className="inventory-checklist-panel">
         <div className="checklist-head">
-          <span><b>Check-list événement</b><small>{loadedCount}/{selectedItems.length} chargés · {returnedCount}/{selectedItems.length} retournés</small></span>
-          <div><button className="secondary" onClick={()=>void markAllChecklist('loaded',true)}><Check/>Tout chargé</button><button className="secondary" onClick={()=>void markAllChecklist('returned',true)}><Check/>Tout retourné</button></div>
+          <span><b>Check-list événement</b><small>{loadedCount}/{selectedItems.length} préparés ou chargés · {returnedCount}/{selectedItems.length} retournés</small></span>
+          <div><button className="secondary" onClick={()=>void markAllChecklist('loaded',true)}><Check/>Tout chargé</button><button className="secondary" onClick={()=>void markAllChecklist('returned',true)}><Check/>Tout retourné</button><button className="secondary" onClick={()=>void resetChecklist()}><RotateCcw/>Réinitialiser</button></div>
         </div>
-        {selectedItems.map(item=><div className="checklist-row" key={item.id}>
-          <span><b>{item.name}</b><small>× {item.quantity}{stockFor(item)?' · '+normalizeProvider(stockFor(item)?.provider):''}</small></span>
-          <label className={item.loaded?'checked':''}><input type="checkbox" checked={Boolean(item.loaded)} onChange={e=>void setChecklistState(item.id,'loaded',e.target.checked)}/><span><Check/>Chargé</span></label>
-          <label className={item.returned?'checked':''}><input type="checkbox" checked={Boolean(item.returned)} onChange={e=>void setChecklistState(item.id,'returned',e.target.checked)}/><span><Check/>Retourné</span></label>
-        </div>)}
+        <div className="checklist-progress-card"><span><b>{readyCount} / {selectedItems.length} matériels prêts</b><small>Progression de préparation du programme</small></span><strong>{checklistProgress} %</strong><span className="inventory-progress"><i style={{width:checklistProgress+'%'}}/></span></div>
+        {selectedItems.map(item=>{
+          const state:InventoryChecklistState=item.checkState??(item.returned?'returned':item.loaded?'loaded':'prepare')
+          return <div className="checklist-row" key={item.id}>
+            <span><b>{item.name}</b><small>× {item.quantity}{stockFor(item)?' · '+normalizeProvider(stockFor(item)?.provider):''}</small></span>
+            <select className={'check-state-select state-'+state} value={state} onChange={e=>void setChecklistStage(item.id,e.target.value as InventoryChecklistState)} aria-label={'État de '+item.name}>
+              <option value="prepare">À préparer</option><option value="loaded">Chargé</option><option value="onsite">Sur place</option><option value="returned">Retourné</option><option value="problem">Problème</option>
+            </select>
+            <label className={item.loaded?'checked':''}><input type="checkbox" checked={Boolean(item.loaded)} onChange={e=>void setChecklistState(item.id,'loaded',e.target.checked)}/><span><Check/>Chargé</span></label>
+            <label className={item.returned?'checked':''}><input type="checkbox" checked={Boolean(item.returned)} onChange={e=>void setChecklistState(item.id,'returned',e.target.checked)}/><span><Check/>Retourné</span></label>
+          </div>
+        })}
       </div>}
 
       <div className="stock-zone-label selected"><span>DANS CET INVENTAIRE</span><small>{missingOnly?'Affichage des éléments à compléter uniquement':'Quantités prévues pour le programme'}</small></div>
@@ -2765,21 +2866,30 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
         <div className="program-order-head"><span><b>ORDRE PERSONNALISÉ</b><small>Regroupez librement les éléments, même s’ils appartiennent à des catégories différentes.</small></span><small>Glisser · ↑ ↓ · position</small></div>
         {selectedItems.map((item,index)=>{
           const source=stockFor(item)
-          return <div className={'program-order-row '+(draggedMaterialId===item.id?'dragging':'')} key={item.id} draggable
-            onDragStart={event=>{setDraggedMaterialId(item.id);event.dataTransfer.effectAllowed='move'}}
-            onDragEnd={()=>setDraggedMaterialId('')}
-            onDragOver={event=>{event.preventDefault();event.dataTransfer.dropEffect='move'}}
-            onDrop={event=>{event.preventDefault();if(draggedMaterialId&&draggedMaterialId!==item.id)reorderSelected(draggedMaterialId,index);setDraggedMaterialId('')}}>
-            <span className="program-order-grip" title="Glisser pour déplacer" aria-hidden="true">⋮⋮</span>
-            <span className="program-order-name"><b>{item.name}</b><small>{categoryLabel(item.category,categories)}{source?' · '+normalizeProvider(source.provider):''}</small></span>
-            <strong>× {item.quantity}</strong>
-            <div className="program-order-actions">
-              <button type="button" disabled={index===0} onClick={()=>reorderSelected(item.id,index-1)} aria-label={'Monter '+item.name}>↑</button>
-              <button type="button" disabled={index===selectedItems.length-1} onClick={()=>reorderSelected(item.id,index+1)} aria-label={'Descendre '+item.name}>↓</button>
-              <label title="Changer directement la position"><span>Position</span><select value={index+1} onChange={event=>reorderSelected(item.id,Number(event.target.value)-1)}>{selectedItems.map((_,position)=><option value={position+1} key={position}>{position+1}</option>)}</select></label>
+          const group=(item.visualGroup??'').trim()
+          const previousGroup=index?((selectedItems[index-1].visualGroup??'').trim()):''
+          const collapsed=group?Boolean(collapsedProgramGroups[group]):false
+          const groupCount=group?selectedItems.filter(value=>(value.visualGroup??'').trim()===group).length:0
+          return <div className="program-order-block" key={item.id}>
+            {group&&group!==previousGroup&&<div className="program-visual-group"><button type="button" onClick={()=>setCollapsedProgramGroups(current=>({...current,[group]:!current[group]}))} aria-label={collapsed?'Déplier '+group:'Réduire '+group}>{collapsed?<ChevronRight/>:<ChevronDown/>}</button><b>{group}</b><small>{groupCount} élément{groupCount>1?'s':''}</small></div>}
+            <div className={'program-order-row '+(draggedMaterialId===item.id?'dragging ':'')+(collapsed?'group-collapsed':'')} draggable
+              onDragStart={event=>{setDraggedMaterialId(item.id);event.dataTransfer.effectAllowed='move'}}
+              onDragEnd={()=>setDraggedMaterialId('')}
+              onDragOver={event=>{event.preventDefault();event.dataTransfer.dropEffect='move'}}
+              onDrop={event=>{event.preventDefault();if(draggedMaterialId&&draggedMaterialId!==item.id)reorderSelected(draggedMaterialId,index);setDraggedMaterialId('')}}>
+              <span className="program-order-grip" title="Glisser pour déplacer" aria-hidden="true">⋮⋮</span>
+              <span className="program-order-name"><b>{item.name}</b><small>{categoryLabel(item.category,categories)}{source?' · '+normalizeProvider(source.provider):''}</small></span>
+              <strong>× {item.quantity}</strong>
+              <div className="program-order-actions">
+                <button type="button" disabled={index===0} onClick={()=>reorderSelected(item.id,index-1)} aria-label={'Monter '+item.name}>↑</button>
+                <button type="button" disabled={index===selectedItems.length-1} onClick={()=>reorderSelected(item.id,index+1)} aria-label={'Descendre '+item.name}>↓</button>
+                <label title="Changer directement la position"><span>Position</span><select value={index+1} onChange={event=>reorderSelected(item.id,Number(event.target.value)-1)}>{selectedItems.map((_,position)=><option value={position+1} key={position}>{position+1}</option>)}</select></label>
+                <label className="program-order-group-field" title="Groupe visuel propre à ce programme"><span>Groupe</span><input list="program-visual-groups" value={item.visualGroup??''} onChange={event=>setProgram({...program,items:items.map(value=>value.id===item.id?{...value,visualGroup:event.target.value}:value)})} onBlur={()=>void persist({items:program.items})} placeholder="CHANT, BASSE…"/></label>
+              </div>
             </div>
           </div>
         })}
+        <datalist id="program-visual-groups">{programGroupNames.map(group=><option value={group} key={group}/>)}</datalist>
       </div>}
 
       <div className="stock-zone-label available program-catalog-label"><span>CATALOGUE / AJUSTEMENT</span><small>Les catégories restent disponibles pour ajouter ou modifier les quantités</small></div>
