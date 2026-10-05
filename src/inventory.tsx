@@ -7,6 +7,8 @@ import {
 } from 'lucide-react'
 import { db, logActivity } from './db'
 import { StageEditor } from './stage/StageEditor'
+import { InventoryExportDialog } from './inventory-export'
+import { InventoryStructuredFields } from './inventory-structured'
 import { stockNeeds } from './stage/model'
 import { analyzeInventoryInstallationWithAI } from './cloud'
 import type {
@@ -1391,6 +1393,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                       <label className="span2"><span>Notes</span><input value={techDraft.notes??''} onChange={e=>setTechDraft({...techDraft,notes:e.target.value})} placeholder="Référence, usage, remarques…"/></label>
                     </div>
                   </div>
+                  <InventoryStructuredFields item={techDraft} onChange={setTechDraft}/>
                   <div className="stock-tech-section">
                     <div className="stock-tech-section-head"><b>Caractéristiques</b><button className="secondary" onClick={()=>setTechDraft({...techDraft,characteristics:[...(techDraft.characteristics??[]),{id:crypto.randomUUID(),label:'',value:''}]})}><Plus/>Champ</button></div>
                     {(techDraft.characteristics??[]).map((characteristic,index)=><div className="stock-tech-pair stock-tech-pair-with-icon" key={characteristic.id}>
@@ -1500,7 +1503,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
   const [linkLengthMeters,setLinkLengthMeters]=useState('')
   const [aiAnalyzing,setAiAnalyzing]=useState(false)
   const [online,setOnline]=useState(typeof navigator==='undefined'?true:navigator.onLine)
-  const [exporting,setExporting]=useState(false)
+  const [exportOpen,setExportOpen]=useState(false)
   const [confirmDelete,setConfirmDelete]=useState(false)
   const [openCategories,setOpenCategories]=useState<Record<InventoryCategory,boolean>>(Object.fromEntries(DEFAULT_CATEGORY_ORDER.map(category=>[category,true])))
   const [stockPickerCategories,setStockPickerCategories]=useState<Record<InventoryCategory,boolean>>(Object.fromEntries(DEFAULT_CATEGORY_ORDER.map((category,index)=>[category,index===0])))
@@ -2154,6 +2157,29 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
     toast(suggestion.name+' ajouté au programme.')
   }
 
+  const createStockFromStage=async(draft:{name:string;category:InventoryCategory;provider?:string;quantity:number}):Promise<InventoryStockItem>=>{
+    const name=draft.name.trim()||'Matériel'
+    const provider=normalizeProvider(draft.provider)
+    const category=draft.category||'instrument'
+    const quantity=Math.max(1,Math.round(draft.quantity)||1)
+    const existing=stock.find(item=>normalizeProvider(item.provider)===provider&&item.category===category&&item.name.trim().toLowerCase()===name.toLowerCase())
+    if(existing){
+      const next={...existing,quantity:existing.quantity+quantity,updatedAt:now()}
+      await db.inventoryStock.update(existing.id,{quantity:next.quantity,updatedAt:next.updatedAt})
+      setStock(items=>items.map(item=>item.id===existing.id?next:item))
+      await logActivity('update','Entrée stock depuis installation',name+' · +'+quantity,{source:'inventory',inventoryStockItemId:existing.id,inventoryProvider:provider,inventoryDelta:quantity})
+      onChanged()
+      return next
+    }
+    const technical=defaultTechnicalProfile(name),stamp=now()
+    const item:InventoryStockItem={id:crypto.randomUUID(),name,category,quantity,provider,status:'available',characteristics:technical.characteristics,ports:technical.ports,notes:'',createdAt:stamp,updatedAt:stamp,deletedAt:null}
+    await db.inventoryStock.add(item)
+    setStock(items=>[...items,item].sort((a,b)=>a.name.localeCompare(b.name,'fr')))
+    await logActivity('create','Matériel créé depuis installation',name+' · '+quantity,{source:'inventory',inventoryStockItemId:item.id,inventoryProvider:provider,inventoryDelta:quantity})
+    onChanged()
+    return item
+  }
+
   if(!program)return <section className="panel inventory-empty"><span>Chargement du programme…</span></section>
 
   return <div className={'inventory-program-page view-'+programView}>
@@ -2172,10 +2198,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
         <button className={'secondary mobile-icon-action '+(overviewOpen?'active':'')} aria-label="Voir" title="Voir" onClick={()=>setOverviewOpen(value=>!value)}><Eye/><span>{overviewOpen?'Fermer la vue':'Voir'}</span></button>
         <button className={'secondary mobile-icon-action '+(program.isPublic?'active':'')} aria-label={program.isPublic?'Rendre personnel':'Rendre public'} title={program.isPublic?'Rendre personnel':'Rendre public'} onClick={()=>void persist({isPublic:!program.isPublic}).then(()=>toast(program.isPublic?'Inventaire repassé en mode personnel.':'Inventaire rendu public.'))}><Globe2/><span>{program.isPublic?'Public':'Rendre public'}</span></button>
         <button className="secondary mobile-icon-action" aria-label="Partager" title="Partager" onClick={onShare}><Share2/><span>Partager</span></button>
-        <button className="secondary mobile-icon-action" aria-label="Exporter" title="Exporter" disabled={exporting} onClick={()=>{
-          setExporting(true)
-          void exportTechnicalSheetImage(program,stock).then(()=>toast('Fiche technique exportée en image.')).catch(error=>toast(error instanceof Error?error.message:'Export impossible.')).finally(()=>setExporting(false))
-        }}><ImageDown/><span>{exporting?'Export…':'Exporter'}</span></button>
+        <button className="secondary mobile-icon-action" aria-label="Exporter" title="Exporter" onClick={()=>setExportOpen(true)}><ImageDown/><span>Exporter</span></button>
         <button className="bare-action danger-icon" aria-label="Supprimer le programme" onClick={()=>setConfirmDelete(true)}><Trash2/></button>
       </div>
     </section>
@@ -2253,7 +2276,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
             <button className="primary" disabled={!installation.nodes.length||installationShortages.length>0} onClick={()=>void reserveInstallation()}><PackageCheck/><span>Réserver</span></button>
           </div>
         </div>
-        {installationView==='schema'&&<StageEditor key={program.id} program={program} stock={stock} onSave={installation=>persist({installation})} onDraftChange={installation=>setProgram(current=>current?{...current,installation}:current)} onCreated={onOpen} onChanged={onChanged} toast={toast} renderIcon={(node,source)=><TechnicalIcon icon={source?.representationIcon} text={node.name+' '+(source?.category??node.category??'')}/>}/>}
+        {installationView==='schema'&&<StageEditor key={program.id} program={program} stock={stock} onSave={installation=>persist({installation})} onDraftChange={installation=>setProgram(current=>current?{...current,installation}:current)} onCreated={onOpen} onChanged={onChanged} onCreateStock={createStockFromStage} toast={toast} renderIcon={(node,source)=><TechnicalIcon icon={source?.representationIcon} text={node.name+' '+(source?.category??node.category??'')}/>}/>}
         {installationView==='list'&&<div className="installation-list-view">{installation.nodes.length?installation.nodes.map((node,index)=>{const source=stockByNode(node.id);const need=node.stockItemId?installationNeeds.find(value=>value.stockItemId===node.stockItemId):undefined;return <article key={node.id}><span>{index+1}</span><div><b>{node.name}</b><small>{node.zone??'Scène'} · {source?normalizeProvider(source.provider)+' · '+categoryLabel(source.category,categories):'Équipement libre'}</small></div>{need&&<em className={need.shortage?'warning':'ok'}>{need.shortage?'manque '+need.shortage:'dispo '+need.available}</em>}</article>}):<div className="installation-empty">Aucun équipement.</div>}</div>}
         {installationView==='patch'&&<div className="installation-patch-view">{installation.links.length?installation.links.map((link,index)=>{const from=installation.nodes.find(node=>node.id===link.fromNodeId),to=installation.nodes.find(node=>node.id===link.toNodeId);const kind=link.kind??installationLinkKind(link,program,stock);return <article key={link.id}><span>{index+1}</span><b>{link.assignedChannel||'Auto'}</b><div>{from?.name??'?'} <em>→</em> {to?.name??'?'}</div><small>{kind}{link.lengthMeters?' · '+link.lengthMeters+' m':''}</small></article>}):<div className="installation-empty">Aucune liaison dans le patch.</div>}</div>}
         {installationView==='diagnostic'&&<div className="installation-diagnostic-view"><div className="installation-diagnostic-picker"><label>Équipement à diagnostiquer<select value={diagnosticNodeId} onChange={e=>setDiagnosticNodeId(e.target.value)}><option value="">Choisir…</option>{installation.nodes.map(node=><option value={node.id} key={node.id}>{node.name}</option>)}</select></label></div>{diagnosticNodeId&&<><div className="diagnostic-chain">{diagnosticChain.map((id,index)=>{const node=installation.nodes.find(value=>value.id===id);return <span key={id}><b>{node?.name??'?'}</b>{index<diagnosticChain.length-1&&<ChevronRight/>}</span>})}</div><div className="diagnostic-findings">{installation.links.filter(link=>diagnosticChain.includes(link.fromNodeId)&&diagnosticChain.includes(link.toNodeId)&&(link.compatibility==='warning'||(link.compatibilityNotes?.length??0)>0)).map(link=><div key={link.id}><AlertTriangle/><span>{link.compatibilityNotes?.join(' · ')||'Liaison à vérifier'}</span></div>)}{!installation.links.some(link=>diagnosticChain.includes(link.fromNodeId)&&diagnosticChain.includes(link.toNodeId)&&link.compatibility==='warning')&&<div className="diagnostic-ok"><Check/>Aucune incompatibilité bloquante détectée sur cette chaîne.</div>}</div></>}</div>}
@@ -2561,6 +2584,17 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
         {selectedItems.length?selectedItems.map(item=><div key={item.id}><span><em>{categoryLabel(item.category,categories)}</em>{item.name}{stockFor(item)&&<small>{normalizeProvider(stockFor(item)?.provider)}</small>}</span><b>× {item.quantity}</b></div>):<span className="muted-copy">Aucune quantité renseignée.</span>}
       </div>}
     </section>
+
+    {exportOpen&&<InventoryExportDialog
+      program={program}
+      stock={stock}
+      selectedItems={selectedItems}
+      missingItems={missingItems}
+      availableFor={availableFor}
+      categoryName={category=>categoryLabel(category,categories)}
+      renderIcon={(node,source)=><TechnicalIcon icon={source?.representationIcon} text={node.name+' '+(source?.category??node.category??'')}/>}
+      close={()=>setExportOpen(false)}
+    />}
 
     {confirmDelete&&<div className="inventory-confirm-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setConfirmDelete(false)}}>
       <div className="inventory-confirm panel"><button className="bare-action inventory-confirm-close" onClick={()=>setConfirmDelete(false)}><X/></button><h3>Supprimer ce programme ?</h3><p>Le programme sera retiré de la liste Inventaire.</p><div className="modal-actions"><button className="secondary" onClick={()=>setConfirmDelete(false)}>Annuler</button><button className="danger" onClick={()=>void removeProgram()}><Trash2/>Supprimer</button></div></div>
