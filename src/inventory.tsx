@@ -1400,6 +1400,21 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     await changed()
   }
 
+  const duplicateStock=async(item:InventoryStockItem)=>{
+    const stamp=now()
+    const clone:InventoryStockItem={
+      ...structuredClone(item),
+      id:crypto.randomUUID(),
+      name:item.name+' — copie',
+      quantity:0,
+      units:[],
+      createdAt:stamp,updatedAt:stamp,deletedAt:null
+    }
+    await db.inventoryStock.add(clone)
+    await logActivity('create','Fiche matériel dupliquée',clone.name,{source:'inventory',inventoryStockItemId:clone.id,inventoryProvider:normalizeProvider(clone.provider)})
+    await changed();toast('Fiche matériel dupliquée.')
+  }
+
   const deleteStock=async(item:InventoryStockItem)=>{
     await db.inventoryStock.update(item.id,{deletedAt:now(),updatedAt:now()})
     await logActivity('delete','Matériel retiré',item.name+' · '+item.quantity+' u.',{
@@ -1680,7 +1695,19 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                   <button className="bare-action danger-icon compact-delete" aria-label={'Supprimer '+item.name} onClick={()=>void deleteStock(item)}><Trash2/></button>
                 </div>
                 {techDraft?.id===item.id&&<div className="stock-tech-editor inventory-drawer">
-                  <div className="stock-tech-head"><span><b>Caractéristiques · {item.name}</b><small>Décrivez les propriétés et les entrées/sorties utilisables dans les schémas.</small></span><button className="bare-action" onClick={()=>setTechDraft(null)}><X/></button></div>
+                  <div className="stock-tech-head">
+                    <span><b>{techDraft.name||item.name}</b><small>{categoryLabel(techDraft.category,categories)} · {normalizeProvider(techDraft.provider)}{techDraft.storageLocation?' · '+techDraft.storageLocation:''}</small></span>
+                    <div className="stock-tech-head-actions">
+                      <button className="secondary" onClick={()=>void saveTechnicalDraft()}><Save/><span>Enregistrer</span></button>
+                      <button className="secondary" onClick={()=>void duplicateStock(item)}><Copy/><span>Dupliquer</span></button>
+                      <button className="danger" onClick={()=>{setTechDraft(null);void deleteStock(item)}}><Trash2/><span>Supprimer</span></button>
+                      <button className="bare-action" aria-label="Fermer la fiche" onClick={()=>setTechDraft(null)}><X/></button>
+                    </div>
+                  </div>
+                  <details className="stock-item-history">
+                    <summary><History/><span>Historique de cette fiche</span></summary>
+                    <div>{history.filter(entry=>entry.inventoryStockItemId===item.id).slice(0,12).map(entry=><article key={entry.id}><time>{new Date(entry.createdAt).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</time><span><b>{entry.label}</b><small>{entry.details}</small></span></article>)}{!history.some(entry=>entry.inventoryStockItemId===item.id)&&<small>Aucun mouvement enregistré.</small>}</div>
+                  </details>
                   <div className="stock-tech-section stock-general-editor">
                     <div className="stock-tech-section-head"><b>Informations générales</b></div>
                     <div className="stock-general-grid">
