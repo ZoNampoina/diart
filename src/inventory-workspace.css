@@ -70,7 +70,7 @@
 .inventory-workspace-v4 .stock-workspace-metrics b{font-size:18px}
 .stock-filter-toggle{display:flex;align-items:center;gap:7px;min-height:40px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface2);color:var(--muted);font-size:11px;white-space:nowrap}
 .stock-filter-toggle input{min-height:auto;width:15px;height:15px;padding:0}
-.inventory-workspace-v4 .stock-workspace-toolbar{display:grid;grid-template-columns:minmax(230px,1fr) repeat(4,minmax(130px,auto)) auto;gap:8px;align-items:center}
+.inventory-workspace-v4 .stock-workspace-toolbar{display:grid;grid-template-columns:minmax(230px,1fr) repeat(5,minmax(118px,auto)) auto auto;gap:8px;align-items:center}
 .inventory-workspace-v4 .stock-workspace-toolbar .stock-search{min-width:0}
 .inventory-workspace-v4 .stock-workspace-row{min-height:56px;border-radius:10px;border:1px solid transparent;padding:6px 9px;margin:2px 0}
 .inventory-workspace-v4 .stock-workspace-row:hover{background:var(--surface2);border-color:var(--inv-border)}
