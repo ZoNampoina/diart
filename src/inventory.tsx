@@ -1699,7 +1699,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                     <div className="stock-tech-section-head"><span><b>Unités individuelles</b><small>{techDraft.quantity} exemplaire{techDraft.quantity>1?'s':''} actif{techDraft.quantity>1?'s':''} · les anciennes unités restent conservées si la quantité diminue.</small></span></div>
                     <div className="stock-units-list">
                       {Array.from({length:techDraft.quantity},(_,index)=>{
-                        const unit=(techDraft.units??[])[index]??{id:crypto.randomUUID(),label:'#'+String(index+1).padStart(2,'0'),status:techDraft.status??'available',notes:''}
+                        const unit=(techDraft.units??[])[index]??{id:'virtual-'+index,label:'#'+String(index+1).padStart(2,'0'),status:techDraft.status??'available',notes:''}
                         return <div className="stock-unit-row" key={unit.id}>
                           <span>{String(index+1).padStart(2,'0')}</span>
                           <input value={unit.label} onChange={e=>{
