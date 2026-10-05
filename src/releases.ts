@@ -16,12 +16,13 @@ export const DIART_RELEASES:DiartRelease[]=[
       'Navigation locale Vue d’ensemble, Programmes, Stock, Installation et Mouvements, avec dashboard global des disponibilités, alertes et prochains événements.',
       'Stock restructuré avec recherche étendue aux connectiques, filtres par emplacement et stock faible, tris supplémentaires, vues Compacte / Cartes / Tableau et actions groupées.',
       'Actions groupées : état, maintenance, emplacement, stockage, ajout direct à un Programme ou à un kit, export CSV et retrait de la sélection.',
-      'Fiche matériel ouverte en drawer contextuel sur ordinateur et en vue plein écran sur mobile, avec suivi optionnel par unité et état propre à chaque exemplaire.',
+      'Fiche matériel ouverte en drawer contextuel sur ordinateur et en vue plein écran sur mobile, avec actions rapides, historique et suivi optionnel par unité avec état propre à chaque exemplaire.',
+      'Données essentielles structurées pour câbles, instruments, micros, consoles, multiprises et enceintes ; les accessoires habituels sont proposés lors de l’ajout au Programme.',
       'Programme réorganisé autour de sections Aperçu, Matériel, Check-list, Installation, Besoins et Export, avec groupes visuels renommables, repliables et déplaçables.',
       'Check-list opérationnelle à cinq états — à préparer, chargé, sur place, retourné, problème — avec progression, actions globales et compatibilité avec les anciens états chargé/retourné.',
       'Kits éditables, duplicables et ajoutables en quantité ×N, avec aperçu des manques avant affectation au Programme.',
       'Vue Besoins enrichie avec synthèse des manquants et proposition d’optimisation des sources visant à réduire le nombre de prestataires, toujours soumise à validation.',
-      'Historique Mouvements filtrable par recherche, date, stockage et type d’opération.',
+      'Historique Mouvements filtrable par recherche, date, stockage et type d’opération, avec alertes de maintenance prolongée sur le dashboard.',
       'Design system Inventaire responsive pour PC, tablette et mobile, appliqué sans modifier les clés de données historiques ni l’identité visuelle DI’ART.'
     ]
   },
