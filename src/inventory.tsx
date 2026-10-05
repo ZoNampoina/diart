@@ -1803,6 +1803,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
   const [detailsOpen,setDetailsOpen]=useState(false)
   const [summaryOpen,setSummaryOpen]=useState(false)
   const [stockPickerOpen,setStockPickerOpen]=useState(false)
+  const [accessorySuggestion,setAccessorySuggestion]=useState<{sourceName:string;ids:string[]}|null>(null)
   const [kitPanelOpen,setKitPanelOpen]=useState(false)
   const [checklistOpen,setChecklistOpen]=useState(false)
   const [missingOnly,setMissingOnly]=useState(false)
@@ -2026,6 +2027,26 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
     await logActivity('create','Réservation programme',stockItem.name+' · '+program.name,{
       source:'inventory',inventoryProgramId:program.id,inventoryStockItemId:stockItem.id,inventoryProvider:normalizeProvider(stockItem.provider)
     })
+    const accessoryIds=(stockItem.associatedItemIds??[]).filter(id=>stock.some(candidate=>candidate.id===id&&!candidate.deletedAt))
+    if(accessoryIds.length)setAccessorySuggestion({sourceName:stockItem.name,ids:accessoryIds})
+  }
+
+  const addSuggestedAccessories=async()=>{
+    if(!program||!accessorySuggestion)return
+    let next=[...items]
+    let maxOrder=next.reduce((max,item)=>Math.max(max,item.listOrder??-1),-1)
+    let added=0
+    for(const id of accessorySuggestion.ids){
+      const source=stock.find(item=>item.id===id)
+      if(!source||effectiveStockQuantity(source,program,programs)<=0)continue
+      const existing=next.find(item=>item.stockItemId===source.id)
+      if(existing)next=next.map(item=>item.id===existing.id?{...item,quantity:item.quantity+1,returned:false,checkState:'prepare' as InventoryChecklistState}:item)
+      else next.push({id:crypto.randomUUID(),name:source.name,category:source.category,quantity:1,stockItemId:source.id,loaded:false,returned:false,checkState:'prepare',listOrder:++maxOrder})
+      added++
+    }
+    if(added)await persist({items:next})
+    setAccessorySuggestion(null)
+    toast(added?added+' accessoire'+(added>1?'s':'')+' ajouté'+(added>1?'s':'')+'.':'Aucun accessoire habituel disponible.')
   }
 
   const changeSource=(itemId:string,stockItemId:string)=>{
@@ -3069,6 +3090,11 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
             <label className={item.returned?'checked':''}><input type="checkbox" checked={Boolean(item.returned)} onChange={e=>void setChecklistState(item.id,'returned',e.target.checked)}/><span><Check/>Retourné</span></label>
           </div>
         })}
+      </div>}
+
+      {accessorySuggestion&&<div className="program-accessory-suggestion panel">
+        <span><PackagePlus/><span><b>Ajouter aussi les accessoires habituels ?</b><small>{accessorySuggestion.sourceName} · {accessorySuggestion.ids.map(id=>stock.find(item=>item.id===id)?.name).filter(Boolean).join(' · ')}</small></span></span>
+        <div><button className="secondary" onClick={()=>setAccessorySuggestion(null)}>Non</button><button className="primary" onClick={()=>void addSuggestedAccessories()}><Plus/>Ajouter les accessoires</button></div>
       </div>}
 
       <div className="stock-zone-label selected"><span>DANS CET INVENTAIRE</span><small>{missingOnly?'Affichage des éléments à compléter uniquement':'Quantités prévues pour le programme'}</small></div>
