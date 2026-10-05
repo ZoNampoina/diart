@@ -311,11 +311,12 @@ function normalizeProgram(program:InventoryProgram):InventoryProgram{
     endTime:program.endTime??'',
     frequency:program.frequency??'once',
     weekday:program.weekday??(program.date?new Date(program.date+'T00:00:00').getDay():null),
-    items:(program.items??[]).map(item=>({
+    items:(program.items??[]).map((item,index)=>({
       ...item,
       category:normalizeCategory(item.category,item.name),
       loaded:item.loaded??false,
-      returned:item.returned??false
+      returned:item.returned??false,
+      listOrder:Number.isFinite(item.listOrder)?item.listOrder:index
     })),
     installation:{
       ...(program.installation??{nodes:[],links:[]}),
@@ -1505,6 +1506,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
   const [online,setOnline]=useState(typeof navigator==='undefined'?true:navigator.onLine)
   const [exportOpen,setExportOpen]=useState(false)
   const [confirmDelete,setConfirmDelete]=useState(false)
+  const [draggedMaterialId,setDraggedMaterialId]=useState('')
   const [openCategories,setOpenCategories]=useState<Record<InventoryCategory,boolean>>(Object.fromEntries(DEFAULT_CATEGORY_ORDER.map(category=>[category,true])))
   const [stockPickerCategories,setStockPickerCategories]=useState<Record<InventoryCategory,boolean>>(Object.fromEntries(DEFAULT_CATEGORY_ORDER.map((category,index)=>[category,index===0])))
 
@@ -1557,7 +1559,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
     update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update)
   },[])
   const categoryOrder=useMemo(()=>Array.from(new Set([...categories.map(item=>item.id),...stock.map(item=>item.category),...items.map(item=>item.category)])),[categories,stock,items])
-  const selectedItems=useMemo(()=>items.filter(item=>item.quantity>0),[items])
+  const selectedItems=useMemo(()=>items.filter(item=>item.quantity>0).sort((a,b)=>(a.listOrder??Number.MAX_SAFE_INTEGER)-(b.listOrder??Number.MAX_SAFE_INTEGER)),[items])
   const totalQuantity=useMemo(()=>selectedItems.reduce((sum,item)=>sum+item.quantity,0),[selectedItems])
   const loadedCount=useMemo(()=>selectedItems.filter(item=>item.loaded).length,[selectedItems])
   const returnedCount=useMemo(()=>selectedItems.filter(item=>item.returned).length,[selectedItems])
@@ -1606,13 +1608,28 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
   },[overviewGroupMode,selectedItems,stock,categoryOrder,categories])
 
   const setQuantity=(id:string,quantity:number)=>{
+    const nextQuantity=clampQuantity(quantity)
+    const maxOrder=items.reduce((max,item)=>Math.max(max,item.listOrder??-1),-1)
     const next=items.map(item=>item.id===id?{
       ...item,
-      quantity:clampQuantity(quantity),
-      loaded:clampQuantity(quantity)>0?item.loaded:false,
-      returned:clampQuantity(quantity)>0?item.returned:false
+      quantity:nextQuantity,
+      listOrder:nextQuantity>0&&item.quantity<=0?maxOrder+1:item.listOrder,
+      loaded:nextQuantity>0?item.loaded:false,
+      returned:nextQuantity>0?item.returned:false
     }:item)
     void persist({items:next})
+  }
+
+  const reorderSelected=(itemId:string,targetIndex:number)=>{
+    const ordered=[...selectedItems]
+    const from=ordered.findIndex(item=>item.id===itemId)
+    if(from<0||!ordered.length)return
+    const to=Math.max(0,Math.min(ordered.length-1,targetIndex))
+    if(from===to)return
+    const [moved]=ordered.splice(from,1)
+    ordered.splice(to,0,moved)
+    const orderById=new Map(ordered.map((item,index)=>[item.id,index]))
+    void persist({items:items.map(item=>orderById.has(item.id)?{...item,listOrder:orderById.get(item.id)}:item)})
   }
 
   const addCustom=()=>{
@@ -2549,6 +2566,28 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
         <button className="primary" disabled={!customName.trim()} onClick={addCustom}><Plus/>Ajouter</button>
       </div>
 
+      {selectedItems.length>0&&<div className="program-order-list" aria-label="Ordre personnalisé du matériel">
+        <div className="program-order-head"><span><b>ORDRE PERSONNALISÉ</b><small>Regroupez librement les éléments, même s’ils appartiennent à des catégories différentes.</small></span><small>Glisser · ↑ ↓ · position</small></div>
+        {selectedItems.map((item,index)=>{
+          const source=stockFor(item)
+          return <div className={'program-order-row '+(draggedMaterialId===item.id?'dragging':'')} key={item.id} draggable
+            onDragStart={event=>{setDraggedMaterialId(item.id);event.dataTransfer.effectAllowed='move'}}
+            onDragEnd={()=>setDraggedMaterialId('')}
+            onDragOver={event=>{event.preventDefault();event.dataTransfer.dropEffect='move'}}
+            onDrop={event=>{event.preventDefault();if(draggedMaterialId&&draggedMaterialId!==item.id)reorderSelected(draggedMaterialId,index);setDraggedMaterialId('')}}>
+            <span className="program-order-grip" title="Glisser pour déplacer" aria-hidden="true">⋮⋮</span>
+            <span className="program-order-name"><b>{item.name}</b><small>{categoryLabel(item.category,categories)}{source?' · '+normalizeProvider(source.provider):''}</small></span>
+            <strong>× {item.quantity}</strong>
+            <div className="program-order-actions">
+              <button type="button" disabled={index===0} onClick={()=>reorderSelected(item.id,index-1)} aria-label={'Monter '+item.name}>↑</button>
+              <button type="button" disabled={index===selectedItems.length-1} onClick={()=>reorderSelected(item.id,index+1)} aria-label={'Descendre '+item.name}>↓</button>
+              <label title="Changer directement la position"><span>Position</span><select value={index+1} onChange={event=>reorderSelected(item.id,Number(event.target.value)-1)}>{selectedItems.map((_,position)=><option value={position+1} key={position}>{position+1}</option>)}</select></label>
+            </div>
+          </div>
+        })}
+      </div>}
+
+      <div className="stock-zone-label available program-catalog-label"><span>CATALOGUE / AJUSTEMENT</span><small>Les catégories restent disponibles pour ajouter ou modifier les quantités</small></div>
       <div className="inventory-category-stack planned-material-list">
         {categoryOrder.map(category=>{
           const baseGroup=items.filter(item=>normalizeCategory(item.category,item.name)===category)

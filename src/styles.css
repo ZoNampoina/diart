@@ -10294,6 +10294,69 @@ button.stage-next-song{font:inherit;text-align:left;color:inherit}
 }
 .planned-material-list .program-material-row.active{background:color-mix(in srgb,var(--accent) 9%,transparent)}
 
+.program-order-list{
+  display:grid;
+  gap:4px;
+  margin:7px 0 9px;
+  padding:6px;
+  border:1px solid color-mix(in srgb,var(--accent2) 32%,var(--line));
+  border-radius:11px;
+  background:color-mix(in srgb,var(--accent2) 4%,var(--surface));
+}
+.program-order-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:5px 6px 7px;
+  color:var(--muted);
+}
+.program-order-head>span{min-width:0}
+.program-order-head b{display:block;font-size:10px;color:var(--accent2);letter-spacing:.06em}
+.program-order-head small{font-size:9px}
+.program-order-head>span small{display:block;margin-top:2px;letter-spacing:0}
+.program-order-row{
+  display:grid;
+  grid-template-columns:28px minmax(0,1fr) 54px minmax(220px,auto);
+  align-items:center;
+  gap:7px;
+  min-height:46px;
+  padding:4px 6px;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:var(--surface);
+  transition:opacity .15s ease,border-color .15s ease,background .15s ease;
+}
+.program-order-row.dragging{opacity:.5;border-color:var(--accent2);background:var(--surface2)}
+.program-order-grip{
+  width:28px;height:34px;display:grid;place-items:center;
+  border-radius:7px;color:var(--muted);font-weight:900;letter-spacing:-3px;
+  cursor:grab;user-select:none;touch-action:manipulation;
+}
+.program-order-grip:active{cursor:grabbing}
+.program-order-name{display:grid;gap:2px;min-width:0}
+.program-order-name b{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.program-order-name small{font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.program-order-row>strong{font-size:11px;color:var(--accent2);text-align:center;white-space:nowrap}
+.program-order-actions{display:flex;align-items:center;justify-content:flex-end;gap:4px}
+.program-order-actions>button{
+  width:34px;height:34px;min-height:34px;padding:0;
+  border:1px solid var(--line);border-radius:8px;background:var(--surface2);color:var(--text);
+}
+.program-order-actions>button:disabled{opacity:.3}
+.program-order-actions label{display:flex;align-items:center;gap:5px;font-size:9px;color:var(--muted)}
+.program-order-actions select{width:58px;min-height:34px!important;padding:4px 6px!important;font-size:11px!important}
+.program-catalog-label{margin-top:10px}
+@media(max-width:640px){
+  .program-order-head>small{display:none}
+  .program-order-row{grid-template-columns:24px minmax(0,1fr) 38px auto;gap:4px;padding:4px}
+  .program-order-grip{width:24px}
+  .program-order-actions{gap:2px}
+  .program-order-actions>button{width:32px;height:34px}
+  .program-order-actions label span{display:none}
+  .program-order-actions select{width:50px}
+}
+
 .inventory-overview{
   margin-top:10px;
   padding:16px!important;
