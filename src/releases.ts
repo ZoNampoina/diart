@@ -8,6 +8,18 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'3.8.1',
+    date:'5 octobre 2026',
+    title:'Ordre personnalisé de l’inventaire',
+    summary:'Le matériel d’un Programme peut désormais être réorganisé librement pour placer côte à côte les éléments qui doivent fonctionner ensemble.',
+    highlights:[
+      'Ordre transversal indépendant des catégories : micro, pied, câble et accessoires peuvent être regroupés dans la même séquence.',
+      'Glisser-déposer sur ordinateur, boutons haut / bas et choix direct du numéro de position pour mobile et tablette.',
+      'Ordre enregistré dans chaque Programme sans modifier l’organisation générale du stock.',
+      'Aperçu, check-list et export de fiche technique reprennent automatiquement cet ordre personnalisé.'
+    ]
+  },
+  {
     version:'3.8.0',
     date:'5 octobre 2026',
     title:'Inventaire personnalisé & matériel structuré',
