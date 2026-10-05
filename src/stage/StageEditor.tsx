@@ -1,5 +1,5 @@
 import { useEffect,useRef,useState } from 'react'
-import { Plus,X,Copy,Trash2,Lock,ArrowUpToLine,ArrowDownToLine } from 'lucide-react'
+import { Plus,X,Copy,Trash2,Lock,ArrowUpToLine,ArrowDownToLine,PackagePlus } from 'lucide-react'
 import type { InstallationLink,InstallationNode,InventoryProgram,InventoryStockItem } from '../types'
 import { clone,clamp,expandGroups,groupSelection,selectionPlan,insertBlock,duplicateSelection,fmt,geometry,layers,layerName,linkLocked,metrics,nodeLayer,nodeLocked,uid,visible,type Plan,type Point } from './model'
 import { useStageDocument } from './useStageDocument'
@@ -17,7 +17,7 @@ import { inferIllustration,objectById } from './catalog'
 import type { IconRenderer } from './StageScene'
 import './stage.css'
 
-type Props={program:InventoryProgram;stock:InventoryStockItem[];onSave:(plan:Plan)=>Promise<void>;onDraftChange:(plan:Plan)=>void;onCreated:(id:string)=>void;onChanged:()=>void;toast:(message:string)=>void;renderIcon:IconRenderer}
+type Props={program:InventoryProgram;stock:InventoryStockItem[];onSave:(plan:Plan)=>Promise<void>;onDraftChange:(plan:Plan)=>void;onCreated:(id:string)=>void;onChanged:()=>void;onCreateStock?:(draft:{name:string;category:string;provider?:string;quantity:number})=>Promise<InventoryStockItem>;toast:(message:string)=>void;renderIcon:IconRenderer}
 export function StageEditor(p:Props){
   const doc=useStageDocument(p.program.installation??{nodes:[],links:[]},p.onSave,p.onDraftChange),plan=doc.plan,m=metrics(plan)
   const root=useRef<HTMLDivElement>(null),clipboard=useRef<Plan|null>(null)
@@ -25,6 +25,7 @@ export function StageEditor(p:Props){
   const [showLayers,setShowLayers]=useState(false),[showInspector,setShowInspector]=useState(()=>window.innerWidth>=1100),[fullscreen,setFullscreen]=useState(false)
   const [view,setView]=useState<View>({x:30,y:30,zoom:1}),[fitToken,setFitToken]=useState(0),[cursor,setCursor]=useState<Point>({x:0,y:0})
   const [dialog,setDialog]=useState(''),[picker,setPicker]=useState(false),[query,setQuery]=useState(''),[provider,setProvider]=useState(''),[chosenStock,setChosenStock]=useState(''),[freeName,setFreeName]=useState('')
+  const [freeCategory,setFreeCategory]=useState('instrument'),[freeQuantity,setFreeQuantity]=useState(1),[creatingStock,setCreatingStock]=useState(false)
   const [library,setLibrary]=useState(false),[pendingObject,setPendingObject]=useState<LibraryChoice|null>(null),[calibration,setCalibration]=useState<Point[]|null>(null),[knownDistance,setKnownDistance]=useState(5)
   const [menu,setMenu]=useState<MenuTarget|null>(null),[connectFrom,setConnectFrom]=useState('')
   useEffect(()=>{setSelected(ids=>ids.filter(id=>plan.nodes.some(n=>n.id===id)));if(linkId&&!plan.links.some(l=>l.id===linkId))setLinkId('')},[plan.nodes,plan.links])
@@ -127,7 +128,27 @@ export function StageEditor(p:Props){
       {showLayers&&<LayerPanel plan={plan} active={activeLayer} setActive={setActiveLayer} commit={commit} close={()=>setShowLayers(false)}/>}
       <StageViewport doc={doc} stock={p.stock} renderIcon={p.renderIcon} tool={tool} selected={selected} setSelected={select} linkId={linkId} setLinkId={selectLink} view={view} setView={setView} fitToken={fitToken} onPlace={place} onCable={cable} connectFrom={connectFrom} onMenu={setMenu} onCursor={setCursor} onDropItem={point=>place(point)} onCalibration={points=>{setCalibration(points);setTool('select')}}/>
       {showInspector&&<PropertiesInspector plan={plan} stock={p.stock} selected={selected} linkId={linkId} commit={commit} duplicate={duplicate} remove={remove} close={()=>setShowInspector(false)} open={open}/>}
-      {picker&&<div className="stage-equipment-picker"><div className="stage-panel-heading"><b>Ajouter sur le plan</b><ToolButton label="Fermer le choix de matériel" onClick={()=>setPicker(false)}><X/></ToolButton></div><input aria-label="Rechercher un matériel" placeholder="Rechercher dans le stock…" value={query} onChange={e=>setQuery(e.target.value)}/><select aria-label="Prestataire du matériel" value={provider} onChange={e=>setProvider(e.target.value)}><option value="">Tous les prestataires</option>{providers.map(v=><option key={v}>{v}</option>)}</select><div className="stage-picker-list">{p.stock.filter(s=>!s.deletedAt&&(tool!=='accessory'||s.category==='accessoire')&&(!provider||(s.provider??'Mon stock')===provider)&&s.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())).map(s=><button key={s.id} onClick={()=>{setChosenStock(s.id);setFreeName('');setPicker(false);setTool(tool==='accessory'?'accessory':'equipment');p.toast(s.name+' : cliquez sur la scène pour le placer.')}}><ObjectThumbnail id={inferIllustration({id:s.id,name:s.name},s)}/><div><b>{s.name}</b><small>{s.provider??'Mon stock'} · stock {s.quantity}</small></div><Plus/></button>)}</div><form onSubmit={e=>{e.preventDefault();if(freeName.trim()){setChosenStock('');setTool(tool==='accessory'?'accessory':'equipment');setPicker(false)}}}><input aria-label="Nom de l’équipement libre" placeholder="Équipement libre…" value={freeName} onChange={e=>setFreeName(e.target.value)}/><button disabled={!freeName.trim()} aria-label="Placer un équipement libre"><Plus/></button></form></div>}
+      {picker&&<div className="stage-equipment-picker"><div className="stage-panel-heading"><b>Ajouter sur le plan</b><ToolButton label="Fermer le choix de matériel" onClick={()=>setPicker(false)}><X/></ToolButton></div><input aria-label="Rechercher un matériel" placeholder="Rechercher dans le stock…" value={query} onChange={e=>setQuery(e.target.value)}/><select aria-label="Prestataire du matériel" value={provider} onChange={e=>setProvider(e.target.value)}><option value="">Tous les prestataires</option>{providers.map(v=><option key={v}>{v}</option>)}</select><div className="stage-picker-list">{p.stock.filter(s=>!s.deletedAt&&(tool!=='accessory'||s.category==='accessoire')&&(!provider||(s.provider??'Mon stock')===provider)&&s.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())).map(s=><button key={s.id} onClick={()=>{setChosenStock(s.id);setFreeName('');setPicker(false);setTool(tool==='accessory'?'accessory':'equipment');p.toast(s.name+' : cliquez sur la scène pour le placer.')}}><ObjectThumbnail id={inferIllustration({id:s.id,name:s.name},s)}/><div><b>{s.name}</b><small>{s.provider??'Mon stock'} · stock {s.quantity}</small></div><Plus/></button>)}</div><div className="stage-free-stock">
+        <form onSubmit={e=>{e.preventDefault();if(freeName.trim()){setChosenStock('');setTool(tool==='accessory'?'accessory':'equipment');setPicker(false)}}}>
+          <input aria-label="Nom de l’équipement libre" placeholder="Équipement libre…" value={freeName} onChange={e=>setFreeName(e.target.value)}/>
+          <button disabled={!freeName.trim()} aria-label="Placer un équipement libre" title="Placer sans ajouter au stock"><Plus/></button>
+        </form>
+        {p.onCreateStock&&<div className="stage-free-stock-create">
+          <select aria-label="Catégorie du nouveau matériel" value={freeCategory} onChange={e=>setFreeCategory(e.target.value)}>
+            <option value="cable">Câble</option><option value="prise">Prise / alimentation</option><option value="instrument">Instrument</option><option value="adaptateur">Adaptateur</option><option value="accessoire">Accessoire</option>
+          </select>
+          <input aria-label="Quantité du nouveau matériel" type="number" min="1" max="999" value={freeQuantity} onChange={e=>setFreeQuantity(Math.max(1,Number(e.target.value)||1))}/>
+          <button type="button" className="stage-wide-button" disabled={!freeName.trim()||creatingStock} onClick={async()=>{
+            if(!p.onCreateStock||!freeName.trim())return
+            setCreatingStock(true)
+            try{
+              const created=await p.onCreateStock({name:freeName.trim(),category:freeCategory,provider:provider||'Mon stock',quantity:freeQuantity})
+              setChosenStock(created.id);setFreeName('');setPicker(false);setTool(created.category==='accessoire'?'accessory':'equipment')
+              p.toast(created.name+' ajouté au stock · cliquez sur la scène pour le placer.')
+            }catch{p.toast('Création du matériel impossible.')}finally{setCreatingStock(false)}
+          }}><PackagePlus/>{creatingStock?'Création…':'Créer dans le stock'}</button>
+        </div>}
+      </div></div>}
     </div>
     <footer className="stage-status"><span>{fmt(m.metersW)} × {fmt(m.metersH)} m</span><span>{fmt(m.ppm)} px/m</span><span>Zoom {Math.round(view.zoom*100)} %</span><span>1 carreau = {fmt(plan.gridStep??1)} m</span><span>Snap {plan.snapStep?fmt(plan.snapStep)+' m':'inactif'}</span><span className="stage-cursor">X {fmt(cursor.x/m.ppm)} · Y {fmt(cursor.y/m.ppm)} m</span><span>{selected.length+(linkId?1:0)} sélectionné(s)</span></footer>
     {menu&&<><div className="stage-menu-dismiss" onPointerDown={()=>setMenu(null)}/><div role="menu" className="stage-context-menu" style={{left:Math.max(8,Math.min(menu.x,window.innerWidth-248)),top:Math.max(8,Math.min(menu.y,window.innerHeight-440))}}>
