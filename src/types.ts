@@ -154,6 +154,8 @@ export interface InventoryMaterial {
   stockItemId?: string
   loaded?: boolean
   returned?: boolean
+  /** Position personnalisée dans la liste du programme (indépendante de la catégorie). */
+  listOrder?: number
 }
 
 export interface InventoryStockItem {
