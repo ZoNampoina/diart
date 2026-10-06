@@ -1680,3 +1680,140 @@
     padding-bottom:calc(12px + env(safe-area-inset-bottom))!important;
   }
 }
+
+
+/* DI'ART 4.2.0 — full-screen settings + dedicated program sections */
+
+/* Settings icon opens a true full-screen workspace, without locking the application body. */
+.stock-tech-editor.inventory-drawer,
+.inventory-workspace-v4 .stock-tech-editor{
+  position:fixed!important;
+  inset:18px!important;
+  top:18px!important;
+  right:18px!important;
+  bottom:18px!important;
+  left:18px!important;
+  width:auto!important;
+  max-width:none!important;
+  z-index:132!important;
+  border-radius:18px!important;
+  box-shadow:0 0 0 100vmax rgba(4,16,21,.54),0 24px 80px rgba(0,0,0,.32)!important;
+}
+.inventory-workspace-v4 .stock-tech-head{
+  padding:14px 18px!important;
+}
+.inventory-workspace-v4 .stock-tech-scroll{
+  padding:4px 6px 16px!important;
+}
+.inventory-workspace-v4 .stock-tech-scroll>.stock-tech-overview,
+.inventory-workspace-v4 .stock-tech-scroll>.stock-tech-launchers,
+.inventory-workspace-v4 .stock-tech-scroll>.stock-item-history,
+.inventory-workspace-v4 .stock-tech-scroll>.stock-tech-section,
+.inventory-workspace-v4 .stock-tech-scroll>.stock-related-editor{
+  max-width:1180px;
+  width:calc(100% - 32px);
+  margin-left:auto!important;
+  margin-right:auto!important;
+}
+.inventory-workspace-v4 .stock-tech-scroll>.stock-tech-overview{margin-top:14px!important}
+.inventory-workspace-v4 .stock-tech-editor>.stock-tech-actions{
+  padding:11px 18px!important;
+}
+@media(max-width:700px){
+  .stock-tech-editor.inventory-drawer,
+  .inventory-workspace-v4 .stock-tech-editor{
+    inset:0!important;
+    border-radius:0!important;
+  }
+}
+
+/* Program navigation is exclusive: every menu owns only its relevant content. */
+.inventory-program-page.section-overview>.installation-advanced-panel,
+.inventory-program-page.section-overview>.inventory-conflict-panel,
+.inventory-program-page.section-overview>.inventory-material-panel,
+.inventory-program-page.section-overview>.technical-summary,
+.inventory-program-page.section-overview>.inventory-export-page{display:none!important}
+
+.inventory-program-page.section-materials>.inventory-overview,
+.inventory-program-page.section-materials>.collapsible-program-details,
+.inventory-program-page.section-materials>.installation-advanced-panel,
+.inventory-program-page.section-materials>.inventory-conflict-panel,
+.inventory-program-page.section-materials>.technical-summary,
+.inventory-program-page.section-materials>.inventory-export-page{display:none!important}
+.inventory-program-page.section-materials .inventory-missing-panel,
+.inventory-program-page.section-materials .inventory-checklist-panel,
+.inventory-program-page.section-materials .program-order-list{display:none!important}
+
+.inventory-program-page.section-checklist>.inventory-overview,
+.inventory-program-page.section-checklist>.collapsible-program-details,
+.inventory-program-page.section-checklist>.installation-advanced-panel,
+.inventory-program-page.section-checklist>.inventory-conflict-panel,
+.inventory-program-page.section-checklist>.technical-summary,
+.inventory-program-page.section-checklist>.inventory-export-page{display:none!important}
+.inventory-program-page.section-checklist .inventory-material-toolbar,
+.inventory-program-page.section-checklist .stock-picker,
+.inventory-program-page.section-checklist .inventory-kit-panel,
+.inventory-program-page.section-checklist .inventory-missing-panel,
+.inventory-program-page.section-checklist .program-accessory-suggestion,
+.inventory-program-page.section-checklist .stock-zone-label,
+.inventory-program-page.section-checklist .material-add-row,
+.inventory-program-page.section-checklist .program-order-list,
+.inventory-program-page.section-checklist .program-catalog-label,
+.inventory-program-page.section-checklist .planned-material-list{display:none!important}
+
+.inventory-program-page.section-needs>.inventory-overview,
+.inventory-program-page.section-needs>.collapsible-program-details,
+.inventory-program-page.section-needs>.installation-advanced-panel,
+.inventory-program-page.section-needs>.technical-summary,
+.inventory-program-page.section-needs>.inventory-export-page{display:none!important}
+.inventory-program-page.section-needs .inventory-material-toolbar,
+.inventory-program-page.section-needs .stock-picker,
+.inventory-program-page.section-needs .inventory-kit-panel,
+.inventory-program-page.section-needs .inventory-checklist-panel,
+.inventory-program-page.section-needs .program-accessory-suggestion,
+.inventory-program-page.section-needs .stock-zone-label,
+.inventory-program-page.section-needs .material-add-row,
+.inventory-program-page.section-needs .program-order-list,
+.inventory-program-page.section-needs .program-catalog-label,
+.inventory-program-page.section-needs .planned-material-list{display:none!important}
+
+.inventory-program-page.section-order>.inventory-overview,
+.inventory-program-page.section-order>.collapsible-program-details,
+.inventory-program-page.section-order>.installation-advanced-panel,
+.inventory-program-page.section-order>.inventory-conflict-panel,
+.inventory-program-page.section-order>.technical-summary,
+.inventory-program-page.section-order>.inventory-export-page{display:none!important}
+.inventory-program-page.section-order .inventory-material-toolbar,
+.inventory-program-page.section-order .stock-picker,
+.inventory-program-page.section-order .inventory-kit-panel,
+.inventory-program-page.section-order .inventory-missing-panel,
+.inventory-program-page.section-order .inventory-checklist-panel,
+.inventory-program-page.section-order .program-accessory-suggestion,
+.inventory-program-page.section-order .stock-zone-label,
+.inventory-program-page.section-order .material-add-row,
+.inventory-program-page.section-order .program-catalog-label,
+.inventory-program-page.section-order .planned-material-list{display:none!important}
+
+.inventory-program-page.section-installation>.inventory-overview,
+.inventory-program-page.section-installation>.collapsible-program-details,
+.inventory-program-page.section-installation>.inventory-conflict-panel,
+.inventory-program-page.section-installation>.inventory-material-panel,
+.inventory-program-page.section-installation>.technical-summary,
+.inventory-program-page.section-installation>.inventory-export-page{display:none!important}
+
+.inventory-program-page.section-export>.inventory-overview,
+.inventory-program-page.section-export>.collapsible-program-details,
+.inventory-program-page.section-export>.installation-advanced-panel,
+.inventory-program-page.section-export>.inventory-conflict-panel,
+.inventory-program-page.section-export>.inventory-material-panel,
+.inventory-program-page.section-export>.technical-summary{display:none!important}
+
+/* Legacy technical summary is intentionally removed from the program workflow. */
+.inventory-program-page>.technical-summary{display:none!important}
+
+.program-section-tabs{
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+.program-section-tabs::-webkit-scrollbar{display:none}
+.program-section-tabs button{white-space:nowrap}
