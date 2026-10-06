@@ -107,12 +107,11 @@ function materialVariantLabel(item:InventoryStockItem):string{
   if(preferred.length)return preferred.join(' · ')
   const family=materialFamilyName(item)
   if(normalizedMaterialText(family)!==normalizedMaterialText(item.name)){
-    const escapedFamily=family.replace(/[.*+?^$()|[\]\\]/g,'\\function normalizeProvider(value:unknown):string{
-  const provider=String(value??'').trim()
-  return provider||DEFAULT_PROVIDER
-}')
-    const rest=item.name.replace(new RegExp(escapedFamily,'i'),'').replace(/^[\s–—_-]+/,'').trim()
-    if(rest)return rest
+    const familyIndex=normalizedMaterialText(item.name).indexOf(normalizedMaterialText(family))
+    if(familyIndex===0){
+      const rest=item.name.slice(family.length).replace(/^[\s–—_-]+/,'').trim()
+      if(rest)return rest
+    }
   }
   return normalizeProvider(item.provider)
 }
