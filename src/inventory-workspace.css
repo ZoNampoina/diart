@@ -2373,3 +2373,164 @@ body>.stock-tech-editor.inventory-drawer .inventory-category-settings{
     grid-template-columns:1fr!important;
   }
 }
+
+
+/* DI'ART 4.3.0 — material families, variants, linked updates */
+
+.technical-icon-picker-title{
+  display:flex!important;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.technical-icon-picker-title>span{display:grid;gap:2px;min-width:0}
+.technical-icon-picker-escape{
+  min-height:30px!important;
+  height:30px!important;
+  padding:0 7px!important;
+  border:1px solid var(--inv-border)!important;
+  border-radius:7px!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:5px!important;
+  background:var(--surface2)!important;
+  color:var(--muted)!important;
+  font-size:9px!important;
+  white-space:nowrap;
+}
+.technical-icon-picker-escape kbd{
+  min-width:34px;
+  padding:2px 5px;
+  border:1px solid var(--inv-border);
+  border-bottom-width:2px;
+  border-radius:5px;
+  background:var(--surface);
+  color:var(--text);
+  font-family:inherit;
+  font-size:9px;
+  text-align:center;
+}
+
+/* Parent family summary */
+.inventory-workspace-v4 .stock-family-summary{
+  min-height:52px;
+  margin:7px 7px 2px;
+  padding:7px 9px;
+  display:grid;
+  grid-template-columns:34px minmax(150px,1fr) auto auto minmax(220px,1.4fr);
+  gap:9px;
+  align-items:center;
+  border:1px solid color-mix(in srgb,var(--accent2) 28%,var(--inv-border));
+  border-radius:11px;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--accent2) 7%,var(--surface2)),var(--surface2));
+}
+.stock-family-icon{
+  width:34px;height:34px;border-radius:9px;
+  display:grid;place-items:center;
+  background:var(--surface);
+  color:var(--accent2);
+  border:1px solid var(--inv-border);
+}
+.stock-family-icon svg{width:17px;height:17px}
+.stock-family-title{min-width:0}
+.stock-family-title b{
+  display:block;
+  font-size:12px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.stock-family-title small{display:block;margin-top:2px;font-size:9px;color:var(--muted)}
+.stock-family-total{
+  min-width:58px;
+  display:grid;
+  justify-items:center;
+  gap:1px;
+  padding:4px 7px;
+  border-left:1px solid var(--inv-border);
+}
+.stock-family-total small{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.stock-family-total b{font-size:13px;font-variant-numeric:tabular-nums}
+.stock-family-total.available b{color:var(--accent2)}
+.stock-family-variants{
+  min-width:0;
+  display:flex;
+  justify-content:flex-end;
+  gap:5px;
+  flex-wrap:wrap;
+}
+.stock-family-variants>span{
+  max-width:180px;
+  min-height:27px;
+  padding:4px 7px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  border:1px solid var(--inv-border);
+  border-radius:999px;
+  background:var(--surface);
+}
+.stock-family-variants em{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-style:normal;
+  font-size:9px;
+  color:var(--muted);
+}
+.stock-family-variants b{
+  flex:none;
+  min-width:17px;
+  height:17px;
+  padding:0 4px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  background:var(--surface3);
+  font-size:9px;
+}
+
+/* Variant rows visually belong to the family. */
+.inventory-workspace-v4 .stock-family-child{
+  margin-left:24px;
+  position:relative;
+}
+.inventory-workspace-v4 .stock-family-child::before{
+  content:'';
+  position:absolute;
+  left:-12px;
+  top:0;
+  bottom:0;
+  width:1px;
+  background:var(--inv-border);
+}
+.inventory-workspace-v4 .stock-family-child .stock-workspace-row{
+  border-left:0!important;
+}
+.stock-variant-label{
+  color:var(--accent2);
+  font-weight:800;
+}
+
+@media(max-width:980px){
+  .inventory-workspace-v4 .stock-family-summary{
+    grid-template-columns:34px minmax(130px,1fr) auto auto;
+  }
+  .stock-family-variants{
+    grid-column:1/-1;
+    justify-content:flex-start;
+    padding-left:43px;
+  }
+}
+@media(max-width:620px){
+  .inventory-workspace-v4 .stock-family-summary{
+    grid-template-columns:30px minmax(0,1fr) auto;
+    gap:7px;
+    margin-inline:2px;
+  }
+  .stock-family-total.available{display:none}
+  .stock-family-variants{padding-left:37px}
+  .inventory-workspace-v4 .stock-family-child{margin-left:12px}
+  .technical-icon-picker-escape span{display:none}
+}
