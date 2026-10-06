@@ -437,3 +437,430 @@
   .stock-selection-head{align-items:flex-start}
   .stock-selection-head>span{text-align:right}
 }
+
+
+/* DI'ART 4.1.1 — Cards + guided technical editor */
+
+/* --- Vue Cartes : vraie carte de parc --- */
+.stock-card-specs{display:none}
+.inventory-workspace-v4 .stock-layout-cards{
+  padding:0!important;
+  background:transparent;
+}
+.inventory-workspace-v4 .stock-layout-cards .inventory-category{
+  border:0;
+  background:transparent;
+  overflow:visible;
+}
+.inventory-workspace-v4 .stock-layout-cards .inventory-category-head{
+  margin:8px 0 6px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  padding-inline:2px;
+}
+.inventory-workspace-v4 .stock-layout-cards .inventory-category-head b{
+  font-size:11px;
+  letter-spacing:.07em;
+}
+.inventory-workspace-v4 .stock-layout-cards .inventory-category-body{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  gap:10px;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-item-wrap{
+  border:1px solid var(--inv-border);
+  border-radius:14px;
+  overflow:hidden;
+  background:var(--surface);
+  box-shadow:0 8px 24px rgba(0,0,0,.055);
+  transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-item-wrap:hover{
+  transform:translateY(-1px);
+  border-color:color-mix(in srgb,var(--accent2) 32%,var(--line));
+  box-shadow:0 12px 32px rgba(0,0,0,.085);
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-workspace-row{
+  min-height:220px;
+  padding:13px!important;
+  border:0!important;
+  display:grid;
+  grid-template-columns:26px 52px minmax(0,1fr) 32px!important;
+  grid-template-rows:auto auto auto 1fr auto;
+  grid-template-areas:
+    "select icon name edit"
+    ". icon avail delete"
+    "spec spec spec spec"
+    "spec spec spec spec"
+    "status status qty qty"!important;
+  gap:8px 9px;
+  align-items:center;
+  background:transparent!important;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-workspace-row.selected{
+  border-left:0;
+  box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent2) 55%,transparent);
+  border-radius:13px;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-select-control{grid-area:select;align-self:start}
+.inventory-workspace-v4 .stock-layout-cards .stock-representation-icon{
+  grid-area:icon;
+  width:52px;
+  height:52px;
+  align-self:start;
+  border-radius:14px;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--accent2) 12%,var(--surface2)),var(--surface2));
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-representation-icon .technical-icon{width:31px;height:31px}
+.inventory-workspace-v4 .stock-layout-cards .stock-main-label{grid-area:name;align-self:start;padding-top:1px}
+.inventory-workspace-v4 .stock-layout-cards .stock-main-label b{font-size:14px;line-height:1.25}
+.inventory-workspace-v4 .stock-layout-cards .stock-main-label small{
+  margin-top:4px;
+  font-size:9px;
+  white-space:normal;
+  line-height:1.35;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-availability{
+  grid-area:avail;
+  justify-self:start;
+  justify-items:start;
+  align-self:end;
+  padding:4px 7px;
+  border-radius:8px;
+  background:var(--surface2);
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-availability small{font-size:7px}
+.inventory-workspace-v4 .stock-layout-cards .stock-availability b{font-size:12px}
+.inventory-workspace-v4 .stock-layout-cards .stock-card-specs{
+  grid-area:spec;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:6px;
+  align-self:stretch;
+  margin-top:3px;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-card-specs>span{
+  min-width:0;
+  min-height:45px;
+  display:grid;
+  grid-template-columns:20px minmax(0,1fr);
+  grid-template-rows:auto auto;
+  column-gap:6px;
+  align-items:center;
+  padding:7px 8px;
+  border:1px solid color-mix(in srgb,var(--line) 70%,transparent);
+  border-radius:9px;
+  background:color-mix(in srgb,var(--surface2) 78%,transparent);
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-card-specs .technical-icon{
+  grid-row:1/3;
+  width:18px;height:18px;
+  color:var(--accent2);
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-card-specs em{
+  min-width:0;
+  font-style:normal;
+  font-size:7px;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:.055em;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-card-specs b{
+  min-width:0;
+  font-size:9px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-card-specs>span.port{
+  background:color-mix(in srgb,var(--accent2) 5%,var(--surface2));
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-card-specs>span.empty{
+  grid-column:1/-1;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-status-control,
+.inventory-workspace-v4 .stock-layout-cards .stock-unit-status-summary{
+  grid-area:status;
+  justify-self:start;
+  align-self:end;
+}
+.inventory-workspace-v4 .stock-layout-cards .compact-qty{
+  grid-area:qty;
+  justify-self:end;
+  align-self:end;
+  grid-template-columns:30px 54px 30px!important;
+}
+.inventory-workspace-v4 .stock-layout-cards .tech-action{grid-area:edit;align-self:start}
+.inventory-workspace-v4 .stock-layout-cards .compact-delete{grid-area:delete;align-self:end}
+.inventory-workspace-v4 .stock-layout-cards .stock-tech-editor{grid-column:1/-1}
+
+/* --- Drawer technique : lecture guidée --- */
+.inventory-workspace-v4 .stock-tech-editor{
+  width:min(680px,calc(100vw - 300px));
+  padding:0;
+  gap:0;
+}
+.inventory-workspace-v4 .stock-tech-head{
+  top:0;
+  margin:0;
+  padding:14px 16px 12px;
+  border-bottom:1px solid var(--inv-border);
+  background:color-mix(in srgb,var(--surface) 97%,transparent);
+}
+.inventory-workspace-v4 .stock-tech-head>span b{font-size:15px}
+.inventory-workspace-v4 .stock-tech-head>span small{font-size:9px;margin-top:3px}
+.inventory-workspace-v4 .stock-tech-overview{
+  display:grid;
+  grid-template-columns:48px minmax(0,1fr) auto;
+  gap:10px;
+  align-items:center;
+  margin:14px 16px 8px;
+  padding:11px;
+  border:1px solid var(--inv-border);
+  border-radius:12px;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--accent2) 6%,var(--surface2)),var(--surface2));
+}
+.stock-tech-overview-icon{
+  width:48px;height:48px;border-radius:12px;
+  display:grid;place-items:center;
+  color:var(--accent2);
+  background:var(--surface);
+  border:1px solid var(--inv-border);
+}
+.stock-tech-overview-icon .technical-icon{width:28px;height:28px}
+.stock-tech-overview>div b{display:block;font-size:13px}
+.stock-tech-overview>div small{display:block;margin-top:3px;color:var(--muted);font-size:9px}
+.stock-tech-health{
+  padding:5px 8px;border-radius:999px;font-size:8px;font-weight:800;white-space:nowrap
+}
+.stock-tech-health.ready{color:#5ba57d;background:color-mix(in srgb,#5ba57d 10%,transparent)}
+.stock-tech-health.empty{color:#c58d47;background:color-mix(in srgb,#c58d47 10%,transparent)}
+
+.stock-tech-nav{
+  position:sticky;
+  top:64px;
+  z-index:3;
+  display:flex;
+  gap:4px;
+  margin:0;
+  padding:6px 16px;
+  overflow-x:auto;
+  scrollbar-width:none;
+  border-bottom:1px solid var(--inv-border);
+  background:color-mix(in srgb,var(--surface) 96%,transparent);
+  backdrop-filter:blur(12px);
+}
+.stock-tech-nav::-webkit-scrollbar{display:none}
+.stock-tech-nav button{
+  min-height:31px;
+  padding:0 9px;
+  border:0;
+  border-radius:8px;
+  display:flex;
+  align-items:center;
+  gap:5px;
+  background:transparent;
+  color:var(--muted);
+  font-size:9px;
+  font-weight:780;
+  white-space:nowrap;
+}
+.stock-tech-nav button:hover{background:var(--surface2);color:var(--text)}
+.stock-tech-nav button span{
+  min-width:17px;padding:1px 5px;border-radius:999px;background:var(--surface3);font-size:8px
+}
+
+.inventory-workspace-v4 .stock-tech-editor>.stock-item-history,
+.inventory-workspace-v4 .stock-tech-editor>.stock-tech-section,
+.inventory-workspace-v4 .stock-tech-editor>.stock-related-editor,
+.inventory-workspace-v4 .stock-tech-editor>.stock-tech-actions{
+  margin-left:16px;
+  margin-right:16px;
+}
+.inventory-workspace-v4 .stock-tech-editor>.stock-item-history{margin-top:9px}
+.inventory-workspace-v4 .stock-tech-editor>.stock-tech-section{margin-top:10px}
+.inventory-workspace-v4 .stock-tech-editor>.stock-related-editor{margin-top:10px}
+.inventory-workspace-v4 .stock-tech-editor>.stock-tech-actions{
+  position:sticky;
+  bottom:0;
+  z-index:4;
+  margin:14px 0 0;
+  padding:10px 16px 14px;
+  border-top:1px solid var(--inv-border);
+  background:color-mix(in srgb,var(--surface) 96%,transparent);
+  backdrop-filter:blur(12px);
+}
+
+.inventory-workspace-v4 .stock-guided-section{
+  scroll-margin-top:110px;
+  padding:12px;
+  border:1px solid var(--inv-border);
+  background:var(--surface2);
+}
+.stock-tech-section-head.guided{align-items:flex-start}
+.stock-tech-section-head.guided>span{display:grid;gap:2px}
+.stock-tech-section-head.guided b{font-size:12px}
+.stock-tech-section-head.guided small{font-size:9px;color:var(--muted);font-weight:400}
+.stock-tech-section-head.guided button{min-height:32px!important;height:32px;font-size:9px!important}
+
+.stock-tech-empty-add{
+  width:100%;
+  min-height:62px;
+  padding:9px 11px;
+  border:1px dashed color-mix(in srgb,var(--accent2) 42%,var(--line));
+  border-radius:10px;
+  display:flex;
+  align-items:center;
+  gap:9px;
+  background:color-mix(in srgb,var(--accent2) 4%,var(--surface));
+  color:var(--text);
+  text-align:left;
+}
+.stock-tech-empty-add>svg{width:18px;color:var(--accent2)}
+.stock-tech-empty-add span{display:grid;gap:2px}
+.stock-tech-empty-add b{font-size:10px}
+.stock-tech-empty-add small{font-size:8px;color:var(--muted)}
+
+.stock-tech-card-list{display:grid;gap:8px}
+.stock-tech-card{
+  border:1px solid var(--inv-border);
+  border-radius:11px;
+  background:var(--surface);
+  overflow:hidden;
+}
+.stock-tech-card>header{
+  display:grid;
+  grid-template-columns:34px minmax(0,1fr) 30px;
+  gap:8px;
+  align-items:center;
+  min-height:49px;
+  padding:7px 8px;
+  border-bottom:1px solid var(--inv-border);
+  background:color-mix(in srgb,var(--surface2) 62%,transparent);
+}
+.stock-tech-card-icon{
+  width:34px;height:34px;border-radius:9px;
+  display:grid;place-items:center;
+  color:var(--accent2);
+  background:var(--surface);
+  border:1px solid var(--inv-border);
+}
+.stock-tech-card-icon .technical-icon{width:20px;height:20px}
+.stock-tech-card>header>span:nth-child(2){min-width:0}
+.stock-tech-card>header b{display:block;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stock-tech-card>header small{display:block;margin-top:2px;color:var(--muted);font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stock-tech-card-fields{
+  display:grid;
+  grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr) 130px;
+  gap:7px;
+  padding:9px;
+}
+.stock-tech-card-fields label,
+.stock-port-essential label,
+.stock-port-advanced label{display:grid;gap:4px}
+.stock-tech-card-fields label>span,
+.stock-port-essential label>span,
+.stock-port-advanced label>span{
+  font-size:8px;
+  color:var(--muted);
+  font-weight:720;
+}
+.stock-tech-card-fields input,
+.stock-tech-card-fields select,
+.stock-port-essential input,
+.stock-port-essential select,
+.stock-port-advanced select{
+  min-height:34px!important;
+  height:34px!important;
+  padding:5px 7px!important;
+  font-size:9px!important;
+}
+.stock-tech-icon-choice .stock-icon-picker{min-width:0}
+.stock-tech-icon-choice .stock-icon-preview{width:34px;height:34px;flex:none}
+.stock-tech-icon-choice .stock-icon-preview .technical-icon{width:20px;height:20px}
+
+.stock-port-essential{
+  display:grid;
+  grid-template-columns:minmax(140px,1.5fr) minmax(110px,.8fr) minmax(105px,.8fr) 70px;
+  gap:7px;
+  padding:9px;
+}
+.stock-port-essential label.compact input{text-align:center}
+.stock-port-advanced{
+  margin:0 9px 9px;
+  border:1px solid var(--inv-border);
+  border-radius:9px;
+  overflow:hidden;
+  background:var(--surface2);
+}
+.stock-port-advanced>summary{
+  min-height:36px;
+  padding:0 9px;
+  list-style:none;
+  display:grid;
+  grid-template-columns:16px auto minmax(0,1fr);
+  gap:6px;
+  align-items:center;
+  cursor:pointer;
+  color:var(--muted);
+}
+.stock-port-advanced>summary::-webkit-details-marker{display:none}
+.stock-port-advanced>summary svg{width:14px}
+.stock-port-advanced>summary span{font-size:9px;font-weight:800;color:var(--text)}
+.stock-port-advanced>summary small{text-align:right;font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stock-port-advanced>div{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  padding:9px;
+  border-top:1px solid var(--inv-border);
+}
+.stock-port-switch{
+  min-height:44px;
+  grid-template-columns:18px minmax(0,1fr)!important;
+  align-items:center;
+  padding:7px 8px;
+  border:1px solid var(--inv-border);
+  border-radius:9px;
+  background:var(--surface);
+}
+.stock-port-switch input{width:16px;height:16px;min-height:0!important}
+.stock-port-switch>span{display:grid;gap:1px;color:inherit!important}
+.stock-port-switch b{font-size:9px}
+.stock-port-switch small{font-size:7px;color:var(--muted)}
+.stock-port-advanced .stock-tech-icon-choice{grid-column:1/-1}
+
+@media(max-width:980px){
+  .inventory-workspace-v4 .stock-layout-cards .inventory-category-body{grid-template-columns:repeat(2,minmax(230px,1fr))}
+  .stock-tech-card-fields{grid-template-columns:1fr 1fr}
+  .stock-tech-card-fields .stock-tech-icon-choice{grid-column:1/-1}
+  .stock-port-essential{grid-template-columns:1fr 1fr}
+  .stock-port-essential .wide{grid-column:1/-1}
+}
+@media(max-width:700px){
+  .inventory-workspace-v4 .stock-layout-cards .inventory-category-body{grid-template-columns:1fr}
+  .inventory-workspace-v4 .stock-tech-editor{padding:0}
+  .inventory-workspace-v4 .stock-tech-head{top:0;padding:12px}
+  .inventory-workspace-v4 .stock-tech-overview{margin:10px 12px 6px}
+  .stock-tech-nav{top:61px;padding-inline:12px}
+  .inventory-workspace-v4 .stock-tech-editor>.stock-item-history,
+  .inventory-workspace-v4 .stock-tech-editor>.stock-tech-section,
+  .inventory-workspace-v4 .stock-tech-editor>.stock-related-editor{margin-left:12px;margin-right:12px}
+  .inventory-workspace-v4 .stock-tech-editor>.stock-tech-actions{padding-inline:12px}
+  .stock-tech-card-fields,.stock-port-essential,.stock-port-advanced>div{grid-template-columns:1fr}
+  .stock-tech-card-fields .stock-tech-icon-choice,.stock-port-essential .wide,.stock-port-advanced .stock-tech-icon-choice{grid-column:auto}
+}
+@media(max-width:430px){
+  .inventory-workspace-v4 .stock-layout-cards .stock-workspace-row{
+    min-height:230px;
+    grid-template-columns:24px 46px minmax(0,1fr) 30px!important;
+  }
+  .inventory-workspace-v4 .stock-layout-cards .stock-card-specs{grid-template-columns:1fr}
+  .stock-tech-overview{grid-template-columns:42px minmax(0,1fr)}
+  .stock-tech-health{grid-column:1/-1;justify-self:start}
+  .stock-tech-overview-icon{width:42px;height:42px}
+}
