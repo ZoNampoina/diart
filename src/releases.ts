@@ -8,6 +8,20 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'4.1.1',
+    date:'6 octobre 2026',
+    title:'Cards & Technical Editor',
+    summary:'La vue Cartes devient réellement visuelle et la fiche technique est réorganisée pour guider la saisie des caractéristiques et connectiques.',
+    highlights:[
+      'Cartes enrichies avec icône principale, disponibilité, état, quantité et aperçu direct des caractéristiques et ports.',
+      'Hiérarchie visuelle des cartes renforcée, hover plus net et meilleure utilisation de l’espace sur desktop, tablette et mobile.',
+      'Fiche technique dotée d’un résumé, d’une navigation par sections et d’indicateurs de complétude.',
+      'Caractéristiques présentées sous forme de cartes lisibles avec libellé, valeur et icône.',
+      'Connectiques présentées par usage, type de connecteur, sens et quantité ; les options audio avancées restent repliées par défaut.',
+      'États vides guidés pour ajouter rapidement la première caractéristique ou la première connectique.'
+    ]
+  },
+  {
     version:'4.1.0',
     date:'6 octobre 2026',
     title:'Stock Workspace Pro',
