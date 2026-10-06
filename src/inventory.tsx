@@ -1219,15 +1219,15 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   useEffect(()=>{void refresh()},[])
   useEffect(()=>{
     if(!techDraft)return
-    const previousOverflow=document.body.style.overflow
-    const previousOverscroll=document.body.style.overscrollBehavior
-    document.body.style.overflow='hidden'
-    document.body.style.overscrollBehavior='none'
-    return ()=>{
-      document.body.style.overflow=previousOverflow
-      document.body.style.overscrollBehavior=previousOverscroll
+    const onKey=(event:KeyboardEvent)=>{
+      if(event.key!=='Escape')return
+      event.preventDefault()
+      if(techPopup){setTechPopup(null);return}
+      setTechDraft(null)
     }
-  },[techDraft])
+    window.addEventListener('keydown',onKey,true)
+    return()=>window.removeEventListener('keydown',onKey,true)
+  },[techDraft,techPopup])
 
   const changed=async()=>{await refresh();onChanged()}
   const providers=useMemo(()=>Array.from(new Set([DEFAULT_PROVIDER,...stock.map(item=>normalizeProvider(item.provider))])).sort((a,b)=>a===DEFAULT_PROVIDER?-1:b===DEFAULT_PROVIDER?1:a.localeCompare(b,'fr')),[stock])
@@ -1314,6 +1314,25 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
       associatedItemIds:[...(item.associatedItemIds??[])],
       units:[...(item.units??[])]
     })
+  }
+
+  const createRelatedStockItem=async(name:string,category:string):Promise<InventoryStockItem>=>{
+    const clean=name.trim()
+    if(!clean)throw new Error('Nom requis')
+    const existing=stock.find(item=>item.category===category&&item.name.trim().toLowerCase()===clean.toLowerCase()&&!item.deletedAt)
+    if(existing)return existing
+    const technical=defaultTechnicalProfile(clean),stamp=now()
+    const created:InventoryStockItem={
+      id:crypto.randomUUID(),name:clean,category,quantity:0,provider:stockProvider,status:'available',
+      characteristics:technical.characteristics,ports:technical.ports,notes:'',representationIcon:'auto',
+      createdAt:stamp,updatedAt:stamp,deletedAt:null
+    }
+    await db.inventoryStock.add(created)
+    setStock(items=>[...items,created].sort((a,b)=>a.name.localeCompare(b.name,'fr')))
+    await logActivity('create','Matériel créé depuis paramètres',clean,{source:'inventory',inventoryStockItemId:created.id,inventoryProvider:stockProvider})
+    onChanged()
+    toast('« '+clean+' » ajouté au catalogue.')
+    return created
   }
 
   const saveTechnicalDraft=async()=>{
@@ -1837,7 +1856,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                       <label className="span2"><span>Notes</span><input value={techDraft.notes??''} onChange={e=>setTechDraft({...techDraft,notes:e.target.value})} placeholder="Référence, usage, remarques…"/></label>
                     </div>
                   </div>
-                  <InventoryStructuredFields item={techDraft} onChange={setTechDraft}/>
+                  <InventoryStructuredFields item={techDraft} onChange={setTechDraft} stock={stock} onCreateRelated={createRelatedStockItem}/>
                   {techDraft.trackUnits&&<div className="stock-tech-section stock-units-editor" id="stock-tech-units">
                     <div className="stock-tech-section-head"><span><b>Unités individuelles</b><small>{techDraft.quantity} exemplaire{techDraft.quantity>1?'s':''} actif{techDraft.quantity>1?'s':''} · les anciennes unités restent conservées si la quantité diminue.</small></span></div>
                     <div className="stock-units-list">
