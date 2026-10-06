@@ -1585,3 +1585,98 @@
     height:44px;
   }
 }
+
+
+/* DI'ART 4.1.5 — independent material drawer scrolling */
+
+/* Drawer owns its scroll; page behind stays fixed while open */
+.stock-tech-editor.inventory-drawer,
+.inventory-workspace-v4 .stock-tech-editor{
+  overflow:hidden!important;
+  display:flex!important;
+  flex-direction:column;
+  min-height:0;
+}
+
+/* Fixed drawer header */
+.inventory-workspace-v4 .stock-tech-head{
+  position:relative!important;
+  top:auto!important;
+  z-index:4;
+  flex:0 0 auto;
+  margin:0!important;
+}
+
+/* Only this region scrolls */
+.inventory-workspace-v4 .stock-tech-scroll{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+  padding:0 2px 4px 0;
+}
+
+/* Reapply section spacing now that sections are wrapped by stock-tech-scroll */
+.inventory-workspace-v4 .stock-tech-scroll>.stock-tech-overview{
+  margin:12px 14px 8px;
+}
+.inventory-workspace-v4 .stock-tech-scroll>.stock-tech-launchers{
+  margin:8px 14px 2px;
+}
+.inventory-workspace-v4 .stock-tech-scroll>.stock-item-history,
+.inventory-workspace-v4 .stock-tech-scroll>.stock-tech-section,
+.inventory-workspace-v4 .stock-tech-scroll>.stock-related-editor{
+  margin-left:14px;
+  margin-right:14px;
+}
+.inventory-workspace-v4 .stock-tech-scroll>.stock-item-history{
+  margin-top:10px;
+}
+.inventory-workspace-v4 .stock-tech-scroll>.stock-tech-section,
+.inventory-workspace-v4 .stock-tech-scroll>.stock-related-editor{
+  margin-top:10px;
+}
+.inventory-workspace-v4 .stock-tech-scroll>*{
+  flex:0 0 auto;
+  height:auto;
+  min-height:0;
+}
+
+/* Fixed action footer */
+.inventory-workspace-v4 .stock-tech-editor>.stock-tech-actions{
+  position:relative!important;
+  bottom:auto!important;
+  z-index:4;
+  flex:0 0 auto;
+  margin:0!important;
+  padding:10px 14px 12px!important;
+  border-top:1px solid var(--inv-border);
+  background:color-mix(in srgb,var(--surface) 98%,transparent);
+  backdrop-filter:blur(12px);
+}
+
+/* Subtle internal scrollbar */
+.inventory-workspace-v4 .stock-tech-scroll::-webkit-scrollbar{width:8px}
+.inventory-workspace-v4 .stock-tech-scroll::-webkit-scrollbar-track{background:transparent}
+.inventory-workspace-v4 .stock-tech-scroll::-webkit-scrollbar-thumb{
+  background:color-mix(in srgb,var(--muted) 35%,transparent);
+  border-radius:999px;
+  border:2px solid transparent;
+  background-clip:padding-box;
+}
+.inventory-workspace-v4 .stock-tech-scroll::-webkit-scrollbar-thumb:hover{
+  background:color-mix(in srgb,var(--muted) 55%,transparent);
+  border:2px solid transparent;
+  background-clip:padding-box;
+}
+
+@media(max-width:700px){
+  .inventory-workspace-v4 .stock-tech-scroll{
+    padding-bottom:calc(8px + env(safe-area-inset-bottom));
+  }
+  .inventory-workspace-v4 .stock-tech-editor>.stock-tech-actions{
+    padding-bottom:calc(12px + env(safe-area-inset-bottom))!important;
+  }
+}
