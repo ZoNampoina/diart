@@ -83,6 +83,45 @@ function normalizeProvider(value:unknown):string{
   return provider||DEFAULT_PROVIDER
 }
 
+const VARIANT_CHARACTERISTIC_LABELS=new Set(['longueur','couleur','poids','hauteur','longueur fil','variante','sous-classe'])
+function normalizedMaterialText(value:string):string{
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ')
+}
+function materialFamilyName(item:InventoryStockItem):string{
+  if(item.familyName?.trim())return item.familyName.trim()
+  let value=item.name.trim()
+  value=value
+    .replace(/\b\d+(?:[.,]\d+)?\s*(?:mm|cm|m)\b/gi,' ')
+    .replace(/\b(?:noir|noire|blanc|blanche|bleu|bleue|rouge|vert|verte|jaune|orange|violet|violette|gris|grise|marron|rose)\b/gi,' ')
+    .replace(/\s*[–—_-]\s*$/g,'')
+    .replace(/\s+/g,' ')
+    .trim()
+  return value||item.name.trim()||'Matériel'
+}
+function materialVariantLabel(item:InventoryStockItem):string{
+  if(item.variantLabel?.trim())return item.variantLabel.trim()
+  const preferred=(item.characteristics??[]).filter(entry=>{
+    const label=normalizedMaterialText(entry.label)
+    return ['longueur','couleur','poids','hauteur','longueur fil'].includes(label)&&entry.value.trim()
+  }).map(entry=>entry.value.trim())
+  if(preferred.length)return preferred.join(' · ')
+  const family=materialFamilyName(item)
+  if(normalizedMaterialText(family)!==normalizedMaterialText(item.name)){
+    const escapedFamily=family.replace(/[.*+?^$()|[\]\\]/g,'\\function normalizeProvider(value:unknown):string{
+  const provider=String(value??'').trim()
+  return provider||DEFAULT_PROVIDER
+}')
+    const rest=item.name.replace(new RegExp(escapedFamily,'i'),'').replace(/^[\s–—_-]+/,'').trim()
+    if(rest)return rest
+  }
+  return normalizeProvider(item.provider)
+}
+function mergeSharedCharacteristics(source:InventoryCharacteristic[],target:InventoryCharacteristic[]):InventoryCharacteristic[]{
+  const preserved=target.filter(entry=>VARIANT_CHARACTERISTIC_LABELS.has(normalizedMaterialText(entry.label)))
+  const shared=source.filter(entry=>!VARIANT_CHARACTERISTIC_LABELS.has(normalizedMaterialText(entry.label)))
+  return [...shared.map(entry=>({...entry,id:crypto.randomUUID()})),...preserved]
+}
+
 function normalizeStockItem(item:InventoryStockItem):InventoryStockItem{
   return {
     ...item,
