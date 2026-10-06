@@ -1816,9 +1816,10 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                     </div>
                   </div>
                   <div className="stock-tech-scroll">
-                  <div className="stock-tech-overview">
-                    <span className="stock-tech-overview-icon"><TechnicalIcon icon={techDraft.representationIcon} text={techDraft.name+' '+techDraft.category}/></span>
-                    <div><b>{techDraft.name||'Matériel'}</b><small>{(techDraft.characteristics??[]).length} caractéristique{(techDraft.characteristics??[]).length>1?'s':''} · {(techDraft.ports??[]).length} port{(techDraft.ports??[]).length>1?'s':''} · {techDraft.quantity} unité{techDraft.quantity>1?'s':''}</small></div>
+                  <div className="stock-tech-summary-strip">
+                    <span><Settings2/><b>{(techDraft.characteristics??[]).length}</b><small>caractéristique{(techDraft.characteristics??[]).length>1?'s':''}</small></span>
+                    <span><Link2/><b>{(techDraft.ports??[]).length}</b><small>port{(techDraft.ports??[]).length>1?'s':''}</small></span>
+                    <span><Boxes/><b>{techDraft.quantity}</b><small>unité{techDraft.quantity>1?'s':''}</small></span>
                     <span className={'stock-tech-health '+((techDraft.characteristics??[]).length||(techDraft.ports??[]).length?'ready':'empty')}>{(techDraft.characteristics??[]).length||(techDraft.ports??[]).length?'Fiche renseignée':'À compléter'}</span>
                   </div>
                   <div className="stock-tech-launchers">
@@ -1979,7 +1980,6 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                       </>})()}
                     </section>
                   </div>}
-                  <div className="stock-tech-actions"><button className="secondary" onClick={()=>{setTechPopup(null);setTechDraft(null)}}>Annuler</button><button className="primary" onClick={()=>void saveTechnicalDraft()}><Save/>Enregistrer</button></div>
                 </div>}
               </div>)}
             </CategorySection>
