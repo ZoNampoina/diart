@@ -239,18 +239,33 @@ function resolvedTechnicalIcon(icon:InventoryTechnicalIcon|undefined,text:string
 function TechnicalIconPicker({value,text='',onChange,compact=false}:{value?:InventoryTechnicalIcon;text?:string;onChange:(value:InventoryTechnicalIcon)=>void;compact?:boolean}){
   const selected=value??'auto'
   const selectedOption=TECH_ICON_OPTIONS.find(option=>option.value===selected)??TECH_ICON_OPTIONS[0]
-  return <details className={'technical-icon-picker '+(compact?'compact':'')}>
+  const detailsRef=useRef<HTMLDetailsElement|null>(null)
+  const [open,setOpen]=useState(false)
+  useEffect(()=>{
+    if(!open)return
+    const onKey=(event:KeyboardEvent)=>{
+      if(event.key!=='Escape')return
+      event.preventDefault()
+      event.stopPropagation()
+      detailsRef.current?.removeAttribute('open')
+      setOpen(false)
+    }
+    window.addEventListener('keydown',onKey,true)
+    return()=>window.removeEventListener('keydown',onKey,true)
+  },[open])
+  const close=()=>{detailsRef.current?.removeAttribute('open');setOpen(false)}
+  return <details ref={detailsRef} className={'technical-icon-picker '+(compact?'compact':'')} onToggle={event=>setOpen(event.currentTarget.open)}>
     <summary title="Choisir une icône">
       <span className="technical-icon-picker-current"><TechnicalIcon icon={selected} text={text}/></span>
       <span className="technical-icon-picker-current-label"><b>{selectedOption.label}</b>{selected==='auto'&&<small>Détection automatique</small>}</span>
       <ChevronDown/>
     </summary>
     <div className="technical-icon-picker-popover">
-      <div className="technical-icon-picker-title"><span><b>Choisir une icône</b><small>{TECH_ICON_OPTIONS.length} représentations disponibles</small></span><button type="button" className="technical-icon-picker-escape" onClick={event=>event.currentTarget.closest('details')?.removeAttribute('open')}><kbd>Échap</kbd><span>Fermer</span></button></div>
+      <div className="technical-icon-picker-title"><span><b>Choisir une icône</b><small>{TECH_ICON_OPTIONS.length} représentations disponibles</small></span><button type="button" className="technical-icon-picker-escape" onClick={close} title="Fermer avec Échap"><kbd>Échap</kbd><span>Fermer</span></button></div>
       <div className="technical-icon-picker-grid">
-        {TECH_ICON_OPTIONS.map(option=><button type="button" key={option.value} className={selected===option.value?'active':''} onClick={event=>{
+        {TECH_ICON_OPTIONS.map(option=><button type="button" key={option.value} className={selected===option.value?'active':''} onClick={()=>{
           onChange(option.value)
-          event.currentTarget.closest('details')?.removeAttribute('open')
+          close()
         }}>
           <span><TechnicalIcon icon={option.value} text={text}/></span>
           <small>{option.label}</small>
@@ -1414,10 +1429,17 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
       JSON.stringify(original.ports??[])!==JSON.stringify(cleanedPorts)||
       (original.representationIcon??'auto')!==(techDraft.representationIcon??'auto')
 
+    const currentFamily=normalizedMaterialText(familyName||materialFamilyName({...techDraft,name:cleanName,characteristics:cleanedCharacteristics}))
     const identical=technicalChanged?stock.filter(item=>
       item.id!==techDraft.id&&
       item.category===techDraft.category&&
       normalizedMaterialText(item.name)===normalizedMaterialText(cleanName)
+    ):[]
+    const familyVariants=technicalChanged?stock.filter(item=>
+      item.id!==techDraft.id&&
+      !identical.some(match=>match.id===item.id)&&
+      item.category===techDraft.category&&
+      normalizedMaterialText(item.familyName?.trim()||materialFamilyName(item))===currentFamily
     ):[]
 
     await db.inventoryStock.update(techDraft.id,{
@@ -1438,30 +1460,34 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
       updatedAt
     })
 
-    if(identical.length){
-      const providers=Array.from(new Set(identical.map(item=>normalizeProvider(item.provider))))
-      const applyToIdentical=window.confirm(
-        'DI’ART a trouvé '+identical.length+' autre'+(identical.length>1?'s':'')+' fiche'+(identical.length>1?'s':'')+
-        ' « '+cleanName+' » dans '+providers.length+' stockage'+(providers.length>1?'s':'')+'.\n\n'+
-        'Appliquer aussi les caractéristiques communes, les connectiques et l’icône ?\n'+
-        'Les variantes comme longueur, couleur, poids ou hauteur seront conservées.'
+    const linkedCandidates=[...identical,...familyVariants]
+    if(linkedCandidates.length){
+      const providers=Array.from(new Set(linkedCandidates.map(item=>normalizeProvider(item.provider))))
+      const variantExamples=familyVariants.slice(0,4).map(item=>materialVariantLabel(item)).filter(Boolean)
+      const applyToLinked=window.confirm(
+        'DI’ART a trouvé '+linkedCandidates.length+' autre'+(linkedCandidates.length>1?'s':'')+' matériel'+(linkedCandidates.length>1?'s':'')+
+        ' lié'+(linkedCandidates.length>1?'s':'')+' à la famille « '+(familyName||materialFamilyName({...techDraft,name:cleanName}))+' » dans '+providers.length+' stockage'+(providers.length>1?'s':'')+'.\n\n'+
+        (identical.length?identical.length+' référence'+(identical.length>1?'s':'')+' strictement identique'+(identical.length>1?'s':'')+'.\n':'')+
+        (familyVariants.length?familyVariants.length+' sous-classe'+(familyVariants.length>1?'s':'')+' / variante'+(familyVariants.length>1?'s':'')+(variantExamples.length?' : '+variantExamples.join(', '):'')+'.\n':'')+
+        '\nAppliquer aussi les caractéristiques communes, les connectiques et l’icône ?\n'+
+        'Longueur, couleur, poids, hauteur et autres informations de variante seront conservés.'
       )
-      if(applyToIdentical){
-        await Promise.all(identical.map(target=>db.inventoryStock.update(target.id,{
+      if(applyToLinked){
+        await Promise.all(linkedCandidates.map(target=>db.inventoryStock.update(target.id,{
           familyName:target.familyName?.trim()||familyName||materialFamilyName({...target,name:cleanName}),
           representationIcon:techDraft.representationIcon??'auto',
           characteristics:mergeSharedCharacteristics(cleanedCharacteristics,target.characteristics??[]),
           ports:cleanedPorts.map(port=>({...port,id:crypto.randomUUID()})),
           updatedAt
         })))
-        await Promise.all(identical.map(target=>logActivity('update','Caractéristiques liées synchronisées',cleanName+' · '+normalizeProvider(target.provider),{
+        await Promise.all(linkedCandidates.map(target=>logActivity('update','Caractéristiques de famille synchronisées',cleanName+' · '+materialVariantLabel(target)+' · '+normalizeProvider(target.provider),{
           source:'inventory',inventoryStockItemId:target.id,inventoryProvider:normalizeProvider(target.provider)
         })))
       }
     }
 
     await logActivity('update','Matériel modifié',cleanName,{source:'inventory',inventoryStockItemId:techDraft.id,inventoryProvider:normalizeProvider(techDraft.provider)})
-    setTechPopup(null);setTechDraft(null);await changed();toast(identical.length?'Matériel modifié. Références identiques vérifiées.':'Matériel modifié.')
+    setTechPopup(null);setTechDraft(null);await changed();toast(linkedCandidates.length?'Matériel modifié. Famille et sous-classes vérifiées.':'Matériel modifié.')
   }
   const stockUnits=stock.reduce((sum,item)=>sum+item.quantity,0)
   const unavailableUnits=stock.reduce((sum,item)=>sum+stockStatusCount(item,'repair')+stockStatusCount(item,'maintenance')+stockStatusCount(item,'unavailable'),0)
