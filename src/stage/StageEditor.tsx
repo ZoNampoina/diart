@@ -17,7 +17,7 @@ import { inferIllustration,objectById } from './catalog'
 import type { IconRenderer } from './StageScene'
 import './stage.css'
 
-type Props={program:InventoryProgram;stock:InventoryStockItem[];onSave:(plan:Plan)=>Promise<void>;onDraftChange:(plan:Plan)=>void;onCreated:(id:string)=>void;onChanged:()=>void;onCreateStock?:(draft:{name:string;category:string;provider?:string;quantity:number})=>Promise<InventoryStockItem>;toast:(message:string)=>void;renderIcon:IconRenderer}
+type Props={program:InventoryProgram;stock:InventoryStockItem[];onSave:(plan:Plan)=>Promise<void>;onDraftChange:(plan:Plan)=>void;onCreated:(id:string)=>void;onChanged:()=>void;onCreateStock?:(draft:{name:string;category:string;provider?:string;quantity:number})=>Promise<InventoryStockItem>;onCreatePort?:(stockItemId:string,direction:'input'|'output'|'bidirectional',connector:string)=>Promise<string>;toast:(message:string)=>void;renderIcon:IconRenderer}
 export function StageEditor(p:Props){
   const doc=useStageDocument(p.program.installation??{nodes:[],links:[]},p.onSave,p.onDraftChange),plan=doc.plan,m=metrics(plan)
   const root=useRef<HTMLDivElement>(null),clipboard=useRef<Plan|null>(null)
@@ -28,6 +28,7 @@ export function StageEditor(p:Props){
   const [freeCategory,setFreeCategory]=useState('instrument'),[freeQuantity,setFreeQuantity]=useState(1),[creatingStock,setCreatingStock]=useState(false)
   const [library,setLibrary]=useState(false),[pendingObject,setPendingObject]=useState<LibraryChoice|null>(null),[calibration,setCalibration]=useState<Point[]|null>(null),[knownDistance,setKnownDistance]=useState(5)
   const [menu,setMenu]=useState<MenuTarget|null>(null),[connectFrom,setConnectFrom]=useState('')
+  const [pendingLink,setPendingLink]=useState<null|{fromNodeId:string;toNodeId:string;kind:InstallationLink['kind'];layerId:string;fromPort:string;toPort:string;fromCustom:string;toCustom:string}>(null)
   useEffect(()=>{setSelected(ids=>ids.filter(id=>plan.nodes.some(n=>n.id===id)));if(linkId&&!plan.links.some(l=>l.id===linkId))setLinkId('')},[plan.nodes,plan.links])
   useEffect(()=>{
     if(!fullscreen)return
@@ -77,13 +78,39 @@ export function StageEditor(p:Props){
     const node:InstallationNode={id:uid(),name,stockItemId:source?.id,category:source?.category,kind:tool==='text'?'text':tool==='zone'?'zone':'equipment',layerId,x:snap(point.x),y:snap(point.y),width,height,rotation:0,appearance:{illustration,labelHorizontal:true,lockAspect:tool!=='text'&&tool!=='zone'},visualOnly:tool==='text'||tool==='zone'}
     commit({...plan,nodes:[...plan.nodes,node],layers:{...plan.layers,[layerId]:true}});setSelected([node.id]);setLinkId('');setTool('select');setPicker(false);if(window.innerWidth>=1100)setShowInspector(true)
   }
+  const nodeStock=(nodeId:string)=>{const node=plan.nodes.find(n=>n.id===nodeId);return node?.stockItemId?p.stock.find(item=>item.id===node.stockItemId):undefined}
+  const outputPorts=(nodeId:string)=>(nodeStock(nodeId)?.ports??[]).filter(port=>port.direction==='output'||port.direction==='bidirectional')
+  const inputPorts=(nodeId:string)=>(nodeStock(nodeId)?.ports??[]).filter(port=>port.direction==='input'||port.direction==='bidirectional')
   const cable=(id:string)=>{
-    if(!connectFrom){setConnectFrom(id);return}if(connectFrom===id){setConnectFrom('');return}
+    if(!connectFrom){setConnectFrom(id);return}
+    if(connectFrom===id){setConnectFrom('');return}
     const kind:InstallationLink['kind']=['audio','power','network','accessory'].includes(tool)?tool as InstallationLink['kind']:'audio',defaultLayer=kind==='audio'?'audio':kind==='power'?'power':kind==='accessory'?'accessories':'connectivity'
     const layerId=activeLayer.startsWith('custom-')?activeLayer:defaultLayer
     if(plan.layerLocks?.[layerId]){p.toast('Ce calque est verrouillé.');return}
-    const link:InstallationLink={id:uid(),fromNodeId:connectFrom,toNodeId:id,kind,layerId,routeMode:'straight'}
-    commit({...plan,links:[...plan.links,link],layers:{...plan.layers,[layerId]:true}});setConnectFrom('');setLinkId(link.id);setSelected([]);setShowInspector(window.innerWidth>=1100)
+    const fromPorts=outputPorts(connectFrom),toPorts=inputPorts(id)
+    setPendingLink({fromNodeId:connectFrom,toNodeId:id,kind,layerId,fromPort:fromPorts[0]?.id??'',toPort:toPorts[0]?.id??'',fromCustom:'',toCustom:''})
+    setConnectFrom('')
+  }
+  const confirmPendingLink=async()=>{
+    if(!pendingLink)return
+    let fromPort=pendingLink.fromPort,toPort=pendingLink.toPort
+    const source=nodeStock(pendingLink.fromNodeId),target=nodeStock(pendingLink.toNodeId)
+    if(!fromPort&&pendingLink.fromCustom.trim()&&source&&p.onCreatePort)fromPort=await p.onCreatePort(source.id,'output',pendingLink.fromCustom.trim())
+    if(!toPort&&pendingLink.toCustom.trim()&&target&&p.onCreatePort)toPort=await p.onCreatePort(target.id,'input',pendingLink.toCustom.trim())
+    const link:InstallationLink={id:uid(),fromNodeId:pendingLink.fromNodeId,toNodeId:pendingLink.toNodeId,kind:pendingLink.kind,layerId:pendingLink.layerId,routeMode:'straight',fromPort:fromPort||undefined,toPort:toPort||undefined}
+    commit({...plan,links:[...plan.links,link],layers:{...plan.layers,[pendingLink.layerId]:true}})
+    setPendingLink(null);setLinkId(link.id);setSelected([]);setShowInspector(window.innerWidth>=1100)
+  }
+  const expandStage=(direction:'left'|'right'|'top'|'bottom')=>{
+    const amountMeters=2,px=amountMeters*m.ppm
+    const horizontal=direction==='left'||direction==='right',vertical=!horizontal
+    const shiftX=direction==='left'?px:0,shiftY=direction==='top'?px:0
+    const nodes=plan.nodes.map(node=>({...node,x:(node.x??0)+shiftX,y:(node.y??0)+shiftY}))
+    const links=plan.links.map(link=>({...link,route:link.route?.map(point=>({x:point.x+shiftX,y:point.y+shiftY}))}))
+    const backgroundImage=plan.backgroundImage?{...plan.backgroundImage,x:plan.backgroundImage.x+shiftX,y:plan.backgroundImage.y+shiftY}:undefined
+    commit({...plan,nodes,links,backgroundImage,stageWidth:m.width+(horizontal?px:0),stageHeight:m.height+(vertical?px:0),stageWidthMeters:m.metersW+(horizontal?amountMeters:0),stageDepthMeters:m.metersH+(vertical?amountMeters:0),stagePixelsPerMeter:m.ppm})
+    setTimeout(()=>setFitToken(value=>value+1),20)
+    p.toast('Plan étendu de 2 m vers '+(direction==='left'?'la gauche':direction==='right'?'la droite':direction==='top'?'le haut':'le bas')+'.')
   }
   const open=(panel:string)=>{
     setMenu(null)
@@ -110,7 +137,7 @@ export function StageEditor(p:Props){
     else if(mod&&key==='a'){e.preventDefault();select(plan.nodes.filter(n=>visible(plan,nodeLayer(n))).map(n=>n.id));setLinkId('')}
     else if(mod&&key==='s'){e.preventDefault();void doc.flush()}
     else if(key==='delete'||key==='backspace'){e.preventDefault();remove()}
-    else if(key==='escape'){e.preventDefault();doc.cancel();setMenu(null);setPicker(false);setLibrary(false);setSelected([]);setLinkId('');setConnectFrom('');setTool('select');if(fullscreen)setFullscreen(false)}
+    else if(key==='escape'){e.preventDefault();if(pendingLink){setPendingLink(null);return}doc.cancel();setMenu(null);setPicker(false);setLibrary(false);setSelected([]);setLinkId('');setConnectFrom('');setTool('select');if(fullscreen)setFullscreen(false)}
     else if(!mod&&key==='g'){e.preventDefault();toggleGrid()}
     else if(!mod&&key==='s'){e.preventDefault();toggleSnap()}
     else if(!mod&&key==='f'){e.preventDefault();setFitToken(v=>v+1)}
@@ -121,6 +148,10 @@ export function StageEditor(p:Props){
     <div className="stage-mode-bar"><div className="stage-view-modes" aria-label="Mode d’affichage">{([['technical','Technique'],['hybrid','Hybride'],['client','Présentation client']] as const).map(([id,label])=><button key={id} aria-pressed={(plan.viewMode??'technical')===id} className={(plan.viewMode??'technical')===id?'active':''} onClick={()=>{commit({...plan,viewMode:id});setLinkId('');setConnectFrom('');setTool('select')}}>{label}</button>)}</div>
       {plan.viewMode==='client'&&<label className="stage-client-cables">Câbles<select aria-label="Câbles en présentation" value={plan.clientCables??'hidden'} onChange={e=>commit({...plan,clientCables:e.target.value as Plan['clientCables']})}><option value="hidden">Masqués</option><option value="muted">Atténués</option><option value="visible">Affichés</option></select></label>}
       <button className="stage-client-export" onClick={()=>setDialog('export-client')}>Aperçu client</button>
+    </div>
+    <div className="stage-expand-bar" aria-label="Étendre le schéma">
+      <span><b>Étendre le plan</b><small>Ajoute 2 m sans redimensionner les éléments existants.</small></span>
+      <div><button onClick={()=>expandStage('left')}>← Gauche</button><button onClick={()=>expandStage('right')}>Droite →</button><button onClick={()=>expandStage('top')}>↑ Haut</button><button onClick={()=>expandStage('bottom')}>Bas ↓</button></div>
     </div>
     <div className="stage-editor-body">
       <StageTools tool={tool} onTool={activate}/>
@@ -150,6 +181,24 @@ export function StageEditor(p:Props){
         </div>}
       </div></div>}
     </div>
+    {pendingLink&&(()=>{const sourceNode=plan.nodes.find(n=>n.id===pendingLink.fromNodeId),targetNode=plan.nodes.find(n=>n.id===pendingLink.toNodeId),source=nodeStock(pendingLink.fromNodeId),target=nodeStock(pendingLink.toNodeId),fromPorts=outputPorts(pendingLink.fromNodeId),toPorts=inputPorts(pendingLink.toNodeId);const fromConnector=fromPorts.find(port=>port.id===pendingLink.fromPort)?.connector||pendingLink.fromCustom.trim(),toConnector=toPorts.find(port=>port.id===pendingLink.toPort)?.connector||pendingLink.toCustom.trim();const cableName=fromConnector&&toConnector?fromConnector+' - '+toConnector:'';return <StageDialog title="Choisir les IN / OUT de la liaison" close={()=>setPendingLink(null)}>
+      <div className="stage-dialog-body stage-link-port-dialog">
+        <div className="stage-link-endpoint-config">
+          <span><b>{sourceNode?.name??'Source'}</b><small>Sortie / OUT</small></span>
+          <select value={pendingLink.fromPort} onChange={e=>setPendingLink({...pendingLink,fromPort:e.target.value})}><option value="">Nouvelle connectique…</option>{fromPorts.map(port=><option value={port.id} key={port.id}>{port.label||'OUT'} · {port.connector} ×{port.count}</option>)}</select>
+          {!pendingLink.fromPort&&<input list="stage-known-connectors" value={pendingLink.fromCustom} onChange={e=>setPendingLink({...pendingLink,fromCustom:e.target.value})} placeholder="Ex. XLR(M), JACK, USB-C…"/>}
+        </div>
+        <div className="stage-link-direction">OUT <span>→</span> IN</div>
+        <div className="stage-link-endpoint-config">
+          <span><b>{targetNode?.name??'Destination'}</b><small>Entrée / IN</small></span>
+          <select value={pendingLink.toPort} onChange={e=>setPendingLink({...pendingLink,toPort:e.target.value})}><option value="">Nouvelle connectique…</option>{toPorts.map(port=><option value={port.id} key={port.id}>{port.label||'IN'} · {port.connector} ×{port.count}</option>)}</select>
+          {!pendingLink.toPort&&<input list="stage-known-connectors" value={pendingLink.toCustom} onChange={e=>setPendingLink({...pendingLink,toCustom:e.target.value})} placeholder="Ex. XLR(F), JACK, USB-C…"/>}
+        </div>
+        <datalist id="stage-known-connectors">{Array.from(new Set(p.stock.flatMap(item=>(item.ports??[]).map(port=>port.connector)))).map(connector=><option value={connector} key={connector}/>)}</datalist>
+        {cableName&&<div className="stage-link-stock-suggestion"><span><b>Câble suggéré</b><small>{cableName}</small></span>{p.onCreateStock&&!p.stock.some(item=>item.category==='cable'&&item.name.toLowerCase()===cableName.toLowerCase())&&<button type="button" className="secondary" onClick={()=>void p.onCreateStock?.({name:cableName,category:'cable',provider:'Mon stock',quantity:1}).then(()=>p.toast(cableName+' créé dans le stock.'))}><PackagePlus/>Créer ce câble</button>}</div>}
+        <div className="stage-dialog-actions"><button className="secondary" onClick={()=>setPendingLink(null)}>Annuler</button><button className="primary" onClick={()=>void confirmPendingLink()}>Créer la liaison</button></div>
+      </div>
+    </StageDialog>})()}
     <footer className="stage-status"><span>{fmt(m.metersW)} × {fmt(m.metersH)} m</span><span>{fmt(m.ppm)} px/m</span><span>Zoom {Math.round(view.zoom*100)} %</span><span>1 carreau = {fmt(plan.gridStep??1)} m</span><span>Snap {plan.snapStep?fmt(plan.snapStep)+' m':'inactif'}</span><span className="stage-cursor">X {fmt(cursor.x/m.ppm)} · Y {fmt(cursor.y/m.ppm)} m</span><span>{selected.length+(linkId?1:0)} sélectionné(s)</span></footer>
     {menu&&<><div className="stage-menu-dismiss" onPointerDown={()=>setMenu(null)}/><div role="menu" className="stage-context-menu" style={{left:Math.max(8,Math.min(menu.x,window.innerWidth-248)),top:Math.max(8,Math.min(menu.y,window.innerHeight-440))}}>
       {menu.nodeId?<><button onClick={()=>{setShowInspector(true);setMenu(null)}}>Modifier les propriétés</button><button onClick={()=>{duplicate();setMenu(null)}}><Copy/>Dupliquer</button><button onClick={()=>open('series')}>Dupliquer en série</button><button onClick={()=>open('save-object')}>Enregistrer dans Mes objets</button><button onClick={()=>{const n=plan.nodes.find(n=>n.id===menu.nodeId)!;if(!plan.layerLocks?.[nodeLayer(n)])commit({...plan,nodes:plan.nodes.map(v=>v.id===n.id?{...v,locked:!v.locked}:v)});setMenu(null)}}><Lock/>Verrouiller / déverrouiller</button><label>Changer de calque<select value={nodeLayer(plan.nodes.find(n=>n.id===menu.nodeId)!)} onChange={e=>{commit({...plan,nodes:plan.nodes.map(n=>selected.includes(n.id)&&!nodeLocked(plan,n)?{...n,layerId:e.target.value}:n)});setMenu(null)}}>{layers(plan).map(id=><option key={id} value={id}>{layerName(plan,id)}</option>)}</select></label></>:
