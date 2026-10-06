@@ -1217,6 +1217,17 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     setOpenCategories(current=>({...Object.fromEntries(defs.map(item=>[item.id,true])),...current}))
   }
   useEffect(()=>{void refresh()},[])
+  useEffect(()=>{
+    if(!techDraft)return
+    const previousOverflow=document.body.style.overflow
+    const previousOverscroll=document.body.style.overscrollBehavior
+    document.body.style.overflow='hidden'
+    document.body.style.overscrollBehavior='none'
+    return ()=>{
+      document.body.style.overflow=previousOverflow
+      document.body.style.overscrollBehavior=previousOverscroll
+    }
+  },[techDraft])
 
   const changed=async()=>{await refresh();onChanged()}
   const providers=useMemo(()=>Array.from(new Set([DEFAULT_PROVIDER,...stock.map(item=>normalizeProvider(item.provider))])).sort((a,b)=>a===DEFAULT_PROVIDER?-1:b===DEFAULT_PROVIDER?1:a.localeCompare(b,'fr')),[stock])
@@ -1785,6 +1796,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                       <button className="bare-action" aria-label="Fermer la fiche" onClick={()=>{setTechPopup(null);setTechDraft(null)}}><X/></button>
                     </div>
                   </div>
+                  <div className="stock-tech-scroll">
                   <div className="stock-tech-overview">
                     <span className="stock-tech-overview-icon"><TechnicalIcon icon={techDraft.representationIcon} text={techDraft.name+' '+techDraft.category}/></span>
                     <div><b>{techDraft.name||'Matériel'}</b><small>{(techDraft.characteristics??[]).length} caractéristique{(techDraft.characteristics??[]).length>1?'s':''} · {(techDraft.ports??[]).length} port{(techDraft.ports??[]).length>1?'s':''} · {techDraft.quantity} unité{techDraft.quantity>1?'s':''}</small></div>
@@ -1859,6 +1871,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                     <summary>Matériels liés / accessoires habituels</summary>
                     <div className="stock-related-grid">{stock.filter(candidate=>candidate.id!==techDraft.id).map(candidate=><label key={candidate.id}><input type="checkbox" checked={(techDraft.associatedItemIds??[]).includes(candidate.id)} onChange={e=>setTechDraft({...techDraft,associatedItemIds:e.target.checked?Array.from(new Set([...(techDraft.associatedItemIds??[]),candidate.id])):(techDraft.associatedItemIds??[]).filter(id=>id!==candidate.id)})}/><span><TechnicalIcon icon={candidate.representationIcon} text={candidate.name}/><b>{candidate.name}</b><small>{normalizeProvider(candidate.provider)}</small></span></label>)}</div>
                   </details>
+                  </div>
                   {techPopup&&<div className="stock-tech-modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setTechPopup(null)}}>
                     <section className={'stock-tech-modal stock-tech-modal-'+techPopup.kind} role="dialog" aria-modal="true">
                       <header className="stock-tech-modal-head">
