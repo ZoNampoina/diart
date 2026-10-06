@@ -8,6 +8,21 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'4.1.0',
+    date:'6 octobre 2026',
+    title:'Stock Workspace Pro',
+    summary:'La page Stock adopte une interface de gestion plus dense et plus professionnelle, avec actions contextuelles, filtres repliables et lignes de matériel recentrées sur l’essentiel.',
+    highlights:[
+      'Nouveau header Stock compact avec stockage actif, résumé instantané et ajout de matériel dans un panneau contextuel.',
+      'Filtres déplacés dans un menu dédié avec compteur, filtres actifs sous forme de chips et remise à zéro rapide.',
+      'Classes de matériel transformées en onglets horizontaux compacts avec compteurs, sans grand bloc administratif permanent.',
+      'Ajout de matériel et création de classes sortis du flux principal pour libérer l’espace de travail.',
+      'Lignes Stock densifiées : icône, nom, emplacement, disponibilité, état, quantité et actions sont regroupés sans grands espaces vides.',
+      'Le nom du matériel ouvre directement la fiche détaillée en drawer, avec conservation de toutes les caractéristiques et connectiques.',
+      'Responsive retravaillé pour desktop, tablette et mobile, sans migration destructive des données.'
+    ]
+  },
+  {
     version:'4.0.0',
     date:'5 octobre 2026',
     title:'Inventory Workspace',
