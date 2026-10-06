@@ -1318,3 +1318,168 @@
     border-bottom:0;
   }
 }
+
+
+/* DI'ART 4.1.3 — card polish + slimmer material drawer */
+
+/* Card grid: prefer fewer, wider cards on desktop */
+@media(min-width:1200px){
+  .inventory-workspace-v4 .stock-layout-cards .inventory-category-body{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:14px;
+  }
+}
+@media(min-width:760px) and (max-width:1199px){
+  .inventory-workspace-v4 .stock-layout-cards .inventory-category-body{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
+/* Natural-height cards, less empty space */
+.inventory-workspace-v4 .stock-layout-cards .stock-item-wrap{
+  height:auto;
+  align-self:start;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-workspace-row{
+  min-height:0;
+  grid-template-rows:auto auto auto auto;
+  align-content:start;
+  padding:14px 14px 12px!important;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-main-label b{
+  font-size:16px;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-main-label small{
+  font-size:12px;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-availability{
+  margin-top:1px;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-availability small{
+  font-size:11px;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-availability b{
+  font-size:14px;
+}
+
+/* Technical preview is compact and never reserves a big blank panel */
+.inventory-workspace-v4 .stock-layout-cards .stock-card-specs{
+  min-height:0;
+  align-self:start;
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin:5px 0 2px;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-card-specs>span{
+  min-height:32px;
+  padding:6px 9px;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-card-specs em{
+  font-size:11px;
+  color:var(--muted);
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-card-specs b{
+  font-size:12px;
+}
+.stock-card-tech-empty{
+  width:100%;
+  min-height:38px;
+  border:1px dashed color-mix(in srgb,var(--accent2) 34%,var(--line));
+  border-radius:10px;
+  padding:0 10px;
+  display:grid;
+  grid-template-columns:16px minmax(0,1fr) 14px;
+  align-items:center;
+  gap:7px;
+  background:transparent;
+  color:var(--muted);
+  text-align:left;
+}
+.stock-card-tech-empty:hover{
+  color:var(--text);
+  background:color-mix(in srgb,var(--accent2) 5%,var(--surface2));
+  border-color:color-mix(in srgb,var(--accent2) 48%,var(--line));
+}
+.stock-card-tech-empty>svg{width:14px;height:14px;color:var(--accent2)}
+.stock-card-tech-empty span{
+  font-size:11px;
+  font-weight:700;
+}
+
+/* More deliberate footer spacing */
+.inventory-workspace-v4 .stock-layout-cards .stock-status-control{
+  margin-top:3px;
+  min-width:124px;
+  min-height:36px;
+}
+.inventory-workspace-v4 .stock-layout-cards .stock-status-label{
+  font-size:12px;
+}
+.inventory-workspace-v4 .stock-layout-cards .compact-qty{
+  margin-top:3px;
+}
+.inventory-workspace-v4 .stock-layout-cards .compact-qty input{
+  font-size:13px!important;
+}
+
+/* Slimmer material drawer */
+.stock-tech-editor.inventory-drawer,
+.inventory-workspace-v4 .stock-tech-editor{
+  width:min(500px,calc(100vw - 320px));
+}
+.inventory-workspace-v4 .stock-tech-overview{
+  margin:12px 14px 8px;
+  padding:10px;
+}
+.inventory-workspace-v4 .stock-tech-launchers{
+  margin:8px 14px 2px;
+}
+.inventory-workspace-v4 .stock-tech-editor>.stock-item-history,
+.inventory-workspace-v4 .stock-tech-editor>.stock-tech-section,
+.inventory-workspace-v4 .stock-tech-editor>.stock-related-editor{
+  margin-left:14px;
+  margin-right:14px;
+}
+.inventory-workspace-v4 .stock-tech-editor>.stock-tech-actions{
+  padding-left:14px;
+  padding-right:14px;
+}
+.inventory-workspace-v4 .stock-tech-head>span b{
+  font-size:16px;
+}
+.inventory-workspace-v4 .stock-tech-head>span small{
+  font-size:11px;
+}
+.stock-tech-overview>div b{font-size:14px}
+.stock-tech-overview>div small{font-size:11px}
+.stock-tech-health{font-size:10px}
+.stock-tech-launchers button b{font-size:13px}
+.stock-tech-launchers button small{font-size:11px}
+
+/* General form readability inside the drawer */
+.inventory-workspace-v4 .stock-general-grid label>span,
+.inventory-workspace-v4 .stock-unit-switch b,
+.inventory-workspace-v4 .stock-related-editor>summary{
+  font-size:11px;
+}
+.inventory-workspace-v4 .stock-general-grid input,
+.inventory-workspace-v4 .stock-general-grid select{
+  font-size:12px!important;
+}
+
+@media(max-width:820px){
+  .stock-tech-editor.inventory-drawer,
+  .inventory-workspace-v4 .stock-tech-editor{
+    width:min(500px,calc(100vw - 24px));
+  }
+}
+@media(max-width:700px){
+  .stock-tech-editor.inventory-drawer,
+  .inventory-workspace-v4 .stock-tech-editor{
+    width:auto;
+  }
+  .inventory-workspace-v4 .stock-layout-cards .stock-workspace-row{
+    min-height:0;
+  }
+}
