@@ -116,7 +116,7 @@ export function InventoryExportDialog({
     return null
   }
 
-  return <StageDialog title="Personnaliser l’export inventaire" close={close} wide><div className="inventory-export-layout">
+  const content=<div className="inventory-export-layout">
     <aside className="inventory-export-controls">
       <label className="stage-field"><span>Destinataire / profil</span><select value={audience} onChange={e=>applyAudience(e.target.value as Audience)}><option value="owner">Propriétaire / organisateur</option><option value="technician">Technicien</option><option value="provider">Prestataire / musiciens</option><option value="checklist">Check-list manuscrite</option><option value="custom">Personnalisé</option></select></label>
       <label className="stage-field"><span>Titre</span><input value={title} onChange={e=>{setTitle(e.target.value);setAudience('custom')}}/></label>
@@ -146,5 +146,6 @@ export function InventoryExportDialog({
       {order.map(renderSection)}
       <footer><span>DI’ART</span><span>{program.name}</span><span>{new Date().toLocaleDateString('fr-FR')}</span></footer>
     </div></main>
-  </div></StageDialog>
+  </div>
+  return embedded?<section className="inventory-export-page panel"><header className="inventory-export-page-head"><span>EXPORT</span><h2>Personnaliser et exporter</h2><p>Choisis le profil, le contenu et le format directement depuis ce menu.</p></header>{content}</section>:<StageDialog title="Personnaliser l’export inventaire" close={close} wide>{content}</StageDialog>
 }
