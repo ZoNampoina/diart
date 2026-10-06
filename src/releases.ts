@@ -8,6 +8,21 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'4.2.1',
+    date:'6 octobre 2026',
+    title:'Compact Material Settings',
+    summary:'L’espace Paramètre matériel est fortement resserré pour supprimer les grands vides et afficher davantage d’informations utiles sans défilement inutile.',
+    highlights:[
+      'Résumé matériel réduit à une barre compacte avec icône, identité et état de complétude.',
+      'Caractéristiques et Connectiques transformées en actions rapides plus basses.',
+      'Informations générales remontées immédiatement après les actions rapides.',
+      'Grille générale portée à quatre colonnes sur grand écran, deux sur tablette et une sur mobile.',
+      'Paramètres spécifiques par catégorie resserrés selon la même logique.',
+      'Historique déplacé en section secondaire compacte après les réglages principaux.',
+      'Header et footer du popup réduits pour libérer davantage d’espace utile.'
+    ]
+  },
+  {
     version:'4.2.0',
     date:'6 octobre 2026',
     title:'Inventory Workflow 4.2',
