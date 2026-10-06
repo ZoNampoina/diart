@@ -8,6 +8,20 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'4.2.2',
+    date:'6 octobre 2026',
+    title:'Fullscreen Scroll Fix',
+    summary:'Le panneau Paramètre matériel utilise désormais tout le viewport et son contenu défile correctement sans footer blanc ni zone morte en bas.',
+    highlights:[
+      'Suppression du footer inférieur redondant : les actions restent dans le header.',
+      'Suppression de la bande blanche et des marges externes du popup plein écran.',
+      'Zone centrale unique en overflow-y:auto avec inertie tactile et confinement du scroll.',
+      'Résumé matériel remplacé par une barre compacte de compteurs.',
+      'Conservation du header fixe pendant le défilement.',
+      'Espacement inférieur interne ajouté pour atteindre confortablement le dernier réglage.'
+    ]
+  },
+  {
     version:'4.2.1',
     date:'6 octobre 2026',
     title:'Compact Material Settings',
