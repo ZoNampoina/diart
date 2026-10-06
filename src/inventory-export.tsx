@@ -9,7 +9,7 @@ import { stagePngToPdf } from './stage/pdf'
 import { layers,visible } from './stage/model'
 import './inventory-extensions.css'
 
-type Audience='owner'|'technician'|'provider'|'custom'
+type Audience='owner'|'technician'|'provider'|'checklist'|'custom'
 type SectionKey='event'|'scene'|'list'|'notes'|'missing'
 type Row={id:string;itemId:string;name:string;category:string;quantity:number;provider:string;details:string;note:string}
 type SectionFlags={event:boolean;scene:boolean;list:boolean;notes:boolean;missing:boolean;details:boolean;providers:boolean}
@@ -19,7 +19,8 @@ const labels:Record<SectionKey,string>={event:'Informations événement',scene:'
 const profiles:Record<Exclude<Audience,'custom'>,{title:string;view:StageViewMode;flags:SectionFlags}> = {
   owner:{title:'Fiche technique — propriétaire',view:'client',flags:{event:true,scene:true,list:true,notes:true,missing:true,details:false,providers:false}},
   technician:{title:'Fiche technique — technicien',view:'technical',flags:{event:true,scene:true,list:true,notes:true,missing:true,details:true,providers:true}},
-  provider:{title:'Fiche technique — prestataire / musiciens',view:'hybrid',flags:{event:true,scene:true,list:true,notes:true,missing:true,details:false,providers:true}}
+  provider:{title:'Fiche technique — prestataire / musiciens',view:'hybrid',flags:{event:true,scene:true,list:true,notes:true,missing:true,details:false,providers:true}},
+  checklist:{title:'Check-list matériel — manuscrite',view:'hybrid',flags:{event:true,scene:false,list:true,notes:true,missing:false,details:false,providers:false}}
 }
 
 function technicalText(source?:InventoryStockItem){
@@ -116,7 +117,7 @@ export function InventoryExportDialog({
 
   return <StageDialog title="Personnaliser l’export inventaire" close={close} wide><div className="inventory-export-layout">
     <aside className="inventory-export-controls">
-      <label className="stage-field"><span>Destinataire / profil</span><select value={audience} onChange={e=>applyAudience(e.target.value as Audience)}><option value="owner">Propriétaire / organisateur</option><option value="technician">Technicien</option><option value="provider">Prestataire / musiciens</option><option value="custom">Personnalisé</option></select></label>
+      <label className="stage-field"><span>Destinataire / profil</span><select value={audience} onChange={e=>applyAudience(e.target.value as Audience)}><option value="owner">Propriétaire / organisateur</option><option value="technician">Technicien</option><option value="provider">Prestataire / musiciens</option><option value="checklist">Check-list manuscrite</option><option value="custom">Personnalisé</option></select></label>
       <label className="stage-field"><span>Titre</span><input value={title} onChange={e=>{setTitle(e.target.value);setAudience('custom')}}/></label>
       <label className="stage-field"><span>Destinataire</span><input value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="Nom, équipe, prestataire…"/></label>
       <details open><summary>Sections affichées</summary>{order.map((key,index)=><div className="inventory-export-section-control" key={key}><label><input type="checkbox" checked={flags[key]} onChange={e=>{setFlags({...flags,[key]:e.target.checked});setAudience('custom')}}/>{labels[key]}</label><span><button disabled={index===0} onClick={()=>move(key,-1)}>↑</button><button disabled={index===order.length-1} onClick={()=>move(key,1)}>↓</button></span></div>)}
