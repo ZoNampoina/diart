@@ -8,6 +8,20 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'4.1.3',
+    date:'6 octobre 2026',
+    title:'Stock Card Polish',
+    summary:'La vue Cartes est resserrée et rééquilibrée, tandis que la fiche matériel occupe moins d’espace à l’écran.',
+    highlights:[
+      'Grille desktop privilégiant trois cartes plus larges au lieu de quatre cartes trop étroites.',
+      'Hauteur des cartes rendue naturelle pour supprimer les grands espaces techniques vides.',
+      'Absence de fiche technique remplacée par une action compacte « Compléter la fiche technique ».',
+      'Chips de caractéristiques et connectiques plus lisibles avec typographie renforcée.',
+      'Disponibilité, état et quantité mieux hiérarchisés dans les cartes.',
+      'Drawer matériel réduit à environ 500 px sur desktop pour conserver davantage de contexte sur le Stock.'
+    ]
+  },
+  {
     version:'4.1.2',
     date:'6 octobre 2026',
     title:'Cards & Independent Technical Popups',
