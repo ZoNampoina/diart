@@ -1817,3 +1817,44 @@
 }
 .program-section-tabs::-webkit-scrollbar{display:none}
 .program-section-tabs button{white-space:nowrap}
+
+
+/* DI'ART 4.2.0 — final inventory section isolation fixes */
+
+/* A fixed settings workspace must never be clipped by the stock row/card that launched it. */
+.inventory-category:has(.stock-tech-editor.inventory-drawer),
+.stock-item-wrap:has(.stock-tech-editor.inventory-drawer){
+  overflow:visible!important;
+  transform:none!important;
+  contain:none!important;
+}
+.stock-item-wrap:has(.stock-tech-editor.inventory-drawer):hover{transform:none!important}
+
+/* Matériel is deliberately just the catalog/editing surface. */
+.inventory-program-page.section-materials .inventory-material-toolbar,
+.inventory-program-page.section-materials .stock-picker,
+.inventory-program-page.section-materials .inventory-kit-panel,
+.inventory-program-page.section-materials .inventory-missing-panel,
+.inventory-program-page.section-materials .inventory-checklist-panel,
+.inventory-program-page.section-materials .program-accessory-suggestion,
+.inventory-program-page.section-materials .stock-zone-label.selected,
+.inventory-program-page.section-materials .program-order-list{
+  display:none!important;
+}
+.inventory-program-page.section-materials .compact-material-add,
+.inventory-program-page.section-materials .program-catalog-label,
+.inventory-program-page.section-materials .planned-material-list{
+  display:grid;
+}
+
+/* Give each exclusive section its own clean page surface. */
+.inventory-program-page.section-checklist .inventory-material-panel,
+.inventory-program-page.section-needs .inventory-material-panel,
+.inventory-program-page.section-order .inventory-material-panel{
+  padding:14px;
+}
+.inventory-program-page.section-checklist .inventory-checklist-panel,
+.inventory-program-page.section-needs .inventory-missing-panel,
+.inventory-program-page.section-order .program-order-list{
+  margin:0;
+}
