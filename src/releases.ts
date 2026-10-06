@@ -8,6 +8,19 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'4.2.4',
+    date:'6 octobre 2026',
+    title:'Medium Material Settings Modal',
+    summary:'Le panneau Paramètre matériel revient à une fenêtre centrée de taille moyenne, avec scroll interne et sans plein écran envahissant.',
+    highlights:[
+      'Retour à une fenêtre centrée d’environ 860 px de large.',
+      'Hauteur limitée à environ 82% de l’écran avec défilement interne.',
+      'Conservation du React Portal pour éviter les problèmes de clipping et d’overflow du Stock.',
+      'Deux colonnes sur desktop, une colonne sur mobile.',
+      'Présentation mobile sous forme de bottom sheet compacte plutôt que plein écran.'
+    ]
+  },
+  {
     version:'4.2.3',
     date:'6 octobre 2026',
     title:'Inventory Modal Portal Fix',
