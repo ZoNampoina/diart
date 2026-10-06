@@ -14,3 +14,127 @@
 .export-scene img{display:block;width:100%;max-height:560px;object-fit:contain;background:#f3f7f7}.inventory-export-placeholder{min-height:150px;display:flex;align-items:center;justify-content:center;gap:8px;background:#f3f7f7;color:#71878b;font-size:13px}.inventory-export-placeholder svg{width:18px}.export-note p{white-space:pre-wrap;font-size:13px;line-height:1.55}.inventory-export-ok{font-size:13px;color:#45725e;background:#eff7f2;padding:12px;border-radius:6px}.inventory-export-sheet>footer{display:flex;justify-content:space-between;gap:15px;padding-top:22px;font-size:10px;color:#7a8a8d;text-transform:uppercase;letter-spacing:.06em}
 @media(max-width:900px){.structured-tech-grid{grid-template-columns:1fr 1fr}.inventory-export-layout{flex-direction:column}.inventory-export-controls{width:auto;max-height:48vh;border-right:0;border-bottom:1px solid var(--stage-border)}.inventory-export-preview{padding:10px}.inventory-export-sheet{padding:30px;min-height:1000px}.inventory-export-meta{grid-template-columns:1fr}}
 @media(max-width:600px){.structured-tech-grid{grid-template-columns:1fr}.inventory-export-controls{max-height:52vh}.inventory-export-sheet{width:900px;max-width:none;transform-origin:top left}.inventory-export-preview{overflow:auto}}
+
+
+/* DI'ART 4.2.0 — structured inventory settings + embedded export */
+
+.inventory-category-settings{
+  padding:14px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:color-mix(in srgb,var(--accent2) 4%,var(--surface2));
+}
+.inventory-category-settings .stock-tech-section-head{
+  margin-bottom:12px;
+}
+.inventory-category-settings .stock-tech-section-head b{font-size:15px}
+.inventory-category-settings .stock-tech-section-head small{font-size:12px;line-height:1.45}
+.inventory-category-settings .structured-tech-grid{
+  grid-template-columns:repeat(3,minmax(180px,1fr));
+  gap:12px;
+}
+.inventory-category-settings .structured-tech-grid label>span{
+  font-size:12px;
+  font-weight:750;
+}
+.inventory-category-settings .structured-tech-grid input,
+.inventory-category-settings .structured-tech-grid select{
+  min-height:42px;
+  font-size:13px;
+}
+.structured-check>span:last-child{
+  min-height:42px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 10px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--surface);
+}
+.structured-check>span:last-child input{width:17px;height:17px;min-height:0}
+.structured-check>span:last-child b{font-size:12px;color:var(--text)}
+.structured-check>span:last-child small{display:block;font-size:10px;color:var(--muted)}
+.structured-related{
+  display:grid!important;
+  gap:8px!important;
+  align-items:start!important;
+}
+.structured-related>b{font-size:12px;color:var(--text)}
+.structured-related>small{font-size:11px;color:var(--muted)}
+.structured-related>div:not(.structured-create-related){
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
+  gap:6px;
+  max-height:220px;
+  overflow:auto;
+  padding:8px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--surface);
+}
+.structured-related>div:not(.structured-create-related)>label{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  min-height:34px;
+  padding:5px 7px;
+  border-radius:8px;
+  background:var(--surface2);
+  color:var(--text);
+  font-size:11px;
+}
+.structured-related>div:not(.structured-create-related)>label input{width:15px;height:15px;min-height:0}
+.structured-create-related{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:7px;
+}
+.structured-create-related input{min-width:0}
+.structured-create-related button{min-height:42px}
+
+.inventory-export-page{
+  padding:0!important;
+  overflow:hidden;
+}
+.inventory-export-page-head{
+  padding:16px 18px;
+  border-bottom:1px solid var(--line);
+}
+.inventory-export-page-head>span{
+  display:block;
+  margin-bottom:4px;
+  color:var(--accent2);
+  font-size:10px;
+  font-weight:850;
+  letter-spacing:.12em;
+}
+.inventory-export-page-head h2{margin:0;font-size:20px}
+.inventory-export-page-head p{margin:4px 0 0;color:var(--muted);font-size:12px}
+.inventory-export-page .inventory-export-layout{
+  min-height:700px;
+  height:calc(100dvh - 290px);
+}
+.inventory-export-page .inventory-export-controls{
+  width:360px;
+}
+.export-checklist th:nth-child(n+3),
+.export-checklist td:nth-child(n+3){text-align:center}
+.export-checklist .paper-check{
+  font-size:20px;
+  line-height:1;
+  width:68px;
+}
+.export-checklist .paper-note{
+  min-width:130px;
+  color:#74868a;
+  letter-spacing:.03em;
+}
+@media(max-width:900px){
+  .inventory-category-settings .structured-tech-grid{grid-template-columns:1fr 1fr}
+  .inventory-export-page .inventory-export-layout{height:auto;min-height:0}
+}
+@media(max-width:600px){
+  .inventory-category-settings .structured-tech-grid{grid-template-columns:1fr}
+  .structured-create-related{grid-template-columns:1fr}
+}
