@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { toPng } from 'html-to-image'
 import {
   AlertTriangle, Archive, Boxes, BrainCircuit, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp,
@@ -1805,7 +1806,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                   <button className={'bare-action tech-action '+(techDraft?.id===item.id?'active':'')} title="Caractéristiques et connectiques" onClick={()=>editStockItem(item)}><Settings2/></button>
                   <button className="bare-action danger-icon compact-delete" aria-label={'Supprimer '+item.name} onClick={()=>void deleteStock(item)}><Trash2/></button>
                 </div>
-                {techDraft?.id===item.id&&<div className="stock-tech-editor inventory-drawer">
+                {techDraft?.id===item.id&&createPortal(<div className="stock-tech-editor inventory-drawer" role="dialog" aria-modal="true">
                   <div className="stock-tech-head">
                     <span><b>{techDraft.name||item.name}</b><small>{categoryLabel(techDraft.category,categories)} · {normalizeProvider(techDraft.provider)}{techDraft.storageLocation?' · '+techDraft.storageLocation:''}</small></span>
                     <div className="stock-tech-head-actions">
@@ -1980,7 +1981,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                       </>})()}
                     </section>
                   </div>}
-                </div>}
+                </div>,document.body)}
               </div>)}
             </CategorySection>
           })}
