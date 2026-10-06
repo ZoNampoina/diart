@@ -33,7 +33,7 @@ function triggerData(url:string,name:string){const a=document.createElement('a')
 function triggerBlob(blob:Blob,name:string){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 
 export function InventoryExportDialog({
-  program,stock,selectedItems,missingItems,availableFor,categoryName,renderIcon,close
+  program,stock,selectedItems,missingItems,availableFor,categoryName,renderIcon,close=()=>{},embedded=false
 }:{
   program:InventoryProgram
   stock:InventoryStockItem[]
@@ -42,7 +42,8 @@ export function InventoryExportDialog({
   availableFor:(item:InventoryMaterial)=>number
   categoryName:(category:string)=>string
   renderIcon:IconRenderer
-  close:()=>void
+  close?:()=>void
+  embedded?:boolean
 }){
   const sourceFor=(item:InventoryMaterial)=>item.stockItemId?stock.find(value=>value.id===item.stockItemId):undefined
   const makeRows=()=>selectedItems.map(item=>{const source=sourceFor(item);return {id:crypto.randomUUID(),itemId:item.id,name:item.name,category:item.category,quantity:item.quantity,provider:source?.provider??'À trouver',details:technicalText(source),note:''}})
@@ -109,7 +110,7 @@ export function InventoryExportDialog({
       <span><small>Date</small><b>{meta.date||'—'}</b></span><span><small>Horaire</small><b>{meta.start||'—'}{meta.end?' → '+meta.end:''}</b></span><span><small>Lieu</small><b>{meta.location||'—'}</b></span>
     </div></section>
     if(key==='scene')return <section className="inventory-export-section export-scene" key={key}><h2>Schéma de scène</h2>{sceneBusy?<div className="inventory-export-placeholder"><RefreshCw/>Préparation du schéma…</div>:sceneImage?<img src={sceneImage} alt="Schéma de scène"/>:<div className="inventory-export-placeholder">Aucun schéma de scène enregistré.</div>}</section>
-    if(key==='list')return <section className="inventory-export-section" key={key}><h2>Liste du matériel</h2><table><thead><tr><th>Matériel</th><th>Catégorie</th>{flags.providers&&<th>Prestataire</th>}<th>Qté</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td><b>{row.name}</b>{flags.details&&row.details&&<small>{row.details}</small>}{row.note&&<small>{row.note}</small>}</td><td>{categoryName(row.category)}</td>{flags.providers&&<td>{row.provider}</td>}<td className="qty">× {row.quantity}</td></tr>)}</tbody></table></section>
+    if(key==='list')return <section className={'inventory-export-section '+(audience==='checklist'?'export-checklist':'')} key={key}><h2>{audience==='checklist'?'Check-list matériel':'Liste du matériel'}</h2>{audience==='checklist'?<table><thead><tr><th>Matériel</th><th>Qté</th><th>Préparé</th><th>Chargé</th><th>Retour</th><th>Note</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td><b>{row.name}</b><small>{categoryName(row.category)}</small></td><td className="qty">× {row.quantity}</td><td className="paper-check">□</td><td className="paper-check">□</td><td className="paper-check">□</td><td className="paper-note">________________</td></tr>)}</tbody></table>:<table><thead><tr><th>Matériel</th><th>Catégorie</th>{flags.providers&&<th>Prestataire</th>}<th>Qté</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td><b>{row.name}</b>{flags.details&&row.details&&<small>{row.details}</small>}{row.note&&<small>{row.note}</small>}</td><td>{categoryName(row.category)}</td>{flags.providers&&<td>{row.provider}</td>}<td className="qty">× {row.quantity}</td></tr>)}</tbody></table>}</section>
     if(key==='notes')return <section className="inventory-export-section export-note" key={key}><h2>Notes</h2><p>{note.trim()||'Aucune note particulière.'}</p></section>
     if(key==='missing')return <section className="inventory-export-section export-missing" key={key}><h2>Matériel manquant</h2>{missing.length?<table><thead><tr><th>Matériel</th><th>Disponible</th><th>Manque</th></tr></thead><tbody>{missing.map(row=><tr key={row.id}><td><b>{row.name}</b>{missingNotes[row.itemId]&&<small>{missingNotes[row.itemId]}</small>}</td><td>{row.available}</td><td className="missing-count">{row.missing}</td></tr>)}</tbody></table>:<p className="inventory-export-ok">Tout le matériel prévu est couvert par le stock disponible.</p>}</section>
     return null
