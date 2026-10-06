@@ -138,3 +138,5 @@
   .inventory-category-settings .structured-tech-grid{grid-template-columns:1fr}
   .structured-create-related{grid-template-columns:1fr}
 }
+
+.inventory-category-settings .structured-tech-grid .span2{grid-column:1/-1}
