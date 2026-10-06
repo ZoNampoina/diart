@@ -2035,6 +2035,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
   const [kitMultipliers,setKitMultipliers]=useState<Record<string,number>>({})
   const [categories,setCategories]=useState<InventoryCategoryDef[]>(DEFAULT_CATEGORIES)
   const [programView,setProgramView]=useState<'materials'|'installation'>('materials')
+  const [programSection,setProgramSection]=useState<'overview'|'materials'|'checklist'|'installation'|'needs'|'order'|'export'>('overview')
   const [advancedInstallationAvailable,setAdvancedInstallationAvailable]=useState(()=>window.matchMedia('(min-width:700px)').matches)
   const [installationOpen,setInstallationOpen]=useState(true)
   const [installationNodeName,setInstallationNodeName]=useState('')
@@ -2101,6 +2102,15 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
     window.addEventListener('online',update);window.addEventListener('offline',update)
     return ()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update)}
   },[])
+  useEffect(()=>{
+    setOverviewOpen(programSection==='overview')
+    setChecklistOpen(programSection==='checklist')
+    setMissingOnly(programSection==='needs')
+    setProgramView(programSection==='installation'?'installation':'materials')
+    if(programSection==='installation')setInstallationOpen(true)
+    setStockPickerOpen(false)
+    setKitPanelOpen(false)
+  },[programSection])
 
   const persist=async(patch:Partial<Omit<InventoryProgram,'id'|'createdAt'>>)=>{
     if(!program)return
@@ -2934,7 +2944,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
 
   if(!program)return <section className="panel inventory-empty"><span>Chargement du programme…</span></section>
 
-  return <div className={'inventory-program-page view-'+programView}>
+  return <div className={'inventory-program-page view-'+programView+' section-'+programSection}>
     <section className="program-detail-head panel compact-program-head">
       <div className="program-title-block">
         <span className="eyebrow">Programme · événement</span>
@@ -2948,21 +2958,22 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
         </div>
       </div>
       <div className="program-head-actions">
-        <button className={'secondary mobile-icon-action '+(overviewOpen?'active':'')} aria-label="Voir" title="Voir" onClick={()=>setOverviewOpen(value=>!value)}><Eye/><span>{overviewOpen?'Fermer la vue':'Voir'}</span></button>
+        <button className={'secondary mobile-icon-action '+(overviewOpen?'active':'')} aria-label="Voir" title="Voir" onClick={()=>setProgramSection('overview')}><Eye/><span>Aperçu</span></button>
         <button className={'secondary mobile-icon-action '+(program.isPublic?'active':'')} aria-label={program.isPublic?'Rendre personnel':'Rendre public'} title={program.isPublic?'Rendre personnel':'Rendre public'} onClick={()=>void persist({isPublic:!program.isPublic}).then(()=>toast(program.isPublic?'Inventaire repassé en mode personnel.':'Inventaire rendu public.'))}><Globe2/><span>{program.isPublic?'Public':'Rendre public'}</span></button>
         <button className="secondary mobile-icon-action" aria-label="Partager" title="Partager" onClick={onShare}><Share2/><span>Partager</span></button>
         <button className="secondary mobile-icon-action" aria-label="Dupliquer" title="Dupliquer" onClick={()=>void duplicateProgram()}><Copy/><span>Dupliquer</span></button>
-        <button className="secondary mobile-icon-action" aria-label="Exporter" title="Exporter" onClick={()=>setExportOpen(true)}><ImageDown/><span>Exporter</span></button>
+        <button className="secondary mobile-icon-action" aria-label="Exporter" title="Exporter" onClick={()=>setProgramSection('export')}><ImageDown/><span>Exporter</span></button>
         <button className="bare-action danger-icon" aria-label="Supprimer le programme" onClick={()=>setConfirmDelete(true)}><Trash2/></button>
       </div>
     </section>
     <div className="program-section-tabs panel" aria-label="Sections du programme">
-      <button className={overviewOpen?'active':''} onClick={()=>{setProgramView('materials');setOverviewOpen(value=>!value);setChecklistOpen(false);setMissingOnly(false)}}><Eye/><span>Aperçu</span></button>
-      <button className={programView==='materials'&&!overviewOpen&&!checklistOpen&&!missingOnly?'active':''} onClick={()=>{setProgramView('materials');setOverviewOpen(false);setChecklistOpen(false);setMissingOnly(false)}}><Boxes/><span>Matériel</span></button>
-      <button className={checklistOpen?'active':''} onClick={()=>{setProgramView('materials');setOverviewOpen(false);setChecklistOpen(true);setMissingOnly(false)}}><ClipboardCheck/><span>Check-list</span></button>
-      {advancedInstallationAvailable&&<button className={programView==='installation'?'active':''} onClick={()=>{setProgramView('installation');setInstallationOpen(true);setOverviewOpen(false);setChecklistOpen(false);setMissingOnly(false)}}><Network/><span>Installation</span></button>}
-      <button className={missingOnly?'active':''} onClick={()=>{setProgramView('materials');setOverviewOpen(false);setChecklistOpen(false);setMissingOnly(true)}}><PackageSearch/><span>Besoins</span></button>
-      <button onClick={()=>setExportOpen(true)}><ImageDown/><span>Export</span></button>
+      <button className={programSection==='overview'?'active':''} onClick={()=>setProgramSection('overview')}><Eye/><span>Aperçu</span></button>
+      <button className={programSection==='materials'?'active':''} onClick={()=>setProgramSection('materials')}><Boxes/><span>Matériel</span></button>
+      <button className={programSection==='checklist'?'active':''} onClick={()=>setProgramSection('checklist')}><ClipboardCheck/><span>Check-list</span></button>
+      {advancedInstallationAvailable&&<button className={programSection==='installation'?'active':''} onClick={()=>setProgramSection('installation')}><Network/><span>Installation</span></button>}
+      <button className={programSection==='needs'?'active':''} onClick={()=>setProgramSection('needs')}><PackageSearch/><span>Besoins</span></button>
+      <button className={programSection==='order'?'active':''} onClick={()=>setProgramSection('order')}><List/><span>Ordre</span></button>
+      <button className={programSection==='export'?'active':''} onClick={()=>setProgramSection('export')}><ImageDown/><span>Export</span></button>
     </div>
 
     {overviewOpen&&<section className="panel inventory-overview">
@@ -3308,7 +3319,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
           return <div className="missing-material-row" key={item.id}>
             <span><b>{item.name}</b><small>{source?normalizeProvider(source.provider):'Aucune source'} · besoin {item.quantity} · disponible {available}</small></span>
             <strong>Manque {missing||item.quantity}</strong>
-            <div className="missing-alternatives">{alternatives.length?alternatives.slice(0,3).map(candidate=><button key={candidate.id} onClick={()=>changeSource(item.id,candidate.id)}>{normalizeProvider(candidate.provider)} · {effectiveStockQuantity(candidate,program,programs)}</button>):<small>Aucune alternative disponible</small>}</div>
+            <div className="missing-alternatives">{alternatives.length?alternatives.slice(0,3).map(candidate=><button key={candidate.id} onClick={()=>changeSource(item.id,candidate.id)}>{normalizeProvider(candidate.provider)} · {effectiveStockQuantity(candidate,program,programs)}</button>):<small>Aucune alternative disponible</small>}{!source&&<button className="primary" onClick={()=>void createStockFromStage({name:item.name,category:item.category,provider:DEFAULT_PROVIDER,quantity:Math.max(1,missing||item.quantity)}).then(created=>changeSource(item.id,created.id))}><PackagePlus/>Créer dans le catalogue</button>}</div>
           </div>
         })}
       </div>}
@@ -3417,7 +3428,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
       </div>}
     </section>
 
-    {exportOpen&&<InventoryExportDialog
+    {programSection==='export'&&<InventoryExportDialog
       program={program}
       stock={stock}
       selectedItems={selectedItems}
@@ -3425,7 +3436,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
       availableFor={availableFor}
       categoryName={category=>categoryLabel(category,categories)}
       renderIcon={(node,source)=><TechnicalIcon icon={source?.representationIcon} text={node.name+' '+(source?.category??node.category??'')}/>}
-      close={()=>setExportOpen(false)}
+      embedded
     />}
 
     {confirmDelete&&<div className="inventory-confirm-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setConfirmDelete(false)}}>
