@@ -8,6 +8,19 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'4.1.4',
+    date:'6 octobre 2026',
+    title:'Material Drawer Layout Fix',
+    summary:'La fiche matériel retrouve des hauteurs naturelles et n’étire plus artificiellement ses panneaux sur toute la hauteur du drawer.',
+    highlights:[
+      'Correction du drawer technique hérité en display:grid qui étirait tous les blocs verticalement.',
+      'Résumé matériel compact avec badge de complétude repositionné sans débordement horizontal.',
+      'Cartes Caractéristiques et Connectiques conservées à leur hauteur naturelle.',
+      'Historique et Informations générales ne réservent plus d’espace vide.',
+      'Drawer desktop encore légèrement réduit pour garder davantage de contexte sur le Stock.'
+    ]
+  },
+  {
     version:'4.1.3',
     date:'6 octobre 2026',
     title:'Stock Card Polish',
