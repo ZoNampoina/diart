@@ -223,7 +223,7 @@ function TechnicalIconPicker({value,text='',onChange,compact=false}:{value?:Inve
       <ChevronDown/>
     </summary>
     <div className="technical-icon-picker-popover">
-      <div className="technical-icon-picker-title"><b>Choisir une icône</b><small>{TECH_ICON_OPTIONS.length} représentations disponibles</small></div>
+      <div className="technical-icon-picker-title"><span><b>Choisir une icône</b><small>{TECH_ICON_OPTIONS.length} représentations disponibles</small></span><button type="button" className="technical-icon-picker-escape" onClick={event=>event.currentTarget.closest('details')?.removeAttribute('open')}><kbd>Échap</kbd><span>Fermer</span></button></div>
       <div className="technical-icon-picker-grid">
         {TECH_ICON_OPTIONS.map(option=><button type="button" key={option.value} className={selected===option.value?'active':''} onClick={event=>{
           onChange(option.value)
@@ -1262,6 +1262,8 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     const onKey=(event:KeyboardEvent)=>{
       if(event.key!=='Escape')return
       event.preventDefault()
+      const iconPicker=document.querySelector('details.technical-icon-picker[open]') as HTMLDetailsElement|null
+      if(iconPicker){iconPicker.open=false;return}
       if(techPopup){setTechPopup(null);return}
       setTechDraft(null)
     }
@@ -1884,6 +1886,8 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                       <label><span>Nom</span><input value={techDraft.name} onChange={e=>setTechDraft({...techDraft,name:e.target.value})}/></label>
                       <label className="stock-icon-field"><span>Icône</span><TechnicalIconPicker value={techDraft.representationIcon} text={techDraft.name+' '+techDraft.category} onChange={representationIcon=>setTechDraft({...techDraft,representationIcon})}/></label>
                       <label><span>Classe</span><select value={techDraft.category} onChange={e=>setTechDraft({...techDraft,category:e.target.value})}>{categories.map(category=><option key={category.id} value={category.id}>{category.label}</option>)}</select></label>
+                      <label><span>Famille</span><input value={techDraft.familyName??''} onChange={e=>setTechDraft({...techDraft,familyName:e.target.value})} placeholder={'Auto : '+materialFamilyName(techDraft)}/></label>
+                      <label><span>Sous-classe / variante</span><input value={techDraft.variantLabel??''} onChange={e=>setTechDraft({...techDraft,variantLabel:e.target.value})} placeholder={'Auto : '+materialVariantLabel(techDraft)}/></label>
                       <label><span>Stockage</span><input value={normalizeProvider(techDraft.provider)} onChange={e=>setTechDraft({...techDraft,provider:e.target.value})}/></label>
                       <label><span>Emplacement précis</span><input value={techDraft.storageLocation??''} onChange={e=>setTechDraft({...techDraft,storageLocation:e.target.value})} placeholder="Flight case, rack, étagère, local…"/></label>
                       <label><span>Alerte stock faible</span><input type="number" min="0" max="999" value={techDraft.lowStockThreshold??0} onChange={e=>setTechDraft({...techDraft,lowStockThreshold:Math.max(0,Number(e.target.value)||0)})}/></label>
