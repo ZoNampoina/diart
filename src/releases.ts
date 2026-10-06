@@ -8,6 +8,19 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'4.2.3',
+    date:'6 octobre 2026',
+    title:'Inventory Modal Portal Fix',
+    summary:'Le panneau Paramètre matériel est désormais rendu directement au niveau du document pour éliminer les conflits de scroll et de clipping hérités des cartes Stock.',
+    highlights:[
+      'Le popup Paramètre matériel est sorti du DOM de la carte Stock via React Portal.',
+      'Suppression des dépendances aux overflow, transform et grid des conteneurs Inventaire.',
+      'Scroll interne renforcé avec overflow-y:scroll et overscroll-behavior:contain.',
+      'Le panneau occupe réellement 100% du viewport sans bande blanche parasite.',
+      'Le fond du scroller utilise la même surface que le popup pour éviter les zones visuelles incohérentes.'
+    ]
+  },
+  {
     version:'4.2.2',
     date:'6 octobre 2026',
     title:'Fullscreen Scroll Fix',
