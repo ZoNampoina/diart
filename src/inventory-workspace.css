@@ -2246,3 +2246,30 @@
     margin-left:0!important;
   }
 }
+
+
+/* DI'ART 4.2.3 — portaled settings modal */
+
+/* The material settings workspace is now portaled to document.body.
+   It no longer inherits any stock-card/grid containing block or clipping context. */
+body>.stock-tech-editor.inventory-drawer{
+  position:fixed!important;
+  inset:0!important;
+  z-index:10000!important;
+  isolation:isolate;
+  width:100vw!important;
+  height:100dvh!important;
+  min-width:0!important;
+  min-height:0!important;
+  margin:0!important;
+  overflow:hidden!important;
+  overscroll-behavior:contain!important;
+}
+body>.stock-tech-editor.inventory-drawer>.stock-tech-scroll{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  overflow-y:scroll!important;
+  overflow-x:hidden!important;
+  overscroll-behavior:contain!important;
+  background:var(--surface)!important;
+}
