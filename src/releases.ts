@@ -8,6 +8,21 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'4.1.2',
+    date:'6 octobre 2026',
+    title:'Cards & Independent Technical Popups',
+    summary:'La vue Cartes gagne en lisibilité et l’édition technique est séparée en fenêtres indépendantes pour réduire la charge visuelle.',
+    highlights:[
+      'Cartes plus compactes, mieux équilibrées et plus lisibles, avec statuts non tronqués et typographie relevée.',
+      'Aperçu technique transformé en chips compactes au lieu de grands blocs pâles.',
+      'Caractéristiques retirées du drawer principal et ouvertes dans une fenêtre dédiée.',
+      'Connectiques retirées du drawer principal et ouvertes dans une fenêtre dédiée.',
+      'Chaque caractéristique et chaque port possède désormais sa propre petite fenêtre d’édition.',
+      'Options audio avancées des ports conservées dans une section repliable.',
+      'Taille des textes opérationnels relevée dans le Stock et les éditeurs techniques.'
+    ]
+  },
+  {
     version:'4.1.1',
     date:'6 octobre 2026',
     title:'Cards & Technical Editor',
