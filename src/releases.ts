@@ -8,6 +8,19 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'4.2.5',
+    date:'6 octobre 2026',
+    title:'Material Modal Style Scope Fix',
+    summary:'Le popup Paramètre matériel récupère correctement le design compact de l’Inventory Workspace après son passage en React Portal.',
+    highlights:[
+      'Rétablissement du scope inventory-workspace-v4 directement sur le popup portaled.',
+      'Correction du badge À compléter surdimensionné.',
+      'Correction des compteurs Caractéristiques / Ports / Unités désalignés.',
+      'Restauration des cartes rapides compactes Caractéristiques et Connectiques.',
+      'Conservation du popup moyen centré et de son scroll interne.'
+    ]
+  },
+  {
     version:'4.2.4',
     date:'6 octobre 2026',
     title:'Medium Material Settings Modal',
