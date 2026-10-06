@@ -1568,7 +1568,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
 
   return <div className="inventory-workspace-v4">
     <section className="inventory-hero panel compact-inventory-hero">
-      <div><span className="eyebrow">Organisation matérielle</span><h1>Inventaire</h1><p>Programmes, stock multi-prestataires, réservations et suivi opérationnel.</p><span className="inventory-version-chip">DI’ART 4.2.4 · Inventory Workspace</span></div>
+      <div><span className="eyebrow">Organisation matérielle</span><h1>Inventaire</h1><p>Programmes, stock multi-prestataires, réservations et suivi opérationnel.</p><span className="inventory-version-chip">DI’ART 4.2.5 · Inventory Workspace</span></div>
       <nav className="inventory-workspace-nav" aria-label="Navigation Inventaire">
         <button className={workspaceView==='overview'?'active':''} onClick={()=>setWorkspaceView('overview')}><LayoutGrid/><span>Vue d’ensemble</span></button>
         <button className={workspaceView==='programs'?'active':''} onClick={()=>setWorkspaceView('programs')}><CalendarDays/><span>Programmes</span><span className="count">{programs.length}</span></button>
