@@ -122,6 +122,30 @@ function mergeSharedCharacteristics(source:InventoryCharacteristic[],target:Inve
   return [...shared.map(entry=>({...entry,id:crypto.randomUUID()})),...preserved]
 }
 
+function materialFamilyGroups(items:InventoryStockItem[]){
+  const map=new Map<string,{name:string;items:InventoryStockItem[]}>()
+  for(const item of items){
+    const name=materialFamilyName(item)
+    const key=normalizedMaterialText(name)
+    const group=map.get(key)??{name,items:[]}
+    group.items.push(item)
+    map.set(key,group)
+  }
+  return Array.from(map.values()).map(group=>{
+    const variants=new Map<string,number>()
+    for(const item of group.items){
+      const label=materialVariantLabel(item)
+      variants.set(label,(variants.get(label)??0)+item.quantity)
+    }
+    return {
+      ...group,
+      quantity:group.items.reduce((sum,item)=>sum+item.quantity,0),
+      available:group.items.reduce((sum,item)=>sum+stockAvailableCount(item),0),
+      variants:Array.from(variants.entries()).map(([label,quantity])=>({label,quantity}))
+    }
+  })
+}
+
 function normalizeStockItem(item:InventoryStockItem):InventoryStockItem{
   return {
     ...item,
@@ -1863,10 +1887,20 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
           {categoryOrder.map(category=>{
             const items=filteredProviderStock.filter(item=>item.category===category)
             return <CategorySection category={category} label={categoryLabel(category,categories)} key={category} open={openCategories[category]??true} onToggle={()=>toggleCategory(category)} count={items.length}>
-              {items.map(item=><div className="stock-item-wrap" key={item.id}>
+              {materialFamilyGroups(items).filter(group=>group.items.length>1).map(group=><div className="stock-family-summary" key={'family-'+category+'-'+normalizedMaterialText(group.name)}>
+                <span className="stock-family-icon"><Boxes/></span>
+                <span className="stock-family-title"><b>{group.name}</b><small>{group.items.length} sous-classe{group.items.length>1?'s':''}</small></span>
+                <span className="stock-family-total"><small>Total</small><b>{group.quantity}</b></span>
+                <span className="stock-family-total available"><small>Disponible</small><b>{group.available}</b></span>
+                <div className="stock-family-variants">{group.variants.map(variant=><span key={variant.label}><em>{variant.label}</em><b>{variant.quantity}</b></span>)}</div>
+              </div>)}
+              {items.map(item=>{
+                const familyItems=items.filter(candidate=>normalizedMaterialText(materialFamilyName(candidate))===normalizedMaterialText(materialFamilyName(item)))
+                const grouped=familyItems.length>1
+                return <div className={'stock-item-wrap '+(grouped?'stock-family-child':'')} key={item.id}>
                 <div className={'stock-row stock-row-with-status stock-row-with-tech stock-workspace-row '+(item.quantity>0?'active ':'empty-stock ')+(selectedStockIds.includes(item.id)?'selected ':'')+((item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)?'low-stock':'')}>
                   <label className="stock-select-control" title="Sélectionner"><input type="checkbox" checked={selectedStockIds.includes(item.id)} onChange={()=>toggleStockSelection(item.id)}/><span/></label>
-                  <span className="stock-representation-icon"><TechnicalIcon icon={item.representationIcon} text={item.name+' '+item.category}/></span><button type="button" className="stock-main-label stock-main-button" onClick={()=>editStockItem(item)}><b>{item.name}</b><small>{item.storageLocation?<><MapPin/>{item.storageLocation}</>:categoryLabel(item.category,categories)}{item.trackUnits?' · suivi individuel':''}{(item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)?' · stock faible':''}</small></button><span className="stock-availability"><small>Disponible</small><b>{stockAvailableCount(item)}/{item.quantity}</b></span>
+                  <span className="stock-representation-icon"><TechnicalIcon icon={item.representationIcon} text={item.name+' '+item.category}/></span><button type="button" className="stock-main-label stock-main-button" onClick={()=>editStockItem(item)}><b>{item.name}</b><small>{grouped&&<><span className="stock-variant-label">{materialVariantLabel(item)}</span> · </>}{item.storageLocation?<><MapPin/>{item.storageLocation}</>:categoryLabel(item.category,categories)}{item.trackUnits?' · suivi individuel':''}{(item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)?' · stock faible':''}</small></button><span className="stock-availability"><small>Disponible</small><b>{stockAvailableCount(item)}/{item.quantity}</b></span>
                   <div className="stock-card-specs" aria-hidden={stockLayout!=='cards'}>
                     {(item.characteristics??[]).filter(value=>value.label.trim()||value.value.trim()).slice(0,3).map(value=><span key={value.id}><TechnicalIcon icon={value.icon} text={value.label+' '+value.value}/><em>{value.label||'Info'}</em><b>{value.value||'—'}</b></span>)}
                     {(item.ports??[]).slice(0,2).map(value=><span className="port" key={value.id}><TechnicalIcon icon={value.icon} text={value.connector+' '+value.label}/><em>{value.label||'Port'}</em><b>{value.count>1?value.count+' × ':''}{value.connector}</b></span>)}
@@ -2068,7 +2102,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                     </section>
                   </div>}
                 </div>,document.body)}
-              </div>)}
+              </div>})}
             </CategorySection>
           })}
         </div>
