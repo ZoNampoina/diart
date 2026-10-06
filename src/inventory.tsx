@@ -1755,7 +1755,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                   <div className="stock-card-specs" aria-hidden={stockLayout!=='cards'}>
                     {(item.characteristics??[]).filter(value=>value.label.trim()||value.value.trim()).slice(0,3).map(value=><span key={value.id}><TechnicalIcon icon={value.icon} text={value.label+' '+value.value}/><em>{value.label||'Info'}</em><b>{value.value||'—'}</b></span>)}
                     {(item.ports??[]).slice(0,2).map(value=><span className="port" key={value.id}><TechnicalIcon icon={value.icon} text={value.connector+' '+value.label}/><em>{value.label||'Port'}</em><b>{value.count>1?value.count+' × ':''}{value.connector}</b></span>)}
-                    {!(item.characteristics??[]).length&&!(item.ports??[]).length&&<span className="empty"><Settings2/><em>Fiche technique</em><b>À compléter</b></span>}
+                    {!(item.characteristics??[]).length&&!(item.ports??[]).length&&<button type="button" className="stock-card-tech-empty" onClick={()=>editStockItem(item)}><Plus/><span>Compléter la fiche technique</span><ChevronRight/></button>}
                   </div>
                   {item.trackUnits?<div className="stock-unit-status-summary" title="États des unités individuelles">
                     <div>{(Object.entries(STOCK_STATUS_LABELS) as Array<[InventoryStockStatus,string]>).map(([status,label])=>{const count=stockStatusCount(item,status);return count>0?<span className={'unit-status-chip status-'+status} key={status}><i className="stock-status-dot" aria-hidden="true"/>{label} <b>{count}</b></span>:null})}</div>
