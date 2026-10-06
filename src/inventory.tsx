@@ -2891,6 +2891,24 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
     toast(suggestion.name+' ajouté au programme.')
   }
 
+  const createPortFromStage=async(stockItemId:string,direction:'input'|'output'|'bidirectional',connector:string):Promise<string>=>{
+    const source=stock.find(item=>item.id===stockItemId)
+    if(!source)throw new Error('Matériel introuvable')
+    const clean=connector.trim()
+    if(!clean)throw new Error('Connectique requise')
+    const existing=(source.ports??[]).find(port=>port.direction===direction&&port.connector.trim().toLowerCase()===clean.toLowerCase())
+    if(existing)return existing.id
+    const port:InventoryPort={id:crypto.randomUUID(),label:direction==='input'?'IN':direction==='output'?'OUT':'IN / OUT',connector:clean,direction,count:1,signalLevel:'unknown',phantom:'none'}
+    const ports=[...(source.ports??[]),port]
+    const updatedAt=now()
+    await db.inventoryStock.update(source.id,{ports,updatedAt})
+    setStock(items=>items.map(item=>item.id===source.id?{...item,ports,updatedAt}:item))
+    await logActivity('update','Connectique créée depuis installation',source.name+' · '+clean,{source:'inventory',inventoryStockItemId:source.id,inventoryProvider:normalizeProvider(source.provider)})
+    onChanged()
+    toast(clean+' ajouté à '+source.name+'.')
+    return port.id
+  }
+
   const createStockFromStage=async(draft:{name:string;category:InventoryCategory;provider?:string;quantity:number}):Promise<InventoryStockItem>=>{
     const name=draft.name.trim()||'Matériel'
     const provider=normalizeProvider(draft.provider)
@@ -3016,7 +3034,7 @@ export function InventoryProgramPage({programId,onBack,onChanged,toast,onShare,o
             <button className="primary" disabled={!installation.nodes.length||installationShortages.length>0} onClick={()=>void reserveInstallation()}><PackageCheck/><span>Réserver</span></button>
           </div>
         </div>
-        {installationView==='schema'&&<StageEditor key={program.id} program={program} stock={stock} onSave={installation=>persist({installation})} onDraftChange={installation=>setProgram(current=>current?{...current,installation}:current)} onCreated={onOpen} onChanged={onChanged} onCreateStock={createStockFromStage} toast={toast} renderIcon={(node,source)=><TechnicalIcon icon={source?.representationIcon} text={node.name+' '+(source?.category??node.category??'')}/>}/>}
+        {installationView==='schema'&&<StageEditor key={program.id} program={program} stock={stock} onSave={installation=>persist({installation})} onDraftChange={installation=>setProgram(current=>current?{...current,installation}:current)} onCreated={onOpen} onChanged={onChanged} onCreateStock={createStockFromStage} onCreatePort={createPortFromStage} toast={toast} renderIcon={(node,source)=><TechnicalIcon icon={source?.representationIcon} text={node.name+' '+(source?.category??node.category??'')}/>}/>}
         {installationView==='list'&&<div className="installation-list-view">{installation.nodes.length?installation.nodes.map((node,index)=>{const source=stockByNode(node.id);const need=node.stockItemId?installationNeeds.find(value=>value.stockItemId===node.stockItemId):undefined;return <article key={node.id}><span>{index+1}</span><div><b>{node.name}</b><small>{node.zone??'Scène'} · {source?normalizeProvider(source.provider)+' · '+categoryLabel(source.category,categories):'Équipement libre'}</small></div>{need&&<em className={need.shortage?'warning':'ok'}>{need.shortage?'manque '+need.shortage:'dispo '+need.available}</em>}</article>}):<div className="installation-empty">Aucun équipement.</div>}</div>}
         {installationView==='patch'&&<div className="installation-patch-view">{installation.links.length?installation.links.map((link,index)=>{const from=installation.nodes.find(node=>node.id===link.fromNodeId),to=installation.nodes.find(node=>node.id===link.toNodeId);const kind=link.kind??installationLinkKind(link,program,stock);return <article key={link.id}><span>{index+1}</span><b>{link.assignedChannel||'Auto'}</b><div>{from?.name??'?'} <em>→</em> {to?.name??'?'}</div><small>{kind}{link.lengthMeters?' · '+link.lengthMeters+' m':''}</small></article>}):<div className="installation-empty">Aucune liaison dans le patch.</div>}</div>}
         {installationView==='diagnostic'&&<div className="installation-diagnostic-view"><div className="installation-diagnostic-picker"><label>Équipement à diagnostiquer<select value={diagnosticNodeId} onChange={e=>setDiagnosticNodeId(e.target.value)}><option value="">Choisir…</option>{installation.nodes.map(node=><option value={node.id} key={node.id}>{node.name}</option>)}</select></label></div>{diagnosticNodeId&&<><div className="diagnostic-chain">{diagnosticChain.map((id,index)=>{const node=installation.nodes.find(value=>value.id===id);return <span key={id}><b>{node?.name??'?'}</b>{index<diagnosticChain.length-1&&<ChevronRight/>}</span>})}</div><div className="diagnostic-findings">{installation.links.filter(link=>diagnosticChain.includes(link.fromNodeId)&&diagnosticChain.includes(link.toNodeId)&&(link.compatibility==='warning'||(link.compatibilityNotes?.length??0)>0)).map(link=><div key={link.id}><AlertTriangle/><span>{link.compatibilityNotes?.join(' · ')||'Liaison à vérifier'}</span></div>)}{!installation.links.some(link=>diagnosticChain.includes(link.fromNodeId)&&diagnosticChain.includes(link.toNodeId)&&link.compatibility==='warning')&&<div className="diagnostic-ok"><Check/>Aucune incompatibilité bloquante détectée sur cette chaîne.</div>}</div></>}</div>}
