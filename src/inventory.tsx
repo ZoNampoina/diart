@@ -1379,8 +1379,26 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
 
   const saveTechnicalDraft=async()=>{
     if(!techDraft)return
+    const original=stock.find(item=>item.id===techDraft.id)
+    const cleanedCharacteristics=(techDraft.characteristics??[]).filter(item=>item.label.trim()||item.value.trim())
+    const cleanedPorts=(techDraft.ports??[]).filter(item=>item.label.trim()||item.connector.trim())
+    const updatedAt=now()
+    const cleanName=techDraft.name.trim()||'Matériel'
+    const familyName=techDraft.familyName?.trim()??''
+    const variantLabel=techDraft.variantLabel?.trim()??''
+    const technicalChanged=!original||
+      JSON.stringify(original.characteristics??[])!==JSON.stringify(cleanedCharacteristics)||
+      JSON.stringify(original.ports??[])!==JSON.stringify(cleanedPorts)||
+      (original.representationIcon??'auto')!==(techDraft.representationIcon??'auto')
+
+    const identical=technicalChanged?stock.filter(item=>
+      item.id!==techDraft.id&&
+      item.category===techDraft.category&&
+      normalizedMaterialText(item.name)===normalizedMaterialText(cleanName)
+    ):[]
+
     await db.inventoryStock.update(techDraft.id,{
-      name:techDraft.name.trim()||'Matériel',
+      name:cleanName,
       category:techDraft.category,
       provider:normalizeProvider(techDraft.provider),
       notes:techDraft.notes??'',
@@ -1390,12 +1408,37 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
       trackUnits:techDraft.trackUnits??false,
       units:techDraft.units??[],
       representationIcon:techDraft.representationIcon??'auto',
-      characteristics:(techDraft.characteristics??[]).filter(item=>item.label.trim()||item.value.trim()),
-      ports:(techDraft.ports??[]).filter(item=>item.label.trim()||item.connector.trim()),
-      updatedAt:now()
+      familyName,
+      variantLabel,
+      characteristics:cleanedCharacteristics,
+      ports:cleanedPorts,
+      updatedAt
     })
-    await logActivity('update','Matériel modifié',techDraft.name,{source:'inventory',inventoryStockItemId:techDraft.id,inventoryProvider:normalizeProvider(techDraft.provider)})
-    setTechPopup(null);setTechDraft(null);await changed();toast('Matériel modifié.')
+
+    if(identical.length){
+      const providers=Array.from(new Set(identical.map(item=>normalizeProvider(item.provider))))
+      const applyToIdentical=window.confirm(
+        'DI’ART a trouvé '+identical.length+' autre'+(identical.length>1?'s':'')+' fiche'+(identical.length>1?'s':'')+
+        ' « '+cleanName+' » dans '+providers.length+' stockage'+(providers.length>1?'s':'')+'.\n\n'+
+        'Appliquer aussi les caractéristiques communes, les connectiques et l’icône ?\n'+
+        'Les variantes comme longueur, couleur, poids ou hauteur seront conservées.'
+      )
+      if(applyToIdentical){
+        await Promise.all(identical.map(target=>db.inventoryStock.update(target.id,{
+          familyName:target.familyName?.trim()||familyName||materialFamilyName({...target,name:cleanName}),
+          representationIcon:techDraft.representationIcon??'auto',
+          characteristics:mergeSharedCharacteristics(cleanedCharacteristics,target.characteristics??[]),
+          ports:cleanedPorts.map(port=>({...port,id:crypto.randomUUID()})),
+          updatedAt
+        })))
+        await Promise.all(identical.map(target=>logActivity('update','Caractéristiques liées synchronisées',cleanName+' · '+normalizeProvider(target.provider),{
+          source:'inventory',inventoryStockItemId:target.id,inventoryProvider:normalizeProvider(target.provider)
+        })))
+      }
+    }
+
+    await logActivity('update','Matériel modifié',cleanName,{source:'inventory',inventoryStockItemId:techDraft.id,inventoryProvider:normalizeProvider(techDraft.provider)})
+    setTechPopup(null);setTechDraft(null);await changed();toast(identical.length?'Matériel modifié. Références identiques vérifiées.':'Matériel modifié.')
   }
   const stockUnits=stock.reduce((sum,item)=>sum+item.quantity,0)
   const unavailableUnits=stock.reduce((sum,item)=>sum+stockStatusCount(item,'repair')+stockStatusCount(item,'maintenance')+stockStatusCount(item,'unavailable'),0)
