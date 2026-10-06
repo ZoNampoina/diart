@@ -24,7 +24,7 @@ import { DIART_RELEASES } from './releases'
 import { DIART_LOGO_DAY, DIART_LOGO_NIGHT } from './brand'
 import { SmartListImportModal, type SmartListImportMode } from './smart-list-import-ui'
 
-const APP_VERSION='3.9.0'
+const APP_VERSION='4.0.0'
 const OFFLINE_IDENTITY_KEY='diart-offline-identity-v1'
 type OfflineIdentity={id:string;email:string}
 function readOfflineIdentity():OfflineIdentity|null{
