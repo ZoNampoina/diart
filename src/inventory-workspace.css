@@ -2093,3 +2093,156 @@
   }
   .inventory-workspace-v4 .stock-general-grid .span2{grid-column:auto!important}
 }
+
+
+/* DI'ART 4.2.2 — true fullscreen settings + reliable scroll */
+
+/* True fullscreen: remove the exposed strip around/below the material settings workspace. */
+.stock-tech-editor.inventory-drawer,
+.inventory-workspace-v4 .stock-tech-editor{
+  inset:0!important;
+  top:0!important;
+  right:0!important;
+  bottom:0!important;
+  left:0!important;
+  width:100vw!important;
+  height:100dvh!important;
+  max-width:none!important;
+  max-height:none!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  background:var(--surface)!important;
+  overflow:hidden!important;
+  display:flex!important;
+  flex-direction:column!important;
+}
+
+/* Header is outside the scroller and never consumes more than its content. */
+.inventory-workspace-v4 .stock-tech-head{
+  flex:0 0 auto!important;
+  min-height:56px!important;
+  height:auto!important;
+  margin:0!important;
+  padding:9px 14px!important;
+  border-radius:0!important;
+  border-bottom:1px solid var(--inv-border)!important;
+  background:var(--surface)!important;
+}
+
+/* The central region is the only vertical scroller. */
+.inventory-workspace-v4 .stock-tech-scroll{
+  flex:1 1 0!important;
+  min-height:0!important;
+  height:auto!important;
+  max-height:none!important;
+  width:100%!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  overscroll-behavior-y:contain!important;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-y;
+  scrollbar-gutter:auto!important;
+  padding:8px 12px 28px!important;
+  gap:7px!important;
+}
+
+/* Compact one-line summary: identity is already visible in the header. */
+.inventory-workspace-v4 .stock-tech-summary-strip{
+  order:1;
+  width:100%;
+  max-width:1280px;
+  min-height:40px;
+  margin:0 auto;
+  padding:5px 8px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  border:1px solid var(--inv-border);
+  border-radius:10px;
+  background:var(--surface2);
+}
+.inventory-workspace-v4 .stock-tech-summary-strip>span:not(.stock-tech-health){
+  min-height:28px;
+  display:flex;
+  align-items:center;
+  gap:5px;
+  padding:3px 7px;
+  border-radius:8px;
+  background:var(--surface);
+  color:var(--muted);
+}
+.inventory-workspace-v4 .stock-tech-summary-strip>span>svg{
+  width:13px;
+  height:13px;
+  color:var(--accent2);
+}
+.inventory-workspace-v4 .stock-tech-summary-strip b{
+  font-size:11px;
+  color:var(--text);
+}
+.inventory-workspace-v4 .stock-tech-summary-strip small{
+  font-size:10px;
+  color:var(--muted);
+}
+.inventory-workspace-v4 .stock-tech-summary-strip .stock-tech-health{
+  margin-left:auto!important;
+  width:auto!important;
+  min-width:0!important;
+  height:26px!important;
+  min-height:26px!important;
+  max-height:26px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  padding:0 9px!important;
+  border-radius:999px!important;
+  font-size:10px!important;
+}
+
+/* Remove old overview geometry completely so it cannot reserve height. */
+.inventory-workspace-v4 .stock-tech-overview{
+  display:none!important;
+}
+
+/* No footer space: actions live in the header. */
+.inventory-workspace-v4 .stock-tech-editor>.stock-tech-actions{
+  display:none!important;
+}
+
+/* Remaining sections keep natural height and can always scroll into view. */
+.inventory-workspace-v4 .stock-tech-scroll>*{
+  flex:0 0 auto!important;
+  min-height:0;
+}
+.inventory-workspace-v4 .stock-tech-launchers{order:2}
+.inventory-workspace-v4 .stock-general-editor{order:3}
+.inventory-workspace-v4 .inventory-category-settings{order:4}
+.inventory-workspace-v4 .stock-units-editor{order:5}
+.inventory-workspace-v4 .stock-related-editor{order:6}
+.inventory-workspace-v4 .stock-item-history{order:7}
+
+/* Slightly more compact desktop launchers and fields. */
+@media(min-width:1060px){
+  .inventory-workspace-v4 .stock-tech-launchers>button{
+    min-height:48px!important;
+    height:48px!important;
+  }
+  .inventory-workspace-v4 .stock-general-grid,
+  .inventory-workspace-v4 .inventory-category-settings .structured-tech-grid{
+    grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  }
+}
+
+/* Mobile remains true fullscreen and reserves safe-area space inside the scroll region. */
+@media(max-width:620px){
+  .inventory-workspace-v4 .stock-tech-scroll{
+    padding:7px 8px calc(22px + env(safe-area-inset-bottom))!important;
+  }
+  .inventory-workspace-v4 .stock-tech-summary-strip{
+    align-items:flex-start;
+  }
+  .inventory-workspace-v4 .stock-tech-summary-strip .stock-tech-health{
+    margin-left:0!important;
+  }
+}
