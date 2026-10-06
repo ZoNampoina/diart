@@ -100,3 +100,94 @@
 .stage-free-stock{display:grid;gap:8px;padding-top:8px;border-top:1px solid var(--stage-border)}
 .stage-free-stock>form{display:flex;gap:6px}.stage-free-stock>form input{flex:1;min-width:0}.stage-free-stock>form button{display:flex;align-items:center;justify-content:center;min-width:38px;border:1px solid var(--stage-border);background:transparent;color:inherit;border-radius:6px}
 .stage-free-stock-create{display:grid;grid-template-columns:minmax(0,1fr) 78px;gap:6px}.stage-free-stock-create select,.stage-free-stock-create input{min-width:0}.stage-free-stock-create .stage-wide-button{grid-column:1/-1;margin:0}
+
+
+/* DI'ART 4.2.0 — installation link ports + canvas expansion */
+
+.stage-expand-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:7px 12px;
+  border-bottom:1px solid var(--stage-border);
+  background:color-mix(in srgb,var(--stage-surface) 94%,transparent);
+}
+.stage-expand-bar>span{display:grid;gap:2px}
+.stage-expand-bar>span b{font-size:11px}
+.stage-expand-bar>span small{font-size:9px;color:var(--muted)}
+.stage-expand-bar>div{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.stage-expand-bar button{
+  min-height:30px;
+  padding:5px 8px;
+  border:1px solid var(--stage-border);
+  border-radius:6px;
+  background:transparent;
+  color:inherit;
+  font-size:10px;
+}
+.stage-expand-bar button:hover{
+  border-color:var(--stage-accent);
+  color:var(--stage-accent);
+}
+
+.stage-link-port-dialog{
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  gap:12px;
+  align-items:start;
+}
+.stage-link-endpoint-config{
+  display:grid;
+  gap:7px;
+  padding:12px;
+  border:1px solid var(--stage-border);
+  border-radius:10px;
+  background:var(--stage-surface);
+}
+.stage-link-endpoint-config>span{display:grid;gap:2px}
+.stage-link-endpoint-config b{font-size:13px}
+.stage-link-endpoint-config small{font-size:10px;color:var(--muted)}
+.stage-link-endpoint-config select,
+.stage-link-endpoint-config input{min-height:38px;font-size:12px}
+.stage-link-direction{
+  align-self:center;
+  display:flex;
+  align-items:center;
+  gap:5px;
+  padding-top:26px;
+  color:var(--muted);
+  font-size:10px;
+  font-weight:800;
+}
+.stage-link-direction span{color:var(--stage-accent);font-size:17px}
+.stage-link-stock-suggestion{
+  grid-column:1/-1;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 12px;
+  border:1px solid var(--stage-border);
+  border-radius:9px;
+  background:color-mix(in srgb,var(--stage-accent) 7%,var(--stage-surface));
+}
+.stage-link-stock-suggestion>span{display:grid;gap:2px}
+.stage-link-stock-suggestion b{font-size:11px}
+.stage-link-stock-suggestion small{font-size:10px;color:var(--muted)}
+.stage-link-stock-suggestion button{white-space:nowrap}
+.stage-link-port-dialog .stage-dialog-actions{
+  grid-column:1/-1;
+  display:flex;
+  justify-content:flex-end;
+  gap:7px;
+}
+
+@media(max-width:760px){
+  .stage-expand-bar{align-items:flex-start;flex-direction:column}
+  .stage-expand-bar>div{width:100%;display:grid;grid-template-columns:1fr 1fr}
+  .stage-link-port-dialog{grid-template-columns:1fr}
+  .stage-link-direction{padding:0;justify-self:center}
+  .stage-link-stock-suggestion{grid-column:auto;align-items:stretch;flex-direction:column}
+  .stage-link-port-dialog .stage-dialog-actions{grid-column:auto}
+}
