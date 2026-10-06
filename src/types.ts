@@ -192,6 +192,10 @@ export interface InventoryStockItem {
   /** Exemplaires suivis individuellement. Ignoré tant que trackUnits est désactivé. */
   units?: InventoryTrackedUnit[]
   representationIcon?: InventoryTechnicalIcon
+  /** Famille logique pour regrouper plusieurs variantes d’un même matériel (ex. JACK-JACK). */
+  familyName?: string
+  /** Libellé de variante facultatif. À défaut, DI'ART le dérive de caractéristiques comme Longueur et Couleur. */
+  variantLabel?: string
   createdAt: string
   updatedAt: string
   deletedAt: string | null
