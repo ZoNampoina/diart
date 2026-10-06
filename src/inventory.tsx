@@ -1254,6 +1254,20 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     return {total,available,reserved,inUse,unavailable}
   },[providerStock])
   const lowStockItems=useMemo(()=>providerStock.filter(item=>item.quantity>0&&Number.isFinite(item.lowStockThreshold)&&item.quantity<=(item.lowStockThreshold??0)),[providerStock])
+  const activeStockFilterCount=[
+    stockCategoryFilter!=='all',
+    stockStatusFilter!=='all',
+    stockAvailabilityFilter!=='all',
+    stockLocationFilter!=='all',
+    stockLowOnly
+  ].filter(Boolean).length
+  const resetStockFilters=()=>{
+    setStockCategoryFilter('all')
+    setStockStatusFilter('all')
+    setStockAvailabilityFilter('all')
+    setStockLocationFilter('all')
+    setStockLowOnly(false)
+  }
   const selectedStock=useMemo(()=>stock.filter(item=>selectedStockIds.includes(item.id)),[stock,selectedStockIds])
   const filteredHistory=useMemo(()=>{
     const query=movementSearch.trim().toLowerCase()
@@ -1278,6 +1292,14 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     await saveInventoryCategories(next)
     toast('Classe « '+label+' » ajoutée.')
   }
+
+  const editStockItem=(item:InventoryStockItem)=>setTechDraft({
+    ...item,
+    characteristics:[...(item.characteristics??[])],
+    ports:[...(item.ports??[])],
+    associatedItemIds:[...(item.associatedItemIds??[])],
+    units:[...(item.units??[])]
+  })
 
   const saveTechnicalDraft=async()=>{
     if(!techDraft)return
@@ -1618,37 +1640,74 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
       </div>
 
       {stockView==='provider'&&<>
-        <div className="stock-toolbar panel">
-          <select value={stockProvider} onChange={e=>setStockProvider(e.target.value)}>
-            {providers.map(provider=><option value={provider} key={provider}>{provider}</option>)}
-          </select>
-          <input value={providerName} onChange={e=>setProviderName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createProvider()}} placeholder="Nouveau prestataire / stockage…"/>
-          <button className="secondary" disabled={!providerName.trim()} onClick={()=>void createProvider()}><Plus/>Prestataire</button>
-        </div>
-        <section className="stock-workspace-dashboard panel">
-          <div className="stock-workspace-metrics">
-            <span><small>Total</small><b>{providerMetrics.total}</b></span>
-            <span className="available"><small>Disponibles</small><b>{providerMetrics.available}</b></span>
-            <span className="reserved"><small>Réservés</small><b>{providerMetrics.reserved}</b></span>
-            <span className="in-use"><small>Utilisés</small><b>{providerMetrics.inUse}</b></span>
-            <span className={providerMetrics.unavailable?'warning':''}><small>Indisponibles</small><b>{providerMetrics.unavailable}</b></span>
+        <section className="stock-pro-header panel">
+          <div className="stock-pro-title">
+            <span className="stock-pro-eyebrow">INVENTAIRE · STOCK</span>
+            <h2>{stockProvider}</h2>
+            <p>{providerStock.length} référence{providerStock.length>1?'s':''} · {providerMetrics.total} unité{providerMetrics.total>1?'s':''} · {providerMetrics.available} disponible{providerMetrics.available>1?'s':''}</p>
           </div>
-          {lowStockItems.length>0&&<div className="stock-low-alert"><AlertTriangle/><span><b>{lowStockItems.length} stock{lowStockItems.length>1?'s':''} faible{lowStockItems.length>1?'s':''}</b><small>{lowStockItems.slice(0,4).map(item=>item.name+' ('+item.quantity+')').join(' · ')}{lowStockItems.length>4?' · …':''}</small></span></div>}
+          <div className="stock-pro-actions">
+            <select className="stock-provider-select" value={stockProvider} onChange={e=>setStockProvider(e.target.value)} aria-label="Stockage actif">
+              {providers.map(provider=><option value={provider} key={provider}>{provider}</option>)}
+            </select>
+            <details className="stock-context-menu">
+              <summary className="secondary"><Archive/><span>Stockages</span></summary>
+              <div className="stock-context-popover">
+                <b>Ajouter un stockage / prestataire</b>
+                <input value={providerName} onChange={e=>setProviderName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createProvider()}} placeholder="Nom du stockage…"/>
+                <button className="secondary" disabled={!providerName.trim()} onClick={()=>void createProvider()}><Plus/>Créer</button>
+              </div>
+            </details>
+            <details className="stock-context-menu stock-add-menu">
+              <summary className="primary"><Plus/><span>Ajouter du matériel</span></summary>
+              <div className="stock-context-popover stock-add-popover">
+                <b>Nouveau matériel · {stockProvider}</b>
+                <label><span>Classe</span><select value={stockCategory} onChange={e=>setStockCategory(e.target.value as InventoryCategory)}>{categoryOrder.map(category=><option value={category} key={category}>{categoryLabel(category,categories)}</option>)}</select></label>
+                <label><span>Nom</span><input autoFocus value={stockName} onChange={e=>setStockName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void addStock()}} placeholder="Ex. Shure SM58, XLR 10 m…"/></label>
+                <button className="primary" disabled={!stockName.trim()} onClick={()=>void addStock()}><Plus/>Ajouter au stock</button>
+              </div>
+            </details>
+          </div>
         </section>
-        <div className="stock-workspace-toolbar panel">
-          <label className="stock-search"><Search/><input value={stockSearch} onChange={e=>setStockSearch(e.target.value)} placeholder="Rechercher nom, emplacement, caractéristique…"/></label>
-          <select value={stockCategoryFilter} onChange={e=>setStockCategoryFilter(e.target.value as 'all'|InventoryCategory)}><option value="all">Toutes les classes</option>{categoryOrder.map(category=><option value={category} key={category}>{categoryLabel(category,categories)}</option>)}</select>
-          <select value={stockStatusFilter} onChange={e=>setStockStatusFilter(e.target.value as 'all'|InventoryStockStatus)}><option value="all">Tous les états</option>{Object.entries(STOCK_STATUS_LABELS).map(([value,label])=><option value={value} key={value}>{label}</option>)}</select>
-          <select value={stockAvailabilityFilter} onChange={e=>setStockAvailabilityFilter(e.target.value as typeof stockAvailabilityFilter)}><option value="all">Toute disponibilité</option><option value="full">Disponible en totalité</option><option value="partial">Partiellement disponible</option><option value="none">Aucune disponibilité</option></select>
-          <select value={stockLocationFilter} onChange={e=>setStockLocationFilter(e.target.value)}><option value="all">Tous les emplacements</option>{stockLocations.map(location=><option value={location} key={location}>{location}</option>)}</select>
-          <select value={stockSort} onChange={e=>setStockSort(e.target.value as typeof stockSort)}><option value="name">Nom A–Z</option><option value="quantity-desc">Quantité ↓</option><option value="quantity-asc">Quantité ↑</option><option value="location">Emplacement</option><option value="status">État</option><option value="updated">Dernière modification</option></select>
-          <label className="stock-filter-toggle"><input type="checkbox" checked={stockLowOnly} onChange={e=>setStockLowOnly(e.target.checked)}/><span>Stock faible</span></label>
+
+        <section className="stock-pro-summary panel">
+          <span><small>Total</small><b>{providerMetrics.total}</b></span>
+          <span className="available"><i className="stock-status-dot"/><small>Disponibles</small><b>{providerMetrics.available}</b></span>
+          <span><i className="stock-status-dot status-reserved"/><small>Réservés</small><b>{providerMetrics.reserved}</b></span>
+          <span><i className="stock-status-dot status-in_use"/><small>Utilisés</small><b>{providerMetrics.inUse}</b></span>
+          <span className={providerMetrics.unavailable?'warning':''}><i className="stock-status-dot status-unavailable"/><small>Indisponibles</small><b>{providerMetrics.unavailable}</b></span>
+          {lowStockItems.length>0&&<button className="stock-low-inline" onClick={()=>setStockLowOnly(true)}><AlertTriangle/><b>{lowStockItems.length}</b><span>stock faible</span></button>}
+        </section>
+
+        <div className="stock-pro-toolbar panel">
+          <label className="stock-search"><Search/><input value={stockSearch} onChange={e=>setStockSearch(e.target.value)} placeholder="Rechercher matériel, emplacement, connectique…"/></label>
+          <details className="stock-filter-menu">
+            <summary className={activeStockFilterCount?'active':''}><Settings2/><span>Filtres</span>{activeStockFilterCount>0&&<b>{activeStockFilterCount}</b>}</summary>
+            <div className="stock-filter-popover">
+              <label><span>Classe</span><select value={stockCategoryFilter} onChange={e=>setStockCategoryFilter(e.target.value as 'all'|InventoryCategory)}><option value="all">Toutes les classes</option>{categoryOrder.map(category=><option value={category} key={category}>{categoryLabel(category,categories)}</option>)}</select></label>
+              <label><span>État</span><select value={stockStatusFilter} onChange={e=>setStockStatusFilter(e.target.value as 'all'|InventoryStockStatus)}><option value="all">Tous les états</option>{Object.entries(STOCK_STATUS_LABELS).map(([value,label])=><option value={value} key={value}>{label}</option>)}</select></label>
+              <label><span>Disponibilité</span><select value={stockAvailabilityFilter} onChange={e=>setStockAvailabilityFilter(e.target.value as typeof stockAvailabilityFilter)}><option value="all">Toute disponibilité</option><option value="full">Disponible en totalité</option><option value="partial">Partiellement disponible</option><option value="none">Aucune disponibilité</option></select></label>
+              <label><span>Emplacement</span><select value={stockLocationFilter} onChange={e=>setStockLocationFilter(e.target.value)}><option value="all">Tous les emplacements</option>{stockLocations.map(location=><option value={location} key={location}>{location}</option>)}</select></label>
+              <label className="stock-filter-toggle"><input type="checkbox" checked={stockLowOnly} onChange={e=>setStockLowOnly(e.target.checked)}/><span>Stock faible uniquement</span></label>
+              {activeStockFilterCount>0&&<button className="secondary" onClick={resetStockFilters}><RotateCcw/>Tout effacer</button>}
+            </div>
+          </details>
+          <select className="stock-sort-select" value={stockSort} onChange={e=>setStockSort(e.target.value as typeof stockSort)} aria-label="Trier le stock"><option value="name">Nom A–Z</option><option value="quantity-desc">Quantité ↓</option><option value="quantity-asc">Quantité ↑</option><option value="location">Emplacement</option><option value="status">État</option><option value="updated">Dernière modification</option></select>
           <div className="stock-layout-switch" aria-label="Affichage du stock">
             <button className={stockLayout==='compact'?'active':''} onClick={()=>setStockLayout('compact')} title="Vue compacte"><List/></button>
             <button className={stockLayout==='cards'?'active':''} onClick={()=>setStockLayout('cards')} title="Vue cartes"><Grid3X3/></button>
             <button className={stockLayout==='table'?'active':''} onClick={()=>setStockLayout('table')} title="Vue tableau"><Table2/></button>
           </div>
         </div>
+        {(activeStockFilterCount>0||stockSearch.trim())&&<div className="stock-active-filters">
+          {stockSearch.trim()&&<button onClick={()=>setStockSearch('')}><Search/><span>« {stockSearch.trim()} »</span><X/></button>}
+          {stockCategoryFilter!=='all'&&<button onClick={()=>setStockCategoryFilter('all')}><span>{categoryLabel(stockCategoryFilter,categories)}</span><X/></button>}
+          {stockStatusFilter!=='all'&&<button onClick={()=>setStockStatusFilter('all')}><span>{STOCK_STATUS_LABELS[stockStatusFilter]}</span><X/></button>}
+          {stockAvailabilityFilter!=='all'&&<button onClick={()=>setStockAvailabilityFilter('all')}><span>{stockAvailabilityFilter==='full'?'Disponible':stockAvailabilityFilter==='partial'?'Partiel':'Indisponible'}</span><X/></button>}
+          {stockLocationFilter!=='all'&&<button onClick={()=>setStockLocationFilter('all')}><MapPin/><span>{stockLocationFilter}</span><X/></button>}
+          {stockLowOnly&&<button onClick={()=>setStockLowOnly(false)}><AlertTriangle/><span>Stock faible</span><X/></button>}
+          <button className="clear" onClick={()=>{setStockSearch('');resetStockFilters()}}>Tout effacer</button>
+        </div>}
         {filteredProviderStock.length>0&&<div className="stock-selection-head">
           <button className="secondary" onClick={selectVisibleStock}><CheckSquare/>{filteredProviderStock.every(item=>selectedStockIds.includes(item.id))?'Désélectionner':'Sélectionner'} visibles</button>
           <span>{filteredProviderStock.length} référence{filteredProviderStock.length>1?'s':''} affichée{filteredProviderStock.length>1?'s':''}</span>
@@ -1666,18 +1725,20 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
           <button className="secondary" onClick={exportSelectedStockCsv}><ImageDown/>Exporter</button>
           <button className="danger" onClick={()=>void bulkDeleteStock()}><Trash2/>Retirer</button>
         </div>}
-        <div className="stock-class-toolbar panel">
-          <span><b>Classes de matériel</b><small>{categories.length} classes · Accessoires inclus</small></span>
-          <div className="stock-class-chips">{categories.map(category=><button className={stockCategory===category.id?'active':''} key={category.id} onClick={()=>setStockCategory(category.id)}>{category.label}</button>)}</div>
-          <input value={newCategoryName} onChange={e=>setNewCategoryName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createCategory()}} placeholder="Nouvelle classe…"/>
-          <button className="secondary" disabled={!newCategoryName.trim()} onClick={()=>void createCategory()}><Plus/>Classe</button>
-        </div>
-        <div className="stock-toolbar panel">
-          <select value={stockCategory} onChange={e=>setStockCategory(e.target.value as InventoryCategory)}>
-            {categoryOrder.map(category=><option value={category} key={category}>{categoryLabel(category,categories)}</option>)}
-          </select>
-          <input value={stockName} onChange={e=>setStockName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void addStock()}} placeholder={'Ajouter chez '+stockProvider+'…'}/>
-          <button className="primary" disabled={!stockName.trim()} onClick={()=>void addStock()}><Plus/>Ajouter</button>
+        <div className="stock-category-tabs">
+          <button className={stockCategoryFilter==='all'?'active':''} onClick={()=>setStockCategoryFilter('all')}>Tous <span>{providerStock.length}</span></button>
+          {categoryOrder.map(category=>{
+            const count=providerStock.filter(item=>item.category===category).length
+            return <button className={stockCategoryFilter===category?'active':''} key={category} onClick={()=>{setStockCategoryFilter(category);setStockCategory(category)}}>{categoryLabel(category,categories)} <span>{count}</span></button>
+          })}
+          <details className="stock-category-manager">
+            <summary title="Gérer les classes"><Plus/><span>Classe</span></summary>
+            <div className="stock-context-popover">
+              <b>Nouvelle classe de matériel</b>
+              <input value={newCategoryName} onChange={e=>setNewCategoryName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createCategory()}} placeholder="Nom de la classe…"/>
+              <button className="secondary" disabled={!newCategoryName.trim()} onClick={()=>void createCategory()}><Plus/>Créer la classe</button>
+            </div>
+          </details>
         </div>
         <div className={'inventory-category-stack planned-material-list stock-layout-'+stockLayout}>
           {categoryOrder.map(category=>{
@@ -1686,7 +1747,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
               {items.map(item=><div className="stock-item-wrap" key={item.id}>
                 <div className={'stock-row stock-row-with-status stock-row-with-tech stock-workspace-row '+(item.quantity>0?'active ':'empty-stock ')+(selectedStockIds.includes(item.id)?'selected ':'')+((item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)?'low-stock':'')}>
                   <label className="stock-select-control" title="Sélectionner"><input type="checkbox" checked={selectedStockIds.includes(item.id)} onChange={()=>toggleStockSelection(item.id)}/><span/></label>
-                  <span className="stock-representation-icon"><TechnicalIcon icon={item.representationIcon} text={item.name+' '+item.category}/></span><span className="stock-main-label"><b>{item.name}</b><small>{item.storageLocation?<><MapPin/>{item.storageLocation}</>:categoryLabel(item.category,categories)}{item.trackUnits?' · suivi individuel':''}{(item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)?' · stock faible':''}</small></span>
+                  <span className="stock-representation-icon"><TechnicalIcon icon={item.representationIcon} text={item.name+' '+item.category}/></span><button type="button" className="stock-main-label stock-main-button" onClick={()=>editStockItem(item)}><b>{item.name}</b><small>{item.storageLocation?<><MapPin/>{item.storageLocation}</>:categoryLabel(item.category,categories)}{item.trackUnits?' · suivi individuel':''}{(item.lowStockThreshold??0)>0&&item.quantity<=(item.lowStockThreshold??0)?' · stock faible':''}</small></button><span className="stock-availability"><small>Disponible</small><b>{stockAvailableCount(item)}/{item.quantity}</b></span>
                   {item.trackUnits?<div className="stock-unit-status-summary" title="États des unités individuelles">
                     <div>{(Object.entries(STOCK_STATUS_LABELS) as Array<[InventoryStockStatus,string]>).map(([status,label])=>{const count=stockStatusCount(item,status);return count>0?<span className={'unit-status-chip status-'+status} key={status}><i className="stock-status-dot" aria-hidden="true"/>{label} <b>{count}</b></span>:null})}</div>
                     <select defaultValue="" aria-label={'Changer toutes les unités de '+item.name} onChange={e=>{if(e.target.value)void setStockStatus(item,e.target.value as InventoryStockStatus);e.currentTarget.value=''}}><option value="">Tout passer à…</option>{Object.entries(STOCK_STATUS_LABELS).map(([value,label])=><option value={value} key={value}>{label}</option>)}</select>
@@ -1702,7 +1763,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                     <input type="number" min="0" max="999" inputMode="numeric" value={item.quantity} onChange={e=>void setStockQuantity(item,Number(e.target.value))}/>
                     <button onClick={()=>void setStockQuantity(item,item.quantity+1)}><Plus/></button>
                   </div>
-                  <button className={'bare-action tech-action '+(techDraft?.id===item.id?'active':'')} title="Caractéristiques et connectiques" onClick={()=>setTechDraft(current=>current?.id===item.id?null:{...item,characteristics:[...(item.characteristics??[])],ports:[...(item.ports??[])]})}><Settings2/></button>
+                  <button className={'bare-action tech-action '+(techDraft?.id===item.id?'active':'')} title="Caractéristiques et connectiques" onClick={()=>editStockItem(item)}><Settings2/></button>
                   <button className="bare-action danger-icon compact-delete" aria-label={'Supprimer '+item.name} onClick={()=>void deleteStock(item)}><Trash2/></button>
                 </div>
                 {techDraft?.id===item.id&&<div className="stock-tech-editor inventory-drawer">
