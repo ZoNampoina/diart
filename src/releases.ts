@@ -8,6 +8,23 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'4.2.0',
+    date:'6 octobre 2026',
+    title:'Inventory Workflow 4.2',
+    summary:'Inventaire sépare clairement les usages Stock, Programme et Installation, avec paramètres matériels guidés et liaisons basées sur les connectiques réelles.',
+    highlights:[
+      'Correction du blocage Inventaire : suppression du verrouillage global du body et maintien d’un défilement propre dans les fenêtres.',
+      'Le bouton Paramètres ouvre désormais un espace plein écran, fermable par Échap, Annuler ou Enregistrer.',
+      'Paramètres dédiés aux câbles, instruments, prises/alimentations, adaptateurs et accessoires, avec valeurs libres mémorisées comme suggestions.',
+      'Les accessoires peuvent être associés aux instruments et de nouveaux accessoires ou instruments peuvent être créés directement depuis les paramètres.',
+      'Installation : choix explicite OUT source → IN destination à partir des ports du stock, avec création de nouvelles connectiques si nécessaire.',
+      'Installation : possibilité de créer le câble proposé et d’étendre le schéma de 2 m vers la gauche, la droite, le haut ou le bas sans redimensionner les objets existants.',
+      'Programme : vues exclusives Aperçu, Matériel, Check-list, Installation, Besoins, Ordre et Export afin de supprimer les affichages redondants.',
+      'Besoins : un matériel absent du catalogue peut être créé directement puis affecté au programme.',
+      'Export devient une page intégrée et ajoute un profil Check-list manuscrite imprimable.'
+    ]
+  },
+  {
     version:'4.1.5',
     date:'6 octobre 2026',
     title:'Independent Drawer Scroll',
