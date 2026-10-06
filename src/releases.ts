@@ -8,6 +8,19 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'4.1.5',
+    date:'6 octobre 2026',
+    title:'Independent Drawer Scroll',
+    summary:'La fiche matériel possède désormais son propre défilement, indépendant de la page Inventaire.',
+    highlights:[
+      'Le fond de page est verrouillé pendant l’ouverture de la fiche matériel.',
+      'Le header du drawer reste visible en permanence.',
+      'Le contenu central dispose de son propre scroll vertical.',
+      'Les actions Annuler / Enregistrer restent visibles en bas du drawer.',
+      'Le scroll est contenu dans le drawer sans propagation vers la page.'
+    ]
+  },
+  {
     version:'4.1.4',
     date:'6 octobre 2026',
     title:'Material Drawer Layout Fix',
