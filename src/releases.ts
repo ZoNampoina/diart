@@ -8,6 +8,21 @@ export interface DiartRelease {
 
 export const DIART_RELEASES:DiartRelease[]=[
   {
+    version:'4.3.0',
+    date:'6 octobre 2026',
+    title:'Linked Materials & Variants',
+    summary:'L’Inventaire regroupe les variantes d’un même matériel, peut synchroniser les caractéristiques entre références identiques et améliore le sélecteur d’icônes.',
+    highlights:[
+      'Le sélecteur d’icônes affiche désormais clairement la touche Échap et la ferme avant de fermer la fiche matériel.',
+      'Lors de l’enregistrement, DI’ART détecte les autres fiches portant le même nom et propose de synchroniser leurs caractéristiques communes, connectiques et icône.',
+      'Les caractéristiques propres aux variantes comme longueur, couleur, poids et hauteur sont préservées pendant la synchronisation.',
+      'Ajout des champs Famille et Sous-classe / variante dans les paramètres matériel.',
+      'Regroupement automatique des variantes dans le Stock avec quantité totale par famille.',
+      'Affichage des sous-classes avec leurs quantités, par exemple JACK-JACK → Bleu 5 / Rouge 5.',
+      'Détection automatique de familles depuis les noms contenant longueur ou couleur, avec possibilité de corriger manuellement la famille et le libellé de variante.'
+    ]
+  },
+  {
     version:'4.2.5',
     date:'6 octobre 2026',
     title:'Material Modal Style Scope Fix',
