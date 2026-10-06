@@ -1483,3 +1483,105 @@
     min-height:0;
   }
 }
+
+
+/* DI'ART 4.1.4 — drawer natural flow fix */
+
+/* The legacy stock-tech-editor is a grid. In the fixed drawer that stretched
+   every direct child to consume the viewport height. Force natural document flow. */
+.stock-tech-editor.inventory-drawer,
+.inventory-workspace-v4 .stock-tech-editor{
+  display:flex!important;
+  flex-direction:column;
+  align-items:stretch;
+  justify-content:flex-start;
+  gap:0!important;
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+.inventory-workspace-v4 .stock-tech-editor>*{
+  flex:0 0 auto;
+  min-height:0;
+}
+
+/* Header stays compact while scrolling */
+.inventory-workspace-v4 .stock-tech-head{
+  flex:0 0 auto;
+  width:100%;
+}
+
+/* Summary must never become a giant hero panel */
+.inventory-workspace-v4 .stock-tech-overview{
+  min-height:68px;
+  height:auto;
+  grid-template-columns:48px minmax(0,1fr);
+  grid-template-rows:auto auto;
+  align-content:center;
+}
+.inventory-workspace-v4 .stock-tech-overview>div{
+  min-width:0;
+}
+.inventory-workspace-v4 .stock-tech-overview>div b,
+.inventory-workspace-v4 .stock-tech-overview>div small{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.inventory-workspace-v4 .stock-tech-health{
+  grid-column:2;
+  justify-self:start;
+  width:auto;
+  max-width:100%;
+  margin-top:3px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+/* Launchers remain small action cards, not panels */
+.inventory-workspace-v4 .stock-tech-launchers{
+  height:auto;
+  align-items:stretch;
+}
+.inventory-workspace-v4 .stock-tech-launchers>button{
+  height:auto;
+  min-height:62px;
+  align-self:start;
+}
+
+/* All remaining drawer sections use content height */
+.inventory-workspace-v4 .stock-tech-editor>.stock-item-history,
+.inventory-workspace-v4 .stock-tech-editor>.stock-tech-section,
+.inventory-workspace-v4 .stock-tech-editor>.stock-related-editor{
+  height:auto;
+  align-self:stretch;
+}
+.inventory-workspace-v4 .stock-tech-editor>.stock-item-history{
+  min-height:40px;
+}
+.inventory-workspace-v4 .stock-tech-editor>.stock-general-editor{
+  padding:12px;
+}
+
+/* Keep footer usable without reserving empty space */
+.inventory-workspace-v4 .stock-tech-editor>.stock-tech-actions{
+  flex:0 0 auto;
+  margin-top:14px;
+}
+
+/* Desktop drawer remains compact and keeps enough stock visible */
+@media(min-width:821px){
+  .stock-tech-editor.inventory-drawer,
+  .inventory-workspace-v4 .stock-tech-editor{
+    width:min(480px,calc(100vw - 340px));
+  }
+}
+@media(max-width:700px){
+  .inventory-workspace-v4 .stock-tech-overview{
+    grid-template-columns:44px minmax(0,1fr);
+  }
+  .inventory-workspace-v4 .stock-tech-overview-icon{
+    width:44px;
+    height:44px;
+  }
+}
