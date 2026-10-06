@@ -2273,3 +2273,103 @@ body>.stock-tech-editor.inventory-drawer>.stock-tech-scroll{
   overscroll-behavior:contain!important;
   background:var(--surface)!important;
 }
+
+
+/* DI'ART 4.2.4 — medium centered material settings modal */
+
+/* Medium centered popup: keep the React Portal, remove fullscreen presentation. */
+body>.stock-tech-editor.inventory-drawer{
+  position:fixed!important;
+  inset:auto!important;
+  top:50%!important;
+  left:50%!important;
+  right:auto!important;
+  bottom:auto!important;
+  transform:translate(-50%,-50%)!important;
+  width:min(860px,calc(100vw - 48px))!important;
+  height:min(82dvh,760px)!important;
+  min-width:0!important;
+  min-height:420px!important;
+  max-width:none!important;
+  max-height:none!important;
+  margin:0!important;
+  border:1px solid var(--line)!important;
+  border-radius:18px!important;
+  background:var(--surface)!important;
+  box-shadow:0 28px 90px rgba(0,0,0,.34),0 0 0 100vmax rgba(5,16,20,.42)!important;
+  overflow:hidden!important;
+  z-index:10000!important;
+  display:flex!important;
+  flex-direction:column!important;
+}
+
+/* Compact modal header. */
+body>.stock-tech-editor.inventory-drawer>.stock-tech-head{
+  flex:0 0 auto!important;
+  min-height:56px!important;
+  padding:9px 12px!important;
+  border-bottom:1px solid var(--inv-border)!important;
+  background:var(--surface)!important;
+}
+
+/* Scroll only inside the popup. */
+body>.stock-tech-editor.inventory-drawer>.stock-tech-scroll{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  height:auto!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  padding:8px 10px 14px!important;
+  overscroll-behavior:contain!important;
+  scrollbar-gutter:stable;
+  background:var(--surface)!important;
+}
+
+/* Keep the content compact inside a medium-width dialog. */
+body>.stock-tech-editor.inventory-drawer .stock-tech-summary-strip,
+body>.stock-tech-editor.inventory-drawer .stock-tech-launchers,
+body>.stock-tech-editor.inventory-drawer .stock-general-editor,
+body>.stock-tech-editor.inventory-drawer .inventory-category-settings,
+body>.stock-tech-editor.inventory-drawer .stock-units-editor,
+body>.stock-tech-editor.inventory-drawer .stock-related-editor,
+body>.stock-tech-editor.inventory-drawer .stock-item-history{
+  width:100%!important;
+  max-width:none!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+
+body>.stock-tech-editor.inventory-drawer .stock-tech-launchers{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+}
+
+body>.stock-tech-editor.inventory-drawer .stock-general-grid,
+body>.stock-tech-editor.inventory-drawer .inventory-category-settings .structured-tech-grid{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+}
+
+/* A medium popup should not feel cramped vertically. */
+body>.stock-tech-editor.inventory-drawer .stock-general-editor,
+body>.stock-tech-editor.inventory-drawer .inventory-category-settings{
+  padding:10px!important;
+}
+
+/* Mobile/tablet becomes a bottom sheet-like popup rather than fullscreen. */
+@media(max-width:700px){
+  body>.stock-tech-editor.inventory-drawer{
+    top:auto!important;
+    left:8px!important;
+    right:8px!important;
+    bottom:8px!important;
+    transform:none!important;
+    width:auto!important;
+    height:min(88dvh,760px)!important;
+    min-height:0!important;
+    border-radius:18px!important;
+  }
+  body>.stock-tech-editor.inventory-drawer .stock-tech-launchers,
+  body>.stock-tech-editor.inventory-drawer .stock-general-grid,
+  body>.stock-tech-editor.inventory-drawer .inventory-category-settings .structured-tech-grid{
+    grid-template-columns:1fr!important;
+  }
+}
