@@ -1177,6 +1177,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
   const [categories,setCategories]=useState<InventoryCategoryDef[]>(DEFAULT_CATEGORIES)
   const [newCategoryName,setNewCategoryName]=useState('')
   const [techDraft,setTechDraft]=useState<InventoryStockItem|null>(null)
+  const [techPopup,setTechPopup]=useState<null|{kind:'characteristics'|'ports'|'characteristic'|'port';id?:string}>(null)
   const [busy,setBusy]=useState(false)
   const [openCategories,setOpenCategories]=useState<Record<InventoryCategory,boolean>>(
     Object.fromEntries(DEFAULT_CATEGORY_ORDER.map(category=>[category,true]))
@@ -1293,13 +1294,16 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
     toast('Classe « '+label+' » ajoutée.')
   }
 
-  const editStockItem=(item:InventoryStockItem)=>setTechDraft({
-    ...item,
-    characteristics:[...(item.characteristics??[])],
-    ports:[...(item.ports??[])],
-    associatedItemIds:[...(item.associatedItemIds??[])],
-    units:[...(item.units??[])]
-  })
+  const editStockItem=(item:InventoryStockItem)=>{
+    setTechPopup(null)
+    setTechDraft({
+      ...item,
+      characteristics:[...(item.characteristics??[])],
+      ports:[...(item.ports??[])],
+      associatedItemIds:[...(item.associatedItemIds??[])],
+      units:[...(item.units??[])]
+    })
+  }
 
   const saveTechnicalDraft=async()=>{
     if(!techDraft)return
@@ -1319,7 +1323,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
       updatedAt:now()
     })
     await logActivity('update','Matériel modifié',techDraft.name,{source:'inventory',inventoryStockItemId:techDraft.id,inventoryProvider:normalizeProvider(techDraft.provider)})
-    setTechDraft(null);await changed();toast('Matériel modifié.')
+    setTechPopup(null);setTechDraft(null);await changed();toast('Matériel modifié.')
   }
   const stockUnits=stock.reduce((sum,item)=>sum+item.quantity,0)
   const unavailableUnits=stock.reduce((sum,item)=>sum+stockStatusCount(item,'repair')+stockStatusCount(item,'maintenance')+stockStatusCount(item,'unavailable'),0)
@@ -1778,7 +1782,7 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                       <button className="secondary" onClick={()=>void saveTechnicalDraft()}><Save/><span>Enregistrer</span></button>
                       <button className="secondary" onClick={()=>void duplicateStock(item)}><Copy/><span>Dupliquer</span></button>
                       <button className="danger" onClick={()=>{setTechDraft(null);void deleteStock(item)}}><Trash2/><span>Supprimer</span></button>
-                      <button className="bare-action" aria-label="Fermer la fiche" onClick={()=>setTechDraft(null)}><X/></button>
+                      <button className="bare-action" aria-label="Fermer la fiche" onClick={()=>{setTechPopup(null);setTechDraft(null)}}><X/></button>
                     </div>
                   </div>
                   <div className="stock-tech-overview">
@@ -1786,12 +1790,18 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                     <div><b>{techDraft.name||'Matériel'}</b><small>{(techDraft.characteristics??[]).length} caractéristique{(techDraft.characteristics??[]).length>1?'s':''} · {(techDraft.ports??[]).length} port{(techDraft.ports??[]).length>1?'s':''} · {techDraft.quantity} unité{techDraft.quantity>1?'s':''}</small></div>
                     <span className={'stock-tech-health '+((techDraft.characteristics??[]).length||(techDraft.ports??[]).length?'ready':'empty')}>{(techDraft.characteristics??[]).length||(techDraft.ports??[]).length?'Fiche renseignée':'À compléter'}</span>
                   </div>
-                  <nav className="stock-tech-nav" aria-label="Sections de la fiche matériel">
-                    <button onClick={()=>document.getElementById('stock-tech-general')?.scrollIntoView({behavior:'smooth',block:'start'})}>Général</button>
-                    <button onClick={()=>document.getElementById('stock-tech-characteristics')?.scrollIntoView({behavior:'smooth',block:'start'})}>Caractéristiques <span>{(techDraft.characteristics??[]).length}</span></button>
-                    <button onClick={()=>document.getElementById('stock-tech-ports')?.scrollIntoView({behavior:'smooth',block:'start'})}>Connectiques <span>{(techDraft.ports??[]).length}</span></button>
-                    {techDraft.trackUnits&&<button onClick={()=>document.getElementById('stock-tech-units')?.scrollIntoView({behavior:'smooth',block:'start'})}>Unités</button>}
-                  </nav>
+                  <div className="stock-tech-launchers">
+                    <button onClick={()=>setTechPopup({kind:'characteristics'})}>
+                      <span className="stock-tech-launcher-icon"><Settings2/></span>
+                      <span><b>Caractéristiques</b><small>{(techDraft.characteristics??[]).length} renseignée{(techDraft.characteristics??[]).length>1?'s':''}</small></span>
+                      <ChevronRight/>
+                    </button>
+                    <button onClick={()=>setTechPopup({kind:'ports'})}>
+                      <span className="stock-tech-launcher-icon"><Link2/></span>
+                      <span><b>Connectiques / ports</b><small>{(techDraft.ports??[]).length} configuré{(techDraft.ports??[]).length>1?'s':''}</small></span>
+                      <ChevronRight/>
+                    </button>
+                  </div>
                   <details className="stock-item-history">
                     <summary><History/><span>Historique de cette fiche</span></summary>
                     <div>{history.filter(entry=>entry.inventoryStockItemId===item.id).slice(0,12).map(entry=><article key={entry.id}><time>{new Date(entry.createdAt).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</time><span><b>{entry.label}</b><small>{entry.details}</small></span></article>)}{!history.some(entry=>entry.inventoryStockItemId===item.id)&&<small>Aucun mouvement enregistré.</small>}</div>
@@ -1849,61 +1859,95 @@ export function InventoryPage({onOpen,onChanged,toast}:{onOpen:(id:string)=>void
                     <summary>Matériels liés / accessoires habituels</summary>
                     <div className="stock-related-grid">{stock.filter(candidate=>candidate.id!==techDraft.id).map(candidate=><label key={candidate.id}><input type="checkbox" checked={(techDraft.associatedItemIds??[]).includes(candidate.id)} onChange={e=>setTechDraft({...techDraft,associatedItemIds:e.target.checked?Array.from(new Set([...(techDraft.associatedItemIds??[]),candidate.id])):(techDraft.associatedItemIds??[]).filter(id=>id!==candidate.id)})}/><span><TechnicalIcon icon={candidate.representationIcon} text={candidate.name}/><b>{candidate.name}</b><small>{normalizeProvider(candidate.provider)}</small></span></label>)}</div>
                   </details>
-                  <section className="stock-tech-section stock-guided-section" id="stock-tech-characteristics">
-                    <div className="stock-tech-section-head guided">
-                      <span><b>Caractéristiques</b><small>Les informations utiles pour reconnaître et préparer ce matériel.</small></span>
-                      <button className="secondary" onClick={()=>setTechDraft({...techDraft,characteristics:[...(techDraft.characteristics??[]),{id:crypto.randomUUID(),label:'',value:''}]})}><Plus/>Ajouter</button>
-                    </div>
-                    {(techDraft.characteristics??[]).length===0&&<button className="stock-tech-empty-add" onClick={()=>setTechDraft({...techDraft,characteristics:[{id:crypto.randomUUID(),label:'',value:''}]})}><Plus/><span><b>Ajouter une caractéristique</b><small>Ex. longueur, puissance, modèle, couleur, nombre d’entrées…</small></span></button>}
-                    <div className="stock-tech-card-list">
-                      {(techDraft.characteristics??[]).map((characteristic,index)=><article className="stock-tech-card characteristic-card" key={characteristic.id}>
-                        <header>
-                          <span className="stock-tech-card-icon"><TechnicalIcon icon={characteristic.icon} text={characteristic.label+' '+characteristic.value}/></span>
-                          <span><b>{characteristic.label.trim()||'Nouvelle caractéristique'}</b><small>{characteristic.value.trim()||'Valeur à renseigner'}</small></span>
-                          <button className="bare-action danger-icon" aria-label="Supprimer cette caractéristique" onClick={()=>setTechDraft({...techDraft,characteristics:(techDraft.characteristics??[]).filter((_,i)=>i!==index)})}><Trash2/></button>
-                        </header>
-                        <div className="stock-tech-card-fields">
-                          <label><span>Type d’information</span><input value={characteristic.label} onChange={e=>setTechDraft({...techDraft,characteristics:(techDraft.characteristics??[]).map((value,i)=>i===index?{...value,label:e.target.value}:value)})} placeholder="Ex. Longueur"/></label>
-                          <label><span>Valeur</span><input value={characteristic.value} onChange={e=>setTechDraft({...techDraft,characteristics:(techDraft.characteristics??[]).map((value,i)=>i===index?{...value,value:e.target.value}:value)})} placeholder="Ex. 10 m"/></label>
-                          <label className="stock-tech-icon-choice"><span>Icône</span><TechnicalIconPicker compact value={characteristic.icon} text={characteristic.label+' '+characteristic.value} onChange={icon=>setTechDraft({...techDraft,characteristics:(techDraft.characteristics??[]).map((value,i)=>i===index?{...value,icon}:value)})}/></label>
-                        </div>
-                      </article>)}
-                    </div>
-                  </section>
+                  {techPopup&&<div className="stock-tech-modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setTechPopup(null)}}>
+                    <section className={'stock-tech-modal stock-tech-modal-'+techPopup.kind} role="dialog" aria-modal="true">
+                      <header className="stock-tech-modal-head">
+                        <span>
+                          <small>{techDraft.name}</small>
+                          <b>{techPopup.kind==='characteristics'?'Caractéristiques':techPopup.kind==='ports'?'Connectiques / ports':techPopup.kind==='characteristic'?'Modifier la caractéristique':'Modifier la connectique'}</b>
+                        </span>
+                        <button className="bare-action" aria-label="Fermer" onClick={()=>setTechPopup(null)}><X/></button>
+                      </header>
 
-                  <section className="stock-tech-section stock-guided-section" id="stock-tech-ports">
-                    <div className="stock-tech-section-head guided">
-                      <span><b>Connectiques & ports</b><small>Décris d’abord ce que tu branches ; les réglages spécialisés restent optionnels.</small></span>
-                      <button className="secondary" onClick={()=>setTechDraft({...techDraft,ports:[...(techDraft.ports??[]),{id:crypto.randomUUID(),label:'',connector:'XLR(F)',direction:'input',count:1,signalLevel:'unknown',balanced:false,stereo:false,phantom:'none'}]})}><Plus/>Ajouter un port</button>
-                    </div>
-                    {(techDraft.ports??[]).length===0&&<button className="stock-tech-empty-add" onClick={()=>setTechDraft({...techDraft,ports:[{id:crypto.randomUUID(),label:'',connector:'XLR(F)',direction:'input',count:1,signalLevel:'unknown',balanced:false,stereo:false,phantom:'none'}]})}><Plus/><span><b>Ajouter une connectique</b><small>Ex. Entrée micro XLR, sortie Jack, alimentation IEC…</small></span></button>}
-                    <div className="stock-tech-card-list">
-                      {(techDraft.ports??[]).map((port,index)=><article className="stock-tech-card port-card" key={port.id}>
-                        <header>
-                          <span className="stock-tech-card-icon connector"><TechnicalIcon icon={port.icon} text={port.connector+' '+port.label}/></span>
-                          <span><b>{port.label.trim()||port.connector}</b><small>{port.count>1?port.count+' × ':''}{port.connector} · {port.direction==='input'?'Entrée':port.direction==='output'?'Sortie':port.direction==='power'?'Alimentation':'Bidirectionnel'}</small></span>
-                          <button className="bare-action danger-icon" aria-label="Supprimer ce port" onClick={()=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).filter((_,i)=>i!==index)})}><Trash2/></button>
-                        </header>
-                        <div className="stock-port-essential">
-                          <label className="wide"><span>Nom / usage</span><input value={port.label} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,label:e.target.value}:value)})} placeholder="Ex. Entrée micro"/></label>
-                          <label><span>Connecteur</span><select value={port.connector} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,connector:e.target.value}:value)})}>{CONNECTOR_OPTIONS.map(value=><option value={value} key={value}>{value}</option>)}</select></label>
-                          <label><span>Sens</span><select value={port.direction} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,direction:e.target.value as InventoryPortDirection}:value)})}><option value="input">Entrée</option><option value="output">Sortie</option><option value="bidirectional">Entrée / sortie</option><option value="power">Alimentation</option></select></label>
-                          <label className="compact"><span>Nombre</span><input type="number" min="1" max="999" value={port.count} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,count:Math.max(1,Number(e.target.value)||1)}:value)})}/></label>
+                      {techPopup.kind==='characteristics'&&<>
+                        <div className="stock-tech-modal-intro"><span><b>{(techDraft.characteristics??[]).length}</b><small>caractéristique{(techDraft.characteristics??[]).length>1?'s':''}</small></span><p>Ajoute uniquement les informations utiles à identifier et préparer ce matériel.</p></div>
+                        <div className="stock-tech-modal-list">
+                          {(techDraft.characteristics??[]).map(characteristic=><button className="stock-tech-modal-item" key={characteristic.id} onClick={()=>setTechPopup({kind:'characteristic',id:characteristic.id})}>
+                            <span className="stock-tech-modal-item-icon"><TechnicalIcon icon={characteristic.icon} text={characteristic.label+' '+characteristic.value}/></span>
+                            <span><b>{characteristic.label.trim()||'Sans titre'}</b><small>{characteristic.value.trim()||'Valeur non renseignée'}</small></span>
+                            <ChevronRight/>
+                          </button>)}
+                          {!(techDraft.characteristics??[]).length&&<div className="stock-tech-modal-empty"><Settings2/><b>Aucune caractéristique</b><small>Longueur, puissance, modèle, couleur, dimensions…</small></div>}
                         </div>
-                        <details className="stock-port-advanced">
-                          <summary><Settings2/><span>Options audio / avancées</span><small>{port.signalLevel&&port.signalLevel!=='unknown'?port.signalLevel:'Niveau non défini'}{port.balanced?' · symétrique':''}{port.stereo?' · stéréo':''}</small></summary>
-                          <div>
-                            <label><span>Niveau de signal</span><select value={port.signalLevel??'unknown'} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,signalLevel:e.target.value as InventorySignalLevel}:value)})}><option value="unknown">Non précisé</option><option value="mic">Micro</option><option value="line">Ligne</option><option value="instrument">Instrument</option><option value="speaker">Haut-parleur</option><option value="digital">Numérique</option><option value="midi">MIDI</option><option value="power">Alimentation</option></select></label>
-                            <label><span>48V / Phantom</span><select value={port.phantom??'none'} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,phantom:e.target.value as InventoryPhantomMode}:value)})}><option value="none">Non concerné</option><option value="required">48V requis</option><option value="supported">48V supporté</option><option value="blocked">48V interdit</option></select></label>
-                            <label className="stock-port-switch"><input type="checkbox" checked={Boolean(port.balanced)} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,balanced:e.target.checked}:value)})}/><span><b>Symétrique</b><small>Connexion balanced</small></span></label>
-                            <label className="stock-port-switch"><input type="checkbox" checked={Boolean(port.stereo)} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,stereo:e.target.checked}:value)})}/><span><b>Stéréo</b><small>Canal L/R ou paire stéréo</small></span></label>
-                            <label className="stock-tech-icon-choice"><span>Icône</span><TechnicalIconPicker compact value={port.icon} text={port.connector+' '+port.label} onChange={icon=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map((value,i)=>i===index?{...value,icon}:value)})}/></label>
+                        <footer className="stock-tech-modal-actions">
+                          <button className="primary" onClick={()=>{
+                            const id=crypto.randomUUID()
+                            setTechDraft({...techDraft,characteristics:[...(techDraft.characteristics??[]),{id,label:'',value:''}]})
+                            setTechPopup({kind:'characteristic',id})
+                          }}><Plus/>Nouvelle caractéristique</button>
+                        </footer>
+                      </>}
+
+                      {techPopup.kind==='ports'&&<>
+                        <div className="stock-tech-modal-intro"><span><b>{(techDraft.ports??[]).length}</b><small>port{(techDraft.ports??[]).length>1?'s':''}</small></span><p>Chaque connectique est indépendante pour éviter les formulaires techniques trop chargés.</p></div>
+                        <div className="stock-tech-modal-list">
+                          {(techDraft.ports??[]).map(port=><button className="stock-tech-modal-item" key={port.id} onClick={()=>setTechPopup({kind:'port',id:port.id})}>
+                            <span className="stock-tech-modal-item-icon"><TechnicalIcon icon={port.icon} text={port.connector+' '+port.label}/></span>
+                            <span><b>{port.label.trim()||port.connector}</b><small>{port.count>1?port.count+' × ':''}{port.connector} · {port.direction==='input'?'Entrée':port.direction==='output'?'Sortie':port.direction==='power'?'Alimentation':'Entrée / sortie'}</small></span>
+                            <ChevronRight/>
+                          </button>)}
+                          {!(techDraft.ports??[]).length&&<div className="stock-tech-modal-empty"><Link2/><b>Aucune connectique</b><small>XLR, Jack, USB, RJ45, alimentation…</small></div>}
+                        </div>
+                        <footer className="stock-tech-modal-actions">
+                          <button className="primary" onClick={()=>{
+                            const id=crypto.randomUUID()
+                            setTechDraft({...techDraft,ports:[...(techDraft.ports??[]),{id,label:'',connector:'XLR(F)',direction:'input',count:1,signalLevel:'unknown',balanced:false,stereo:false,phantom:'none'}]})
+                            setTechPopup({kind:'port',id})
+                          }}><Plus/>Nouvelle connectique</button>
+                        </footer>
+                      </>}
+
+                      {techPopup.kind==='characteristic'&&(()=>{const characteristic=(techDraft.characteristics??[]).find(value=>value.id===techPopup.id);if(!characteristic)return null;return <>
+                        <div className="stock-tech-single">
+                          <div className="stock-tech-single-preview"><span><TechnicalIcon icon={characteristic.icon} text={characteristic.label+' '+characteristic.value}/></span><div><b>{characteristic.label.trim()||'Nouvelle caractéristique'}</b><small>{characteristic.value.trim()||'À renseigner'}</small></div></div>
+                          <label><span>Type d’information</span><input autoFocus value={characteristic.label} onChange={e=>setTechDraft({...techDraft,characteristics:(techDraft.characteristics??[]).map(value=>value.id===characteristic.id?{...value,label:e.target.value}:value)})} placeholder="Ex. Longueur"/></label>
+                          <label><span>Valeur</span><input value={characteristic.value} onChange={e=>setTechDraft({...techDraft,characteristics:(techDraft.characteristics??[]).map(value=>value.id===characteristic.id?{...value,value:e.target.value}:value)})} placeholder="Ex. 10 m"/></label>
+                          <label><span>Icône</span><TechnicalIconPicker value={characteristic.icon} text={characteristic.label+' '+characteristic.value} onChange={icon=>setTechDraft({...techDraft,characteristics:(techDraft.characteristics??[]).map(value=>value.id===characteristic.id?{...value,icon}:value)})}/></label>
+                        </div>
+                        <footer className="stock-tech-modal-actions split">
+                          <button className="danger" onClick={()=>{setTechDraft({...techDraft,characteristics:(techDraft.characteristics??[]).filter(value=>value.id!==characteristic.id)});setTechPopup({kind:'characteristics'})}}><Trash2/>Supprimer</button>
+                          <button className="primary" onClick={()=>setTechPopup({kind:'characteristics'})}><Check/>Terminé</button>
+                        </footer>
+                      </>})()}
+
+                      {techPopup.kind==='port'&&(()=>{const port=(techDraft.ports??[]).find(value=>value.id===techPopup.id);if(!port)return null;return <>
+                        <div className="stock-tech-single">
+                          <div className="stock-tech-single-preview"><span><TechnicalIcon icon={port.icon} text={port.connector+' '+port.label}/></span><div><b>{port.label.trim()||port.connector}</b><small>{port.count} × {port.connector}</small></div></div>
+                          <div className="stock-tech-single-grid">
+                            <label className="wide"><span>Nom / usage</span><input autoFocus value={port.label} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map(value=>value.id===port.id?{...value,label:e.target.value}:value)})} placeholder="Ex. Entrée micro"/></label>
+                            <label><span>Connecteur</span><select value={port.connector} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map(value=>value.id===port.id?{...value,connector:e.target.value}:value)})}>{CONNECTOR_OPTIONS.map(value=><option value={value} key={value}>{value}</option>)}</select></label>
+                            <label><span>Sens</span><select value={port.direction} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map(value=>value.id===port.id?{...value,direction:e.target.value as InventoryPortDirection}:value)})}><option value="input">Entrée</option><option value="output">Sortie</option><option value="bidirectional">Entrée / sortie</option><option value="power">Alimentation</option></select></label>
+                            <label><span>Nombre</span><input type="number" min="1" max="999" value={port.count} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map(value=>value.id===port.id?{...value,count:Math.max(1,Number(e.target.value)||1)}:value)})}/></label>
                           </div>
-                        </details>
-                      </article>)}
-                    </div>
-                  </section>
-                  <div className="stock-tech-actions"><button className="secondary" onClick={()=>setTechDraft(null)}>Annuler</button><button className="primary" onClick={()=>void saveTechnicalDraft()}><Save/>Enregistrer</button></div>
+                          <details className="stock-tech-single-advanced">
+                            <summary><Settings2/><span>Options avancées</span><ChevronDown/></summary>
+                            <div>
+                              <label><span>Niveau de signal</span><select value={port.signalLevel??'unknown'} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map(value=>value.id===port.id?{...value,signalLevel:e.target.value as InventorySignalLevel}:value)})}><option value="unknown">Non précisé</option><option value="mic">Micro</option><option value="line">Ligne</option><option value="instrument">Instrument</option><option value="speaker">Haut-parleur</option><option value="digital">Numérique</option><option value="midi">MIDI</option><option value="power">Alimentation</option></select></label>
+                              <label><span>48V / Phantom</span><select value={port.phantom??'none'} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map(value=>value.id===port.id?{...value,phantom:e.target.value as InventoryPhantomMode}:value)})}><option value="none">Non concerné</option><option value="required">48V requis</option><option value="supported">48V supporté</option><option value="blocked">48V interdit</option></select></label>
+                              <label className="stock-tech-check"><input type="checkbox" checked={Boolean(port.balanced)} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map(value=>value.id===port.id?{...value,balanced:e.target.checked}:value)})}/><span><b>Symétrique</b><small>Connexion balanced</small></span></label>
+                              <label className="stock-tech-check"><input type="checkbox" checked={Boolean(port.stereo)} onChange={e=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map(value=>value.id===port.id?{...value,stereo:e.target.checked}:value)})}/><span><b>Stéréo</b><small>Canal L/R ou paire</small></span></label>
+                              <label className="wide"><span>Icône</span><TechnicalIconPicker value={port.icon} text={port.connector+' '+port.label} onChange={icon=>setTechDraft({...techDraft,ports:(techDraft.ports??[]).map(value=>value.id===port.id?{...value,icon}:value)})}/></label>
+                            </div>
+                          </details>
+                        </div>
+                        <footer className="stock-tech-modal-actions split">
+                          <button className="danger" onClick={()=>{setTechDraft({...techDraft,ports:(techDraft.ports??[]).filter(value=>value.id!==port.id)});setTechPopup({kind:'ports'})}}><Trash2/>Supprimer</button>
+                          <button className="primary" onClick={()=>setTechPopup({kind:'ports'})}><Check/>Terminé</button>
+                        </footer>
+                      </>})()}
+                    </section>
+                  </div>}
+                  <div className="stock-tech-actions"><button className="secondary" onClick={()=>{setTechPopup(null);setTechDraft(null)}}>Annuler</button><button className="primary" onClick={()=>void saveTechnicalDraft()}><Save/>Enregistrer</button></div>
                 </div>}
               </div>)}
             </CategorySection>
